@@ -13,7 +13,8 @@ import (
 
 // Server is a rest with store
 type Server struct {
-	Store store.Interface
+	Store   store.Interface
+	PinSize int
 }
 
 //Run the lister and request's router, activate rest server
@@ -47,7 +48,15 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 		return
 	}
 
-	r, err := s.Store.Save(time.Minute*time.Duration(request.Exp), request.Message, request.Pin)
+	if len(request.Pin) != s.PinSize {
+		log.Printf("[WARN] incorrect pin size %d", len(request.Pin))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "incorrect pin size"})
+		return
+	}
+
+	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v", time.Second*time.Duration(request.Exp)))
+
+	r, err := s.Store.Save(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -58,9 +67,9 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 // /v1/message/:key/:pin
 func (s Server) getMessageCtrl(c *gin.Context) {
 	key, pin := c.Param("key"), c.Param("pin")
-	if key == "" || pin == "" {
-		log.Print("[WARN] no key or pin in get request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no key passed"})
+	if key == "" || pin == "" || len(pin) != s.PinSize {
+		log.Print("[WARN] no valid key or pin in get request")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no key or pin passed"})
 		return
 	}
 	r, err := s.Store.Load(key, pin)

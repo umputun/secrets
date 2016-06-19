@@ -52,3 +52,32 @@ func TestCrypt(t *testing.T) {
 		assert.Equal(t, tt.data, r2)
 	}
 }
+
+func TestMakeSignKey(t *testing.T) {
+
+	tbl := []struct {
+		key     string
+		pinSize int
+		res     string
+	}{
+		{
+			key:     "abcdefg",
+			pinSize: 5,
+			res:     "abcdefgabcdefgabcdefgabcdef",
+		},
+		{
+			key:     "abcdefgabcdefgabcdefgabcdef",
+			pinSize: 5,
+			res:     "abcdefgabcdefgabcdefgabcdef",
+		},
+		{
+			key:     "11223344556677889900112233445566778899001122334455",
+			pinSize: 6,
+			res:     "11223344556677889900112233",
+		},
+	}
+	for _, tt := range tbl {
+		assert.Equal(t, tt.res, MakeSignKey(tt.key, tt.pinSize))
+		assert.Equal(t, 32, len(tt.res)+tt.pinSize)
+	}
+}

@@ -81,3 +81,15 @@ func (c Crypt) Decrypt(req Request) (result string, err error) {
 
 	return string(ciphertext), nil
 }
+
+// MakeSignKey creates 32-pin bytes signKey for AES256
+func MakeSignKey(signKey string, pinSize int) (result string) {
+	if len(signKey) >= 32-pinSize {
+		return signKey[:32-pinSize]
+	}
+
+	for i := 0; i <= (32-pinSize)/len(signKey); i++ {
+		result += signKey
+	}
+	return result[:32-pinSize]
+}

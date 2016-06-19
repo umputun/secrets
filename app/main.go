@@ -14,7 +14,7 @@ import (
 var opts struct {
 	SignKey    string `short:"k" long:"key" env:"SIGN_KEY" description:"JWT sign key" required:"true"`
 	PinSize    int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
-	MaxExpMins int    `long:"expire" env:"MAX_EXPIRE" default:"600" description:"max token's lifetime, in days"`
+	MaxExpSecs int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max token's lifetime, in seconds"`
 	Dbg        bool   `long:"dbg" description:"debug mode"`
 }
 
@@ -32,9 +32,10 @@ func main() {
 		log.SetFlags(log.Ldate | log.Ltime)
 	}
 	log.Printf("secrets %s", revision)
-
+	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	server := rest.Server{
-		Store: store.NewInMemory(crypt.Crypt{Key: opts.SignKey}, time.Minute*time.Duration(opts.MaxExpMins)),
+		Store:   store.NewInMemory(crypt, time.Second*time.Duration(opts.MaxExpSecs)),
+		PinSize: opts.PinSize,
 	}
 	server.Run()
 }
