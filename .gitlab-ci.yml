@@ -1,0 +1,56 @@
+stages:
+    - build
+    - deploy
+
+before_script:
+    - export TZ=America/Chicago
+    - export REV=${CI_BUILD_REF:0:7}-$CI_BUILD_ID-$CI_BUILD_REF_NAME-$(date +%Y%m%d-%H:%M:%S)
+    - export IMAGE=umputun/secrets:${CI_BUILD_REF_NAME/\//-}
+    - export LATEST=umputun/secrets:latest
+    - echo "buld revision=${REV}"
+
+build_app:
+    stage: build
+    script:
+        - mkdir -p /go/src/github.com/umputun/secrets
+        - ln -s /builds/umputun/secrets /go/src/github.com/umputun/secrets
+        - cd /go/src/github.com/umputun/secrets
+        - go get -v $(go list -e ./... | grep -v vendor) && go get -t $(go list -e ./... | grep -v vendor)
+        - go test -v $(go list -e ./... | grep -v vendor)
+        - mkdir -p /builds/umputun/secrets/target
+        - go build -ldflags "-X main.revision=$REV" -o /builds/umputun/secrets/target/secrets
+        - ./script/coverage.sh
+    artifacts:
+        paths:
+            - target/
+    tags:
+        - gobuilder
+
+build_image:
+    stage: deploy
+    dependencies:
+        - build_app
+    script:
+        - echo "image = $IMAGE"
+        - docker build -t $IMAGE -f Dockerfile.gitlab .
+        - docker push $IMAGE
+    tags:
+        - gobuilder
+    except:
+         - tags
+         - develop
+
+build_image_tag:
+    stage: deploy
+    dependencies:
+        - build_app
+    script:
+        - echo "image = $IMAGE, latest = $LATEST"
+        - docker build -t $IMAGE -f Dockerfile.gitlab .
+        - docker push $IMAGE
+        - docker tag $IMAGE $LATEST
+        - docker push $LATEST
+    tags:
+        - gobuilder
+    only:
+        - tags
