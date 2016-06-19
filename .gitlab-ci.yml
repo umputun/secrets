@@ -12,8 +12,8 @@ before_script:
 build_app:
     stage: build
     script:
-        - mkdir -p /go/src/github.com/umputun/secrets
-        - ln -s /builds/umputun/secrets/app /go/src/github.com/umputun/secrets
+        - mkdir -p /go/src/github.com/umputun
+        - ln -s /builds/umputun/secrets /go/src/github.com/umputun/secrets
         - cd /go/src/github.com/umputun/secrets/app
         - go get -v $(go list -e ./... | grep -v vendor) && go get -t $(go list -e ./... | grep -v vendor)
         - go test -v $(go list -e ./... | grep -v vendor)
