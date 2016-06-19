@@ -1,2 +1,7 @@
 # secrets
-secrets kept safe
+
+**Service to keep secrets safe(r)**
+
+## Usage
+
+## API

@@ -1,0 +1,29 @@
+version: '2'
+services:
+
+    secrets:
+        build: .
+        image: umputun/secrets:latest
+        container_name: secrets
+        hostname: secrets
+        restart: always
+
+    nginx:
+        image: nginx:latest
+        hostname: nginx
+        restart: always
+        container_name: nginx
+
+        depends_on:
+            - secrets
+
+        volumes:
+            - ./etc/secrets-nginx.conf:/etc/nginx/conf.d/secrets.conf
+            - ./etc/ssl:/etc/nginx/ssl
+
+        volumes_from:
+            - secrets
+
+        ports:
+            - "80:80"
+            - "443:443"
