@@ -7,6 +7,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/umputun/secrets/app/crypt"
+	"github.com/umputun/secrets/app/proc"
 	"github.com/umputun/secrets/app/rest"
 	"github.com/umputun/secrets/app/store"
 )
@@ -32,9 +33,12 @@ func main() {
 		log.SetFlags(log.Ldate | log.Ltime)
 	}
 	log.Printf("secrets %s", revision)
+
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
+	store := store.NewInMemory(crypt, time.Second*time.Duration(opts.MaxExpSecs))
+
 	server := rest.Server{
-		Store:   store.NewInMemory(crypt, time.Second*time.Duration(opts.MaxExpSecs)),
+		Proc:    proc.New(store, crypt, time.Second*time.Duration(opts.MaxExpSecs)),
 		PinSize: opts.PinSize,
 	}
 	server.Run()

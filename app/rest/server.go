@@ -8,12 +8,12 @@ import (
 
 	"github.com/didip/tollbooth"
 	"github.com/gin-gonic/gin"
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/app/proc"
 )
 
 // Server is a rest with store
 type Server struct {
-	Store   store.Interface
+	Proc    *proc.MessageProc
 	PinSize int
 }
 
@@ -56,7 +56,7 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 
 	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v", time.Second*time.Duration(request.Exp)))
 
-	r, err := s.Store.Save(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+	r, err := s.Proc.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -75,7 +75,7 @@ func (s Server) getMessageCtrl(c *gin.Context) {
 	}
 
 	serveRequest := func() (status int, res gin.H) {
-		r, err := s.Store.Load(key, pin)
+		r, err := s.Proc.LoadMessage(key, pin)
 		if err != nil {
 			log.Printf("[WARN] failed to load key %v", key)
 			return http.StatusBadRequest, gin.H{"error": err.Error()}
