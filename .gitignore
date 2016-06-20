@@ -22,5 +22,5 @@ _testmain.go
 *.exe
 *.test
 *.prof
-
+.cover/
 etc/ssl/

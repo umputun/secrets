@@ -66,19 +66,28 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 
 // /v1/message/:key/:pin
 func (s Server) getMessageCtrl(c *gin.Context) {
+
 	key, pin := c.Param("key"), c.Param("pin")
 	if key == "" || pin == "" || len(pin) != s.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no key or pin passed"})
 		return
 	}
-	r, err := s.Store.Load(key, pin)
-	if err != nil {
-		log.Printf("[WARN] failed to load key %v", key)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	serveRequest := func() (status int, res gin.H) {
+		r, err := s.Store.Load(key, pin)
+		if err != nil {
+			log.Printf("[WARN] failed to load key %v", key)
+			return http.StatusBadRequest, gin.H{"error": err.Error()}
+		}
+		return http.StatusOK, gin.H{"key": r.Key, "message": r.Data}
 	}
-	c.JSON(http.StatusOK, gin.H{"key": r.Key, "message": r.Data})
+
+	//make sure serveRequest works constant time in any branch
+	st := time.Now()
+	status, res := serveRequest()
+	time.Sleep(time.Millisecond*250 - time.Since(st))
+	c.JSON(status, res)
 }
 
 func (s Server) limiterMiddleware() gin.HandlerFunc {
