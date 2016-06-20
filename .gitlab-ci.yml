@@ -14,13 +14,11 @@ build_app:
     script:
         - mkdir -p /go/src/github.com/umputun
         - ln -s /builds/umputun/secrets /go/src/github.com/umputun/secrets
-        - cd /go/src/github.com/umputun/secrets/app
+        - cd /go/src/github.com/umputun/secrets
         - go get -v $(go list -e ./... | grep -v vendor) && go get -t $(go list -e ./... | grep -v vendor)
         - go test -v $(go list -e ./... | grep -v vendor)
-        - mkdir -p /builds/umputun/secrets/target
         - go build -ldflags "-X main.revision=$REV" -o /builds/umputun/secrets/target/secrets
-        - cd /go/src/github.com/umputun/secrets
-        - ls -la script/ && ./script/coverage.sh
+        - ./script/coverage.sh
     artifacts:
         paths:
             - target/
