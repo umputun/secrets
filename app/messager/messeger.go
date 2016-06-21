@@ -24,18 +24,38 @@ var (
 	ErrCrypto        = fmt.Errorf("crypto errpr")
 	ErrInternal      = fmt.Errorf("internal error")
 	ErrExpired       = fmt.Errorf("message expired")
+	ErrDuration      = fmt.Errorf("bad duration")
 )
 
 // MessageProc creates and save messages and retrive per key
 type MessageProc struct {
 	crypt.Crypt
-	maxDuration time.Duration
-	engine      store.Engine
+	Params
+	engine store.Engine
+}
+
+// Params to customzie limits
+type Params struct {
+	MaxDuration    time.Duration
+	MaxPinAttempts int
 }
 
 // New makes MessageProc with engine and crypt
-func New(engine store.Engine, crypt crypt.Crypt, maxDuration time.Duration) *MessageProc {
-	return &MessageProc{engine: engine, Crypt: crypt, maxDuration: maxDuration}
+func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
+
+	if params.MaxDuration == 0 {
+		params.MaxDuration = time.Hour * 24 * 31 //31 day if nothing defined
+	}
+	if params.MaxPinAttempts == 0 {
+		params.MaxPinAttempts = 3
+	}
+	log.Printf("[INFO] created messager with %+v", params)
+
+	return &MessageProc{
+		engine: engine,
+		Crypt:  crypt,
+		Params: params,
+	}
 }
 
 // MakeMessage from data, ping and duration. Encrypt data part with pin
@@ -50,6 +70,11 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 	if err != nil {
 		log.Printf("[ERROR] can't hash pin, %v", err)
 		return nil, ErrInternal
+	}
+
+	if duration > p.MaxDuration {
+		log.Printf("[ERROR] can't use duration, %v > %v", duration, p.MaxDuration)
+		return nil, ErrDuration
 	}
 
 	key, err := uuid.NewV4()
@@ -92,7 +117,7 @@ func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, er
 	if !p.checkHash(msg, pin) {
 		p.engine.IncErr(key)
 		log.Printf("[WARN] wrong pin provided (%d times)", msg.Errors+1)
-		if msg.Errors > 3 {
+		if msg.Errors > p.MaxPinAttempts {
 			p.engine.Remove(key)
 			return nil, ErrBadPin
 		}
@@ -121,7 +146,7 @@ func (p MessageProc) checkHash(msg *store.Message, pin string) bool {
 func (p MessageProc) makeHash(pin string) (result string, err error) {
 	hashedPin, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
 	if err != nil {
-		return result, err
+		return "", err
 	}
 	return string(hashedPin), nil
 }

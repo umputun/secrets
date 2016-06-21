@@ -11,6 +11,8 @@ import (
 	"github.com/umputun/secrets/app/messager"
 )
 
+const limitReqSec = 5
+
 // Server is a rest with store
 type Server struct {
 	Messager *messager.MessageProc
@@ -27,8 +29,12 @@ func (s Server) Run() {
 	router.Use(s.limiterMiddleware())
 	router.Use(s.loggerMiddleware())
 
-	router.POST("/v1/message", s.saveMessageCtrl)
-	router.GET("/v1/message/:key/:pin", s.getMessageCtrl)
+	v1 := router.Group("/v1")
+	{
+		v1.POST("/message", s.saveMessageCtrl)
+		v1.GET("/message/:key/:pin", s.getMessageCtrl)
+		v1.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
+	}
 
 	log.Fatal(router.Run(":8080"))
 }
@@ -91,7 +97,7 @@ func (s Server) getMessageCtrl(c *gin.Context) {
 }
 
 func (s Server) limiterMiddleware() gin.HandlerFunc {
-	limiter := tollbooth.NewLimiter(5, time.Second)
+	limiter := tollbooth.NewLimiter(limitReqSec, time.Second)
 	return func(c *gin.Context) {
 		keys := []string{c.ClientIP(), c.Request.Header.Get("User-Agent")}
 		if httpError := tollbooth.LimitByKeys(limiter, keys); httpError != nil {

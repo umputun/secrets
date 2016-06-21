@@ -13,10 +13,11 @@ import (
 )
 
 var opts struct {
-	SignKey    string `short:"k" long:"key" env:"SIGN_KEY" description:"JWT sign key" required:"true"`
-	PinSize    int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
-	MaxExpSecs int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max token's lifetime, in seconds"`
-	Dbg        bool   `long:"dbg" description:"debug mode"`
+	SignKey        string `short:"k" long:"key" env:"SIGN_KEY" description:"JWT sign key" required:"true"`
+	PinSize        int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
+	MaxExpSecs     int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max token's lifetime, in seconds"`
+	MaxPinAttempts int    `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
+	Dbg            bool   `long:"dbg" description:"debug mode"`
 }
 
 var revision string
@@ -27,18 +28,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.SetFlags(log.Ldate | log.Ltime)
 	if opts.Dbg {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
-	} else {
-		log.SetFlags(log.Ldate | log.Ltime)
 	}
 	log.Printf("secrets %s", revision)
 
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	store := store.NewInMemory(crypt, time.Second*time.Duration(opts.MaxExpSecs))
-
+	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
-		Messager: messager.New(store, crypt, time.Second*time.Duration(opts.MaxExpSecs)),
+		Messager: messager.New(store, crypt, params),
 		PinSize:  opts.PinSize,
 	}
 	server.Run()
