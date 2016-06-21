@@ -7,7 +7,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/umputun/secrets/app/crypt"
-	"github.com/umputun/secrets/app/proc"
+	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/rest"
 	"github.com/umputun/secrets/app/store"
 )
@@ -38,8 +38,8 @@ func main() {
 	store := store.NewInMemory(crypt, time.Second*time.Duration(opts.MaxExpSecs))
 
 	server := rest.Server{
-		Proc:    proc.New(store, crypt, time.Second*time.Duration(opts.MaxExpSecs)),
-		PinSize: opts.PinSize,
+		Messager: messager.New(store, crypt, time.Second*time.Duration(opts.MaxExpSecs)),
+		PinSize:  opts.PinSize,
 	}
 	server.Run()
 }

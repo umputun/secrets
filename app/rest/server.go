@@ -8,13 +8,13 @@ import (
 
 	"github.com/didip/tollbooth"
 	"github.com/gin-gonic/gin"
-	"github.com/umputun/secrets/app/proc"
+	"github.com/umputun/secrets/app/messager"
 )
 
 // Server is a rest with store
 type Server struct {
-	Proc    *proc.MessageProc
-	PinSize int
+	Messager *messager.MessageProc
+	PinSize  int
 }
 
 //Run the lister and request's router, activate rest server
@@ -33,7 +33,7 @@ func (s Server) Run() {
 	log.Fatal(router.Run(":8080"))
 }
 
-// /v1/message
+// POST /v1/message
 func (s Server) saveMessageCtrl(c *gin.Context) {
 	request := struct {
 		Message string `binding:"required"`
@@ -56,7 +56,7 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 
 	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v", time.Second*time.Duration(request.Exp)))
 
-	r, err := s.Proc.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+	r, err := s.Messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -64,7 +64,7 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"key": r.Key, "exp": r.Exp})
 }
 
-// /v1/message/:key/:pin
+// GET /v1/message/:key/:pin
 func (s Server) getMessageCtrl(c *gin.Context) {
 
 	key, pin := c.Param("key"), c.Param("pin")
@@ -75,7 +75,7 @@ func (s Server) getMessageCtrl(c *gin.Context) {
 	}
 
 	serveRequest := func() (status int, res gin.H) {
-		r, err := s.Proc.LoadMessage(key, pin)
+		r, err := s.Messager.LoadMessage(key, pin)
 		if err != nil {
 			log.Printf("[WARN] failed to load key %v", key)
 			return http.StatusBadRequest, gin.H{"error": err.Error()}
@@ -83,7 +83,7 @@ func (s Server) getMessageCtrl(c *gin.Context) {
 		return http.StatusOK, gin.H{"key": r.Key, "message": r.Data}
 	}
 
-	//make sure serveRequest works constant time in any branch
+	//make sure serveRequest works constant time on any branch
 	st := time.Now()
 	status, res := serveRequest()
 	time.Sleep(time.Millisecond*250 - time.Since(st))

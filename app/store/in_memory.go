@@ -16,9 +16,7 @@ type InMemory struct {
 
 // NewInMemory makes new store with max duration
 func NewInMemory(crypt crypt.Crypt, maxDuration time.Duration) *InMemory {
-	result := InMemory{
-		data: map[string]Message{},
-	}
+	result := InMemory{data: map[string]Message{}}
 	result.activateCleaner()
 	return &result
 }

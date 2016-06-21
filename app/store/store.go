@@ -21,7 +21,7 @@ type Message struct {
 	Errors  int    `json:"-"`
 }
 
-// Engine defines interface to save and load messages
+// Engine defines interface to save, load, remove and inc error for messages
 type Engine interface {
 	Save(msg *Message) (err error)
 	Load(key string) (resutl *Message, err error)

@@ -1,8 +1,13 @@
-package proc
+package messager
 
+// Messager package using injected store.Engine to save and load messages.
+// It does all enccytption/decription, hasing and uses engine as dump storage only.
+// Passed (from user) pin used as a part of encryption key for data and get delegated to crypt.Crypt.
+// Pin not saved directly, but hashed with bcrypt.
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -68,7 +73,9 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 	return result, err
 }
 
-// LoadMessage get from store, verifies Message with pin and Decrypt content
+// LoadMessage get from store, verifies Message with pin and Decrypt content.
+// It also removes accessed messages and invalidate on multiple wrong pins.
+// Message decrypted by this function and returned naked to consumer.
 func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, err error) {
 
 	msg, err = p.engine.Load(key)
@@ -117,4 +124,8 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 		return result, err
 	}
 	return string(hashedPin), nil
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
