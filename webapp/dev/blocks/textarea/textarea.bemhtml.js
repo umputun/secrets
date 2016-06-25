@@ -11,3 +11,15 @@ block('textarea')(
 		};
 	})
 );
+
+block('textarea').mod('autoselect', true)(
+	attrs()(function() {
+		var ctx = this.ctx;
+
+		return {
+			id: ctx.id,
+			onclick: 'this.focus(); this.select()',
+			readonly: true
+		};
+	})
+);

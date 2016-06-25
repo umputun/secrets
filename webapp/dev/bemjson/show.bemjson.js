@@ -48,7 +48,9 @@
 									}
 								},
 								{
-									elem: 'info',
+									block: 'textarea',
+									mods: { autoselect: true },
+									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
 									}

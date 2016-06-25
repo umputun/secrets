@@ -75,9 +75,11 @@
 									content: 'Here is your link and don\'t forget your PIN!'
 								},
 								{
-									elem: 'link',
+									block: 'textarea',
+									mods: { autoselect: true },
+									mix: { block: 'result', elem: 'info' },
 									attrs: {
-										id: 'result__link'
+										id: 'result__info'
 									}
 								}
 							]
