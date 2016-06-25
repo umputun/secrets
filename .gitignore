@@ -23,4 +23,6 @@ _testmain.go
 *.test
 *.prof
 
+.cover/
 etc/ssl/
+target/

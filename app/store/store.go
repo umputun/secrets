@@ -2,22 +2,28 @@ package store
 
 import (
 	"fmt"
-	"math/rand"
 	"time"
 )
 
 // Error messages
 var (
-	ErrGetRejected  = fmt.Errorf("message expired or deleted")
+	ErrLoadRejected = fmt.Errorf("message expired or deleted")
 	ErrSaveRejected = fmt.Errorf("can't save message")
 )
 
-// Interface to save and load messages
-type Interface interface {
-	Save(duration time.Duration, msg string, pin string) (result *Message, err error)
-	Load(key string, pin string) (resutl *Message, err error)
+// Message with key and exp. time
+type Message struct {
+	Key     string
+	Exp     time.Time
+	Data    string
+	PinHash string `json:"-"`
+	Errors  int    `json:"-"`
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
+// Engine defines interface to save, load, remove and inc errors count for messages
+type Engine interface {
+	Save(msg *Message) (err error)
+	Load(key string) (resutl *Message, err error)
+	IncErr(key string) (count int, err error)
+	Remove(key string) (err error)
 }

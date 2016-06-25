@@ -4,17 +4,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/didip/tollbooth"
 	"github.com/gin-gonic/gin"
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/app/messager"
 )
+
+const limitReqSec = 5
 
 // Server is a rest with store
 type Server struct {
-	Store   store.Interface
-	PinSize int
+	Messager *messager.MessageProc
+	PinSize  int
 }
 
 //Run the lister and request's router, activate rest server
@@ -27,13 +30,17 @@ func (s Server) Run() {
 	router.Use(s.limiterMiddleware())
 	router.Use(s.loggerMiddleware())
 
-	router.POST("/v1/message", s.saveMessageCtrl)
-	router.GET("/v1/message/:key/:pin", s.getMessageCtrl)
+	v1 := router.Group("/v1")
+	{
+		v1.POST("/message", s.saveMessageCtrl)
+		v1.GET("/message/:key/:pin", s.getMessageCtrl)
+		v1.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
+	}
 
 	log.Fatal(router.Run(":8080"))
 }
 
-// /v1/message
+// POST /v1/message
 func (s Server) saveMessageCtrl(c *gin.Context) {
 	request := struct {
 		Message string `binding:"required"`
@@ -54,9 +61,10 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 		return
 	}
 
-	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v", time.Second*time.Duration(request.Exp)))
+	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v %v",
+		time.Second*time.Duration(request.Exp), time.Now().Add(time.Second*time.Duration(request.Exp)).Format("2006/01/02-15:04:05")))
 
-	r, err := s.Store.Save(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+	r, err := s.Messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -64,25 +72,34 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"key": r.Key, "exp": r.Exp})
 }
 
-// /v1/message/:key/:pin
+// GET /v1/message/:key/:pin
 func (s Server) getMessageCtrl(c *gin.Context) {
+
 	key, pin := c.Param("key"), c.Param("pin")
 	if key == "" || pin == "" || len(pin) != s.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no key or pin passed"})
 		return
 	}
-	r, err := s.Store.Load(key, pin)
-	if err != nil {
-		log.Printf("[WARN] failed to load key %v", key)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+
+	serveRequest := func() (status int, res gin.H) {
+		r, err := s.Messager.LoadMessage(key, pin)
+		if err != nil {
+			log.Printf("[WARN] failed to load key %v", key)
+			return http.StatusBadRequest, gin.H{"error": err.Error()}
+		}
+		return http.StatusOK, gin.H{"key": r.Key, "message": r.Data}
 	}
-	c.JSON(http.StatusOK, gin.H{"key": r.Key, "message": r.Data})
+
+	//make sure serveRequest works constant time on any branch
+	st := time.Now()
+	status, res := serveRequest()
+	time.Sleep(time.Millisecond*250 - time.Since(st))
+	c.JSON(status, res)
 }
 
 func (s Server) limiterMiddleware() gin.HandlerFunc {
-	limiter := tollbooth.NewLimiter(5, time.Second)
+	limiter := tollbooth.NewLimiter(limitReqSec, time.Second)
 	return func(c *gin.Context) {
 		keys := []string{c.ClientIP(), c.Request.Header.Get("User-Agent")}
 		if httpError := tollbooth.LimitByKeys(limiter, keys); httpError != nil {
@@ -104,8 +121,12 @@ func (s Server) loggerMiddleware() gin.HandlerFunc {
 			body = fmt.Sprintf("%v", b)
 		}
 
+		reqPath := c.Request.URL.Path
+		if strings.HasPrefix(reqPath, "/message/") {
+			reqPath = "/message/*****/*****"
+		}
 		log.Printf("[INFO] %s %s {%s} %s %v %d",
-			c.Request.Method, c.Request.URL.Path, body,
+			c.Request.Method, reqPath, body,
 			c.ClientIP(), time.Since(t), c.Writer.Status())
 
 	}
