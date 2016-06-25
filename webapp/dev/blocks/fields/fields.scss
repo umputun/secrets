@@ -1,0 +1,77 @@
+$b: '.fields';
+
+#{$b} {
+	position: relative;
+	top: 0;
+	margin: 0 auto;
+	padding: 0;
+	list-style: none;
+	
+	&_next {
+		.field_hide {
+			visibility: visible;
+			
+			.animation__lower,
+			.animation__upper {
+				@keyframes animHideNext {
+					to { opacity: 0; transform: translate3d(0, -500px, 0); }
+				}
+
+				animation: animHideNext 0.5s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+			}
+
+			.animation__lower {
+				animation-delay: 0.1s;
+			}
+		}
+
+		.field_shown {
+			.animation__lower,
+			.animation__upper {
+				@keyframes animShowNext {
+					from { opacity: 0; transform: translate3d(0, 500px, 0); }
+				}
+
+				animation: animShowNext 0.5s cubic-bezier(0.7, 0, 0.3, 1) both 0.15s;
+			}
+
+			.animation__lower {
+				animation-delay: 0.25s;
+			}
+		}
+	}
+
+	&_prev {
+		.field_hide {
+			visibility: visible;
+			
+			.animation__lower,
+			.animation__upper {
+				@keyframes animHidePrev {
+					to { opacity: 0; transform: translate3d(0, 500px, 0); }
+				}
+
+				animation: animHidePrev 0.5s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+			}
+
+			.animation__upper {
+				animation-delay: 0.1s;
+			}
+		}
+
+		.field_shown {
+			.animation__lower,
+			.animation__upper {
+				@keyframes animShowPrev {
+					from { opacity: 0; transform: translate3d(0, -500px, 0); }
+				}
+
+				animation: animShowPrev 0.5s cubic-bezier(0.7, 0, 0.3, 1) both 0.15s;
+			}
+
+			.animation__upper {
+				animation-delay: 0.25s;
+			}
+		}
+	}
+}
