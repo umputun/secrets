@@ -2,7 +2,11 @@ version: '2'
 services:
 
     secrets:
-        build: .
+        build:
+            context: .
+            args:
+                TZ: America/Chicago
+
         image: umputun/secrets:latest
         container_name: secrets
         hostname: secrets

@@ -1,12 +1,14 @@
 FROM golang:alpine
 
+ARG TZ=America/Chicago
+
 # add user and set TZ
 RUN \
  apk add --update tzdata && \
  adduser -s /bin/bash -D -u 1001 secrets && \
  mkdir -p /srv && chown -R secrets:secrets /srv && \
- cp /usr/share/zoneinfo/America/Chicago /etc/localtime && \
- echo "America/Chicago" > /etc/timezone && \
+ cp /usr/share/zoneinfo/$TZ /etc/localtime && \
+ echo $TZ > /etc/timezone && \
  rm -rf /var/cache/apk/*
 
 ADD app /go/src/github.com/umputun/secrets/app
