@@ -8,6 +8,7 @@ before_script:
     - export IMAGE=umputun/secrets:${CI_BUILD_REF_NAME/\//-}
     - export LATEST=umputun/secrets:latest
     - echo "buld revision=${REV}"
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN docker.umputun.com:5500
 
 build_app:
     stage: build
@@ -25,7 +26,7 @@ build_app:
     tags:
         - gobuilder
 
-build_image:
+deploy_image:
     stage: deploy
     dependencies:
         - build_app
@@ -39,7 +40,7 @@ build_image:
          - tags
          - develop
 
-build_image_tag:
+deploy_image_tag:
     stage: deploy
     dependencies:
         - build_app
