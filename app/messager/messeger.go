@@ -1,9 +1,10 @@
-package messager
-
 // Messager package using injected store.Engine to save and load messages.
-// It does all enccytption/decription, hasing and uses engine as dump storage only.
+// It does all encryption/decription and hashing. Engine used as a dump storage only.
 // Passed (from user) pin used as a part of encryption key for data and get delegated to crypt.Crypt.
 // Pin not saved directly, but hashed with bcrypt.
+
+package messager
+
 import (
 	"fmt"
 	"log"
@@ -44,7 +45,7 @@ type Params struct {
 func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
 
 	if params.MaxDuration == 0 {
-		params.MaxDuration = time.Hour * 24 * 31 //31 day if nothing defined
+		params.MaxDuration = time.Hour * 24 * 31 //31 days if nothing defined
 	}
 	if params.MaxPinAttempts == 0 {
 		params.MaxPinAttempts = 3
@@ -58,7 +59,7 @@ func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
 	}
 }
 
-// MakeMessage from data, ping and duration. Encrypt data part with pin
+// MakeMessage from data, pin and duration, saves to store. Encrypts data part with pin.
 func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string) (result *store.Message, err error) {
 
 	if pin == "" {
@@ -79,7 +80,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 
 	key, err := uuid.NewV4()
 	if err != nil {
-		log.Printf("[ERROR] can't make uuis, %v", err)
+		log.Printf("[ERROR] can't make uuid, %v", err)
 		return nil, ErrInternal
 	}
 
@@ -98,9 +99,9 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 	return result, err
 }
 
-// LoadMessage get from store, verifies Message with pin and Decrypt content.
-// It also removes accessed messages and invalidate on multiple wrong pins.
-// Message decrypted by this function and returned naked to consumer.
+// LoadMessage gets from store, verifies Message with pin and decrypts content.
+// It also removes accessed messages and invalidate them on multiple wrong pins.
+// Message decrypted by this function will be returned naked to consumer.
 func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, err error) {
 
 	msg, err = p.engine.Load(key)
@@ -134,7 +135,6 @@ func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, er
 	p.engine.Remove(key)
 	msg.Data = r
 	return msg, nil
-
 }
 
 // checkHash verifies msg.PinHash with provided pin

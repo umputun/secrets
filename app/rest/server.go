@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/didip/tollbooth"
@@ -60,7 +61,8 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 		return
 	}
 
-	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v", time.Second*time.Duration(request.Exp)))
+	c.Set("post", fmt.Sprintf("msg: *****, pin: *****, exp: %v %v",
+		time.Second*time.Duration(request.Exp), time.Now().Add(time.Second*time.Duration(request.Exp)).Format("2006/01/02-15:04:05")))
 
 	r, err := s.Messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
@@ -119,8 +121,12 @@ func (s Server) loggerMiddleware() gin.HandlerFunc {
 			body = fmt.Sprintf("%v", b)
 		}
 
+		reqPath := c.Request.URL.Path
+		if strings.HasPrefix(reqPath, "/message/") {
+			reqPath = "/message/*****/*****"
+		}
 		log.Printf("[INFO] %s %s {%s} %s %v %d",
-			c.Request.Method, c.Request.URL.Path, body,
+			c.Request.Method, reqPath, body,
 			c.ClientIP(), time.Since(t), c.Writer.Status())
 
 	}

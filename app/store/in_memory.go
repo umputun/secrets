@@ -4,8 +4,6 @@ import (
 	"log"
 	"sync"
 	"time"
-
-	"github.com/umputun/secrets/app/crypt"
 )
 
 // InMemory implements store.Interface with concurent map
@@ -15,9 +13,10 @@ type InMemory struct {
 }
 
 // NewInMemory makes new store with max duration
-func NewInMemory(crypt crypt.Crypt, maxDuration time.Duration) *InMemory {
+func NewInMemory(maxDuration time.Duration, cleanupDuration time.Duration) *InMemory {
+	log.Print("[INFO] InMemory store")
 	result := InMemory{data: map[string]Message{}}
-	result.activateCleaner()
+	result.activateCleaner(cleanupDuration)
 	return &result
 }
 
@@ -71,15 +70,16 @@ func (s *InMemory) Remove(key string) (err error) {
 	return nil
 }
 
-func (s *InMemory) activateCleaner() {
-	log.Print("[INFO] activate cleaner")
+// activateCleaner runs periodic clenaups to get rid or expired msgs
+func (s *InMemory) activateCleaner(every time.Duration) {
+	log.Printf("[INFO] cleaner activated, every %v", every)
 
-	ticker := time.NewTicker(time.Minute * 5)
+	ticker := time.NewTicker(every)
 	go func() {
 		for t := range ticker.C {
 			s.Lock()
 			for k, v := range s.data {
-				if v.Exp.After(time.Now()) {
+				if v.Exp.Before(time.Now()) {
 					delete(s.data, k)
 					log.Printf("[INFO] cleaned %s on %v", k, t)
 				}

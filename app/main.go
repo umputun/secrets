@@ -34,8 +34,8 @@ func main() {
 	}
 	log.Printf("secrets %s", revision)
 
+	store := store.NewInMemory(time.Second*time.Duration(opts.MaxExpSecs), time.Minute*5)
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
-	store := store.NewInMemory(crypt, time.Second*time.Duration(opts.MaxExpSecs))
 	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
 		Messager: messager.New(store, crypt, params),

@@ -2,7 +2,6 @@ package store
 
 import (
 	"fmt"
-	"math/rand"
 	"time"
 )
 
@@ -21,14 +20,10 @@ type Message struct {
 	Errors  int    `json:"-"`
 }
 
-// Engine defines interface to save, load, remove and inc error for messages
+// Engine defines interface to save, load, remove and inc errors count for messages
 type Engine interface {
 	Save(msg *Message) (err error)
 	Load(key string) (resutl *Message, err error)
 	IncErr(key string) (count int, err error)
 	Remove(key string) (err error)
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
