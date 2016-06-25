@@ -8,8 +8,6 @@ before_script:
     - export IMAGE=docker.umputun.com:5500/secrets:${CI_BUILD_REF_NAME/\//-}
     - export LATEST=docker.umputun.com:5500/secrets:latest
     - echo "buld revision=${REV}"
-    - ping docker.umputun.com
-    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN docker.umputun.com:5500
 
 build_app:
     stage: build
@@ -33,6 +31,7 @@ deploy_image:
         - build_app
     script:
         - echo "image = $IMAGE"
+        - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN docker.umputun.com:5500
         - docker build -t $IMAGE -f Dockerfile.gitlab .
         - docker push $IMAGE
     tags:
@@ -47,6 +46,7 @@ deploy_image_tag:
         - build_app
     script:
         - echo "image = $IMAGE, latest = $LATEST"
+        - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN docker.umputun.com:5500
         - docker build -t $IMAGE -f Dockerfile.gitlab .
         - docker push $IMAGE
         - docker tag $IMAGE $LATEST
