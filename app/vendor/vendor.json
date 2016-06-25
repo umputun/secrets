@@ -43,6 +43,11 @@
 			"revisionTime": "2016-06-08T14:55:45-07:00"
 		},
 		{
+			"path": "github.com/jessevdk/go-flags",
+			"revision": "4047bd797dd935ae2b557a79cc43f223066c9659",
+			"revisionTime": "2015-10-18T23:15:10+02:00"
+		},
+		{
 			"path": "github.com/juju/ratelimit",
 			"revision": "77ed1c8a01217656d2080ad51981f6e99adaa177",
 			"revisionTime": "2015-11-25T20:19:25Z"
@@ -56,6 +61,21 @@
 			"path": "github.com/nu7hatch/gouuid",
 			"revision": "179d4d0c4d8d407a32af483c2354df1d2c91e6c3",
 			"revisionTime": "2013-12-21T12:05:32-08:00"
+		},
+		{
+			"path": "github.com/stretchr/objx",
+			"revision": "1a9d0bb9f541897e62256577b352fdbc1fb4fd94",
+			"revisionTime": "2015-09-28T13:21:52+01:00"
+		},
+		{
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "f3960ab1f9664ecc4e27c78af27cc9063d745a43",
+			"revisionTime": "2015-10-08T01:55:03+01:00"
+		},
+		{
+			"path": "github.com/stretchr/testify/mock",
+			"revision": "f3960ab1f9664ecc4e27c78af27cc9063d745a43",
+			"revisionTime": "2015-10-08T01:55:03+01:00"
 		},
 		{
 			"path": "golang.org/x/crypto/bcrypt",
