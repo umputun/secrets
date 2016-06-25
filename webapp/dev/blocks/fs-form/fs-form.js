@@ -8,7 +8,7 @@
  * Copyright 2014, Codrops
  * http://www.codrops.com
  * 
- * BEMificated by Igor Adamenko
+ * BEMificated & edited by Igor Adamenko
  * http://igoradamenko.com
  */
 ;( function( window ) {
@@ -442,14 +442,7 @@ function formInit() {
 		API.send(exp, message, pin, function(data) {
 			var link = location.protocol + '//' + location.host + '/show/' + data.key;
 
-			var a = document.createElement('a'),
-				linkText = document.createTextNode(link);
-			
-			a.appendChild(linkText);
-			a.title = "Safe link to your secret info.";
-			a.href = link;
-
-			document.getElementById('result__link').appendChild(a);
+			document.getElementById('result__info').value = link;
 		});
 	}
 
@@ -458,12 +451,8 @@ function formInit() {
 			key = location.pathname.replace('/show/', '');
 
 		API.get(key, pin, function(data) {
-			var text = document.createTextNode(data.message),
-				tip = document.getElementById('result__tip');
-
-			tip.textContent = 'Here is your info:';
-			
-			document.getElementById('result__info').appendChild(text);
+			document.getElementById('result__tip').textContent = 'Here is your info:';
+			document.getElementById('result__info').value = data.message;
 		}, function() {
 			var tip = document.getElementById('result__tip');
 
