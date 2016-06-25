@@ -8,8 +8,7 @@ before_script:
     - export IMAGE=docker.umputun.com:5500/secrets:${CI_BUILD_REF_NAME/\//-}
     - export LATEST=docker.umputun.com:5500/secrets:latest
     - echo "buld revision=${REV}"
-    - echo "172.17.42.1 docker.umputun.com" >> /etc/hosts
-    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN docker.umputun.com:5500
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN -e "umputun@gmail.com" docker.umputun.com:5500
     # - docker login -u umputun -p $GTILAB_PASSWD docker.umputun.com:5500
 
 build_app:
