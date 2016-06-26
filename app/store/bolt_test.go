@@ -53,7 +53,7 @@ func TestCleanerBolt(t *testing.T) {
 
 	_, err = s.Load(fmt.Sprintf("%d-key123456", exp.Unix()))
 	assert.Nil(t, err, "key still in store")
-	time.Sleep(time.Millisecond * 1500)
+	time.Sleep(time.Millisecond * 2500)
 
 	_, err = s.Load(fmt.Sprintf("%d-key123456", exp.Unix()))
 	assert.Equal(t, ErrLoadRejected, err, "msg gone")
