@@ -39,7 +39,7 @@
   },
   "scripts": {
     "dev": "gulp",
-    "build": "SET NODE_ENV=production& gulp build",
+    "build": "gulp build",
     "clean": "gulp clean",
     "devOnline": "SET SERVER_MODE=online& gulp",
     "release": "gulp release"

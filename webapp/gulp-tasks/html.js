@@ -2,7 +2,6 @@ module.exports = function(gulp, $, path, options) {
 	'use strict';
 
 	options = options || {
-		isProduction: false,
 		errorHandler: function() {
 			return $.plumber();
 		}
@@ -17,16 +16,6 @@ module.exports = function(gulp, $, path, options) {
 	});
 
 	gulp.task('html:bemjson', function() {
-		const production = $.prettify({
-			indent_with_tabs: true,
-			indent_inner_html: false,  
-			preserve_newlines: true,
-			max_preserve_newlines: 2,
-			wrap_line_length: 0,
-			brace_style: 'collapse',
-			extra_liners: []
-		});
-
 		return gulp.src(path.inputBEMJSON)
 			.pipe(options.errorHandler('bemjson'))
 
@@ -44,7 +33,6 @@ module.exports = function(gulp, $, path, options) {
 
 			.pipe($.cached('bemjson'))
 
-			.pipe($.ifelse(options.isProduction, production))
 			.pipe(gulp.dest(path.output));
 	});
 
