@@ -47,7 +47,7 @@ func (s *Bolt) Save(msg *Message) (err error) {
 		return b.Put([]byte(msg.Key), jdata)
 	})
 
-	log.Printf("[DEBUG] saved, exp=%v, total=%d", msg.Exp, total)
+	log.Printf("[DEBUG] saved, exp=%v, total=%d", msg.Exp, total+1)
 	return err
 }
 
