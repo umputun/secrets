@@ -1,0 +1,47 @@
+{
+  "name": "secrets-ui",
+  "version": "0.1.0",
+  "description": "UI for Secrets",
+  "author": "Igor Adamenko",
+  "devDependencies": {
+    "autoprefixer": "^6.3.1",
+    "browser-sync": "^2.11.1",
+    "connect-modrewrite": "^0.9.0",
+    "del": "^2.2.0",
+    "gulp": "gulpjs/gulp#4.0",
+    "gulp-bemjson2html": "^1.0.2",
+    "gulp-cached": "^1.1.0",
+    "gulp-combine-mq": "^0.4.0",
+    "gulp-concat": "^2.6.0",
+    "gulp-cssnano": "^2.1.0",
+    "gulp-debug": "^2.1.2",
+    "gulp-file-include": "^0.13.7",
+    "gulp-filter": "^3.0.1",
+    "gulp-if": "^2.0.0",
+    "gulp-imagemin": "^2.4.0",
+    "gulp-load-plugins": "^1.2.0",
+    "gulp-notify": "^2.2.0",
+    "gulp-order": "^1.1.1",
+    "gulp-plumber": "^1.1.0",
+    "gulp-postcss": "^6.1.0",
+    "gulp-prettify": "^0.4.0",
+    "gulp-rename": "^1.2.2",
+    "gulp-sass": "^2.2.0",
+    "gulp-uglify": "^1.5.2",
+    "gulp-zip": "^3.2.0",
+    "imagemin-pngquant": "^4.2.0",
+    "postcss-url-mapper": "^1.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/igoradamenko/gulp-bem-boilerplate.git"
+  },
+  "scripts": {
+    "dev": "gulp",
+    "build": "SET NODE_ENV=production& gulp build",
+    "clean": "gulp clean",
+    "devOnline": "SET SERVER_MODE=online& gulp",
+    "release": "gulp release"
+  }
+}

@@ -1,0 +1,19 @@
+$b: '.header';
+
+#{$b} {
+	box-sizing: border-box;
+	position: absolute;
+	top: 0;
+	left: 0;
+	margin: 0;
+	padding: 40px;
+	width: 100%;
+	
+	@media screen and (max-width: 52.5em) {
+		padding: 20px;
+	}
+	
+	&__content {
+		margin: 0;
+	}
+}

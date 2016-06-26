@@ -1,0 +1,16 @@
+$b: '.result';
+
+#{$b} {
+	display: none;
+	
+	&__tip {
+		margin-bottom: 1.5em;
+		color: #3b3f45;
+		font-weight: 700;
+		font-size: 1.85em;
+		
+		&_error {
+			color: #f00000;
+		}
+	}
+}

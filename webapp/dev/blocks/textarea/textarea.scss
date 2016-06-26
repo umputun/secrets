@@ -1,0 +1,21 @@
+$b: '.textarea';
+
+#{$b} {
+	padding: 0.25em;
+	width: 100%;
+	height: 200px;
+	border: 2px solid rgba(0, 0, 0, 0.2);
+	background-color: transparent;
+	color: #fffed8;
+	font-weight: 700;
+	font-size: 0.85em;
+	resize: none;
+	
+	&:focus {
+		outline: none;
+	}
+
+	&::placeholder {
+		color: rgba(0, 0, 0, 0.1);
+	}
+}

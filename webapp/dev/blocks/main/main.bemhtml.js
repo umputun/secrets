@@ -1,0 +1,3 @@
+block('main')(
+	tag()('main')
+);

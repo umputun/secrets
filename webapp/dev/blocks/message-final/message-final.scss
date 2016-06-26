@@ -1,0 +1,9 @@
+$b: '.message-final';
+
+#{$b} {
+	visibility: hidden;
+	
+	&.shown, &_shown {
+		visibility: visible;
+	}
+}
