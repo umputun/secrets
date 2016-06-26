@@ -16,8 +16,10 @@ const limitReqSec = 5
 
 // Server is a rest with store
 type Server struct {
-	Messager *messager.MessageProc
-	PinSize  int
+	Messager       *messager.MessageProc
+	PinSize        int
+	MaxPinAttempts int
+	MaxExpSecs     int
 }
 
 //Run the lister and request's router, activate rest server
@@ -34,6 +36,7 @@ func (s Server) Run() {
 	{
 		v1.POST("/message", s.saveMessageCtrl)
 		v1.GET("/message/:key/:pin", s.getMessageCtrl)
+		v1.GET("/params", s.getParamsCtrl)
 		v1.GET("/ping", func(c *gin.Context) { c.String(200, "pong") })
 	}
 
@@ -96,6 +99,20 @@ func (s Server) getMessageCtrl(c *gin.Context) {
 	status, res := serveRequest()
 	time.Sleep(time.Millisecond*250 - time.Since(st))
 	c.JSON(status, res)
+}
+
+// GET /params
+func (s Server) getParamsCtrl(c *gin.Context) {
+	params := struct {
+		PinSize        int `json:"pin_size"`
+		MaxPinAttempts int `json:"max_pin_attempts"`
+		MaxExpSecs     int `json:"max_exp_sec"`
+	}{}
+
+	params.PinSize = s.PinSize
+	params.MaxPinAttempts = s.MaxPinAttempts
+	params.MaxExpSecs = s.MaxExpSecs
+	c.JSON(http.StatusOK, params)
 }
 
 func (s Server) limiterMiddleware() gin.HandlerFunc {
