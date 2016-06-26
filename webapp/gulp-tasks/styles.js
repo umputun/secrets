@@ -2,18 +2,12 @@ module.exports = function(gulp, $, path, options) {
 	'use strict';
 
 	options = options || {
-		isProduction: false,
 		errorHandler: function() {
 			return $.plumber();
 		}
 	};
 
 	gulp.task('styles', function() {
-		const production = $.combineMq({
-				beautify: false
-			})
-			.pipe($.cssnano());
-
 		function urlMapper(url, type) {
 			if (url[0] == '.'
 				|| url[0] == '/'
@@ -40,7 +34,10 @@ module.exports = function(gulp, $, path, options) {
 				$.urlMapper(urlMapper)
 			]))
 			
-			.pipe($.ifelse(options.isProduction, production))
+			.pipe($.combineMq({
+				beautify: false
+			}))
+			.pipe($.cssnano())
 			.pipe(gulp.dest(path.outputStyles))
 	});	
 };
