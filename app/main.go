@@ -40,8 +40,10 @@ func main() {
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
-		Messager: messager.New(store, crypt, params),
-		PinSize:  opts.PinSize,
+		Messager:       messager.New(store, crypt, params),
+		PinSize:        opts.PinSize,
+		MaxExpSecs:     opts.MaxExpSecs,
+		MaxPinAttempts: opts.MaxPinAttempts,
 	}
 	server.Run()
 }
