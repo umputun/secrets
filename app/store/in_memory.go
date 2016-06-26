@@ -27,7 +27,7 @@ func (s *InMemory) Save(msg *Message) (err error) {
 	defer s.Unlock()
 
 	s.data[msg.Key] = *msg
-	log.Printf("[DEBUG] saved %s... (%v), total %d", msg.Key[:6], msg.Exp, len(s.data))
+	log.Printf("[DEBUG] saved, exp=%v, total %d", msg.Exp, len(s.data))
 	return nil
 }
 
