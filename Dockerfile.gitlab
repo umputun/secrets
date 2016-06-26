@@ -12,6 +12,8 @@ RUN \
 ADD target/secrets /srv/secrets
 RUN chmod +x /srv/secrets
 
+ADD webapp/public /srv/docroot
+
 EXPOSE 8080
 USER secrets
 WORKDIR /srv
