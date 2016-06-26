@@ -21,7 +21,7 @@ type Bolt struct {
 
 // NewBolt makes persitent boltdb based store
 func NewBolt(dbFile string, cleanupDuration time.Duration) (*Bolt, error) {
-	log.Print("[INFO] bolt (persitent) store")
+	log.Printf("[INFO] bolt (persitent) store, %s", dbFile)
 	result := Bolt{}
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	db.Update(func(tx *bolt.Tx) error {

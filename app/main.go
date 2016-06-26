@@ -18,6 +18,7 @@ var opts struct {
 	PinSize        int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
 	MaxExpSecs     int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max lifetime, in seconds"`
 	MaxPinAttempts int    `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
+	BoltDB         string `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
 	Dbg            bool   `long:"dbg" description:"debug mode"`
 }
 
@@ -35,7 +36,7 @@ func main() {
 	}
 	log.Printf("secrets %s", revision)
 
-	store := getEngine(opts.Engine)
+	store := getEngine(opts.Engine, opts.BoltDB)
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
@@ -45,12 +46,12 @@ func main() {
 	server.Run()
 }
 
-func getEngine(engineType string) store.Engine {
+func getEngine(engineType string, boltFile string) store.Engine {
 	switch engineType {
 	case "MEMORY":
 		return store.NewInMemory(time.Minute * 5)
 	case "BOLT":
-		store, err := store.NewBolt("secrets.bd", time.Minute*5)
+		store, err := store.NewBolt(boltFile, time.Minute*5)
 		if err != nil {
 			log.Fatalf("[ERROR] can't open db, %v", err)
 		}
