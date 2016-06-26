@@ -122,8 +122,8 @@ func (s Server) loggerMiddleware() gin.HandlerFunc {
 		}
 
 		reqPath := c.Request.URL.Path
-		if strings.HasPrefix(reqPath, "/message/") {
-			reqPath = "/message/*****/*****"
+		if strings.HasPrefix(reqPath, "/v1/message/") {
+			reqPath = "/v1/message/*****/*****"
 		}
 		log.Printf("[INFO] %s %s {%s} %s %v %d",
 			c.Request.Method, reqPath, body,
