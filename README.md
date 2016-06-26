@@ -33,6 +33,7 @@ Create safesecret link to your message by entering 3 things:
 1. Adjust `docker-compose.yml` with:
     - TZ - your local time zone
     - SIGN_KEY - something long and random
+    - MAX_EXPIRE - maximum expiration period in secs, default 86400 (24h)
     - PIN_SIZE - default 5
     - PIN_ATTEMPTS - default 3
 1. run the system with `docker-compose up -d`. This will download prepared image from docker hub

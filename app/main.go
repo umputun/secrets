@@ -15,7 +15,7 @@ import (
 var opts struct {
 	SignKey        string `short:"k" long:"key" env:"SIGN_KEY" description:"JWT sign key" required:"true"`
 	PinSize        int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
-	MaxExpSecs     int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max token's lifetime, in seconds"`
+	MaxExpSecs     int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max lifetime, in seconds"`
 	MaxPinAttempts int    `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
 	Dbg            bool   `long:"dbg" description:"debug mode"`
 }
