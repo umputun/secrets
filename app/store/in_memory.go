@@ -13,7 +13,7 @@ type InMemory struct {
 }
 
 // NewInMemory makes new store with max duration
-func NewInMemory(maxDuration time.Duration, cleanupDuration time.Duration) *InMemory {
+func NewInMemory(cleanupDuration time.Duration) *InMemory {
 	log.Print("[INFO] InMemory store")
 	result := InMemory{data: map[string]Message{}}
 	result.activateCleaner(cleanupDuration)

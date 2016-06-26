@@ -84,8 +84,9 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 		return nil, ErrInternal
 	}
 
+	exp := time.Now().Add(duration)
 	result = &store.Message{
-		Key:     key.String(),
+		Key:     fmt.Sprintf("%d-%s", exp.Unix(), key.String()),
 		Exp:     time.Now().Add(duration),
 		PinHash: pinHash,
 	}
@@ -132,7 +133,10 @@ func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, er
 		return nil, ErrBadPin
 
 	}
-	p.engine.Remove(key)
+
+	if err := p.engine.Remove(key); err != nil {
+		log.Printf("[WARN] failed to remove, %v", err)
+	}
 	msg.Data = r
 	return msg, nil
 }

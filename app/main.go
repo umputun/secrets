@@ -34,7 +34,11 @@ func main() {
 	}
 	log.Printf("secrets %s", revision)
 
-	store := store.NewInMemory(time.Second*time.Duration(opts.MaxExpSecs), time.Minute*5)
+	// store := store.NewInMemory(time.Minute*5)
+	store, err := store.NewBolt("secrets.bd", time.Minute*5)
+	if err != nil {
+		log.Fatalf("[ERROR] can't open db, %v", err)
+	}
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{

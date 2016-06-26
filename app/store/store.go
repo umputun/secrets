@@ -16,8 +16,8 @@ type Message struct {
 	Key     string
 	Exp     time.Time
 	Data    string
-	PinHash string `json:"-"`
-	Errors  int    `json:"-"`
+	PinHash string
+	Errors  int
 }
 
 // Engine defines interface to save, load, remove and inc errors count for messages
