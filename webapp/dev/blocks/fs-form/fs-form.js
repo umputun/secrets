@@ -185,9 +185,12 @@
 
 		// keyboard navigation events - jump to next field when pressing enter
 		document.addEventListener('keydown', function(ev) {
-			if (!self.isLastStep && ev.target.tagName.toLowerCase() !== 'textarea') {
-				var keyCode = ev.keyCode || ev.which;
-				if (keyCode === 13) {
+			if (!self.isLastStep) {
+				var keyCode = ev.keyCode || ev.which,
+					tagName = ev.target.tagName.toLowerCase(),
+					isMetaPressed = ev.metaKey || ev.ctrlKey;
+				
+				if (keyCode === 13 && (tagName !== 'textarea' || tagName === 'textarea' && isMetaPressed)) {
 					ev.preventDefault();
 					self._nextField();
 				}
