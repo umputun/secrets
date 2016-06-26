@@ -2,17 +2,27 @@ version: '2'
 services:
 
     secrets:
-        build:
-            context: .
-            args:
-                TZ: America/Chicago
-
+        build: .
         image: umputun/secrets:latest
         container_name: secrets
         hostname: secrets
         restart: always
+        
+        log_driver: "json-file"
+           log_opt:
+               max-size: "10m"
+               max-file: "5"
+
         volumes:
             - ./var:/data
+
+        environment:
+           - SIGN_KEY=change-this-to-smth-random
+           - ENGINE=MEMORY
+           - PIN_SIZE=5
+           - BOLT_FILE=/data/secrets.bd
+           - PIN_ATTEMPTS=3
+           - MAX_EXPIRE=86400
 
     nginx:
         build: nginx
@@ -20,6 +30,11 @@ services:
         hostname: nginx
         restart: always
         container_name: nginx
+
+        log_driver: "json-file"
+           log_opt:
+               max-size: "10m"
+               max-file: "5"
 
         depends_on:
             - secrets
@@ -33,3 +48,7 @@ services:
         ports:
             - "80:80"
             - "443:443"
+
+        environment:
+            - SSL_CERT=/etc/nginx/ssl/secrets-crt.pem
+            - SSL_KEY=/etc/nginx/ssl/secrets-key.pem
