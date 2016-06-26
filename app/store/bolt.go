@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -19,6 +21,7 @@ type Bolt struct {
 
 // NewBolt makes persitent boltdb based store
 func NewBolt(dbFile string, cleanupDuration time.Duration) (*Bolt, error) {
+	log.Print("[INFO] bolt (persitent) store")
 	result := Bolt{}
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	db.Update(func(tx *bolt.Tx) error {
@@ -89,7 +92,7 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 
 	ticker := time.NewTicker(every)
 	go func() {
-		for t := range ticker.C {
+		for range ticker.C {
 
 			expired := [][]byte{}
 
@@ -113,7 +116,9 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 				s.db.Update(func(tx *bolt.Tx) error {
 					for _, key := range expired {
 						tx.Bucket(bucket).Delete(key)
-						log.Printf("[DEBUG] cleaned %s on %v", string(key), t)
+						if exp, err := strconv.Atoi(strings.Split(string(key), "-")[0]); err == nil {
+							log.Printf("[DEBUG] cleaned %s on %v", string(key), time.Unix(int64(exp), 0))
+						}
 					}
 					return nil
 				})

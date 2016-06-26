@@ -57,4 +57,5 @@ func TestCleanerBolt(t *testing.T) {
 
 	_, err = s.Load(fmt.Sprintf("%d-key123456", exp.Unix()))
 	assert.Equal(t, ErrLoadRejected, err, "msg gone")
+	os.Remove("/tmp/test.bd")
 }

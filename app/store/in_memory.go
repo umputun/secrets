@@ -14,7 +14,7 @@ type InMemory struct {
 
 // NewInMemory makes new store with max duration
 func NewInMemory(cleanupDuration time.Duration) *InMemory {
-	log.Print("[INFO] InMemory store")
+	log.Print("[INFO] in-memory (ephemeral) store")
 	result := InMemory{data: map[string]Message{}}
 	result.activateCleaner(cleanupDuration)
 	return &result
@@ -76,12 +76,12 @@ func (s *InMemory) activateCleaner(every time.Duration) {
 
 	ticker := time.NewTicker(every)
 	go func() {
-		for t := range ticker.C {
+		for range ticker.C {
 			s.Lock()
 			for k, v := range s.data {
 				if v.Exp.Before(time.Now()) {
 					delete(s.data, k)
-					log.Printf("[INFO] cleaned %s on %v", k, t)
+					log.Printf("[INFO] cleaned %s", k)
 				}
 			}
 			s.Unlock()

@@ -13,7 +13,8 @@ import (
 )
 
 var opts struct {
-	SignKey        string `short:"k" long:"key" env:"SIGN_KEY" description:"JWT sign key" required:"true"`
+	Engine         string `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"`
+	SignKey        string `short:"k" long:"key" env:"SIGN_KEY" description:"sign key" required:"true"`
 	PinSize        int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
 	MaxExpSecs     int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max lifetime, in seconds"`
 	MaxPinAttempts int    `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
@@ -34,11 +35,7 @@ func main() {
 	}
 	log.Printf("secrets %s", revision)
 
-	// store := store.NewInMemory(time.Minute*5)
-	store, err := store.NewBolt("secrets.bd", time.Minute*5)
-	if err != nil {
-		log.Fatalf("[ERROR] can't open db, %v", err)
-	}
+	store := getEngine(opts.Engine)
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
@@ -46,4 +43,19 @@ func main() {
 		PinSize:  opts.PinSize,
 	}
 	server.Run()
+}
+
+func getEngine(engineType string) store.Engine {
+	switch engineType {
+	case "MEMORY":
+		return store.NewInMemory(time.Minute * 5)
+	case "BOLT":
+		store, err := store.NewBolt("secrets.bd", time.Minute*5)
+		if err != nil {
+			log.Fatalf("[ERROR] can't open db, %v", err)
+		}
+		return store
+	}
+	log.Fatalf("[ERROR] unknown engine type %s", engineType)
+	return nil
 }
