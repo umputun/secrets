@@ -21,11 +21,11 @@ Create safesecret link to your message by entering 3 things:
 
 ## How safe is this thing?
 
-- it doesn't keep anything on disk in any form
-- it doesn't keep your original message or pin in memory, but encrypts message with pin and hashes pin
+- it doesn't keep your original message or pin anythere, but encrypts message with hashed pin
+- it doesn't keep anything on disk in any form (in case of InMemory engine)
 - it doesn't keep any sensitive info in any logs
 - as soon as message read or expired it will be deleted and destoryed completely
-- in order to steal your message bad guys will need acces to the link as well as pin code
+- in order to steal your message bad guys will need acces to your link as well as pin code
 
 
 ## Install Secrets
@@ -36,13 +36,13 @@ Create safesecret link to your message by entering 3 things:
     - MAX_EXPIRE - maximum expiration period in secs, default 86400 (24h)
     - PIN_SIZE - default 5
     - PIN_ATTEMPTS - default 3
-1. run the system with `docker-compose up -d`. This will download prepared image from docker hub
-1. if you want to build it from sources - `docker-compose build` will do it
+1. run the system with `docker-compose up -d`. This will download prepared image from docker hub and start all components.
+1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
 
 
 ## API
 
-Secrets provides trivial REST to save and load messages. Just two easy calls:
+Secrets provides trivial REST to save and load messages. Just two calls:
 
 ### Save message
 
