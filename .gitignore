@@ -26,3 +26,4 @@ _testmain.go
 .cover/
 etc/ssl/
 target/
+secrets.bd
