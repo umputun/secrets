@@ -26,6 +26,18 @@ build_app:
     tags:
         - gobuilder
 
+
+deploy_nginx:
+    stage: deploy
+    script:
+        - docker build -t $IMAGE-nginx nginx
+        - docker push docker.umputun.com:5500/umputun/secrets:nginx
+    tags:
+        - gobuilder
+    except:
+         - tags
+         - develop
+
 deploy_image:
     stage: deploy
     dependencies:
