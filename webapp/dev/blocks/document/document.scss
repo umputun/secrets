@@ -1,0 +1,25 @@
+$b: '.document';
+
+#{$b} {
+	&,
+	&__page {
+		height: 100%;
+		margin: 0;
+	    padding: 0;
+	    
+	    background: #3b3f45;
+	}
+
+	&__page {
+		color: #fff;
+		font-weight: 400;
+		font-size: 1em;
+		font-family: Ubuntu, Arial, sans-serif;
+		overflow: hidden;
+		min-height: 590px;
+		
+		@media screen and (max-width: 52.5em) {
+			min-height: 500px;
+		}
+	}
+}

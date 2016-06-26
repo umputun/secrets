@@ -1,0 +1,36 @@
+$b: '.error';
+
+#{$b} {
+	position: absolute;
+	bottom: 75%;
+	left: 50%;
+	z-index: 800;
+	width: 70%;
+	max-width: 960px;
+	visibility: hidden;
+	opacity: 0;
+	transform: translate3d(-50%, -5px, 0);
+	color: #eb7e7f;
+	font-size: 1em;
+	font-weight: 700;
+	
+	@media screen and (max-width: 52.5em) {
+		bottom: 1.75em;
+		left: 0;
+		width: 100%;
+		padding: 0 90px 0 2em;
+		font-size: 1.5em;
+		transform: translate3d(0, -5px, 0);
+	}
+	
+	&.shown, &_shown {
+		visibility: visible;
+		opacity: 1;
+		transition: transform 0.3s, opacity 0.3s;
+		transform: translate3d(-50%, 0, 0);
+		
+		@media screen and (max-width: 52.5em) {
+			transform: translate3d(0, 0, 0);
+		}
+	}	
+}		
