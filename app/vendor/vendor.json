@@ -3,6 +3,11 @@
 	"ignore": "test",
 	"package": [
 		{
+			"path": "github.com/boltdb/bolt",
+			"revision": "ee4a0888a9abe7eefe5a0992ca4cb06864839873",
+			"revisionTime": "2016-01-19T17:55:44-07:00"
+		},
+		{
 			"path": "github.com/didip/tollbooth",
 			"revision": "9adc32f5171e833befc340a64b63602529fc0373",
 			"revisionTime": "2016-05-15T09:26:28-07:00"
