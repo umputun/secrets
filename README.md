@@ -27,7 +27,7 @@ Create safesecret link to your message by entering 3 things:
 - in order to steal your message bad guys will need acces to your link as well as pin code
 
 
-## Install Secrets
+## Install
 
 1. Adjust `docker-compose.yml` with:
     - TZ - your local time zone
