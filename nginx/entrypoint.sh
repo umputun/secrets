@@ -9,5 +9,4 @@ sed -i "s|SECRETS_KEY|${SSL_KEY}|g" /etc/nginx/conf.d/secrets.conf
 sed -i "s|SECRETS_CERT|${SSL_CERT}|g" /etc/nginx/conf.d/secrets.conf
 
 cp -f /robots.txt /srv/docroot/robots.txt
-
 nginx -g "daemon off;"
