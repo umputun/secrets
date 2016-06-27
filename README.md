@@ -1,7 +1,6 @@
 # Safe Secrets - easy way to tansfer password
 
-The primary use-case is sharing sensetive data by making this information self-destructed, accesable only once and protected by easy-to-pass pin code. I just needed a simple and better alternative to the most popular way of passing passwords. Doing this by email made me always worry
-and the usual "protection" by sending user and password info in two different emails is just a joke.
+The primary use-case is sharing sensetive data by making this information self-destructed, accesable only once and protected by easy-to-pass pin code. I just needed a simple and better alternative to the most popular way of passing passwords. Doing this by email made me always worry and the usual "protection" by sending user and password info in two different emails is just a joke.
 
 ## Usage
 
@@ -36,8 +35,14 @@ Create safesecret link to your message by entering 3 things:
     - MAX_EXPIRE - maximum expiration period in secs, default 86400 (24h)
     - PIN_SIZE - default 5
     - PIN_ATTEMPTS - default 3
-    - SSL_CERT - SSL certificate
-    - SSL_KEY - SSL key
+1. Setup SSL:
+    - The system can make valid certificates for you fully automatically. Just set:
+        - LETSENCRYPT=true
+        - LE_EMAIL=name@example.com
+        - LE_FQDN=www.example.com
+    - In case you have your own certificates already copy them to `etc/ssl` and define:
+        - SSL_CERT - SSL certificate
+        - SSL_KEY - SSL key
 1. run the system with `docker-compose up -d`. This will download prepared image from docker hub and start all components.
 1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
 
