@@ -71,7 +71,7 @@ deploy_image_tag:
 remote_update:
     stage: remote
     script:
-        - ssh umputun@safesecret.info "cd /srv/secrets && docker-compose pull && docker-compise up -d"
+        - ssh umputun@safesecret.info "cd /srv/secrets && docker-compose pull && docker-compose up -d"
     tags:
         - deploy
     only:
