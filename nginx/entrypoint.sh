@@ -10,6 +10,9 @@ sed -i "s|SECRETS_CERT|${SSL_CERT}|g" /etc/nginx/conf.d/secrets.conf
 
 cp -f /robots.txt /srv/docroot/robots.txt
 
+#disable ssl configuration and let it run without SSL
+mv -v /etc/nginx/conf.d/secrets.conf /etc/nginx/conf.d/secrets.disabled
+
 (
  sleep 3 #give nginx time to start
  echo "start letsencrypt updater"
@@ -17,6 +20,9 @@ cp -f /robots.txt /srv/docroot/robots.txt
  do
 	echo "trying to update letsencrypt ..."
     /le.sh
+    mv -v /etc/nginx/conf.d/secrets.disabled /etc/nginx/conf.d/secrets.conf #enable
+    echo "relaod nginx with ssl"
+    nginx -s reload
     sleep 60d
  done
 ) &
