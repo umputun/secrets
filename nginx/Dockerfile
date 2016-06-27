@@ -5,7 +5,12 @@ ADD secrets-nginx.conf /etc/nginx/conf.d/secrets.conf
 ADD robots.txt /robots.txt
 
 ADD entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-RUN apk add  --update letsencrypt
+ADD le.sh /le.sh
 
+RUN \
+ chmod +x /entrypoint.sh && \
+ chmod +x /le.sh && \
+ apk add  --update letsencrypt && \
+ rm -rf /var/cache/apk/*
+ 
 CMD ["/entrypoint.sh"]

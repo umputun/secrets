@@ -50,5 +50,9 @@ services:
             - "443:443"
 
         environment:
+            - LETSENCRYPT=false
+            - LE_EMAIL=name@example.com
+            - LE_FQDN=www.example.com
+
             - SSL_CERT=secrets-crt.pem
             - SSL_KEY=secrets-key.pem
