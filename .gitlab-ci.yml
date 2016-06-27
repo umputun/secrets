@@ -1,6 +1,7 @@
 stages:
     - build
     - deploy
+    - remote
 
 before_script:
     - export TZ=America/Chicago
@@ -65,4 +66,14 @@ deploy_image_tag:
     tags:
         - gobuilder
     only:
+        - tags
+
+remote_update:
+    stage: remote
+    script:
+        - ssh umputun@sharesecret.info "cd /srv/secrets && docker-compose pull && docker-compise up -d"
+    tags:
+        - deploy
+    only:
+        - master
         - tags
