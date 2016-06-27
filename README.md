@@ -36,6 +36,8 @@ Create safesecret link to your message by entering 3 things:
     - MAX_EXPIRE - maximum expiration period in secs, default 86400 (24h)
     - PIN_SIZE - default 5
     - PIN_ATTEMPTS - default 3
+    - SSL_CERT - SSL certificate
+    - SSL_KEY - SSL key
 1. run the system with `docker-compose up -d`. This will download prepared image from docker hub and start all components.
 1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
 

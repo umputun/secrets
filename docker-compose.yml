@@ -7,7 +7,7 @@ services:
         container_name: secrets
         hostname: secrets
         restart: always
-        
+
         log_driver: "json-file"
            log_opt:
                max-size: "10m"
@@ -50,5 +50,5 @@ services:
             - "443:443"
 
         environment:
-            - SSL_CERT=/etc/nginx/ssl/secrets-crt.pem
-            - SSL_KEY=/etc/nginx/ssl/secrets-key.pem
+            - SSL_CERT=secrets-crt.pem
+            - SSL_KEY=secrets-key.pem
