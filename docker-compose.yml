@@ -8,10 +8,11 @@ services:
         hostname: secrets
         restart: always
 
-        log_driver: "json-file"
-           log_opt:
-               max-size: "10m"
-               max-file: "5"
+        logging:
+          driver: json-file
+          options:
+              max-size: "10m"
+              max-file: "5"
 
         volumes:
             - ./var:/data
@@ -31,10 +32,11 @@ services:
         restart: always
         container_name: nginx
 
-        log_driver: "json-file"
-           log_opt:
-               max-size: "10m"
-               max-file: "5"
+        logging:
+          driver: json-file
+          options:
+              max-size: "10m"
+              max-file: "5"
 
         depends_on:
             - secrets
