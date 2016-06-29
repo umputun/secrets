@@ -76,7 +76,7 @@
 								},
 								{
 									block: 'textarea',
-									mods: { autoselect: true },
+									mods: { autoselect: true, size: 'm' },
 									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
