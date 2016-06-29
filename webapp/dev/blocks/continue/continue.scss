@@ -34,24 +34,6 @@ $b: '.continue';
 		outline: none;
 	}
 
-	&::after {
-		content: 'or press ENTER';
-		position: absolute;
-		top: 100%;
-		left: 0;
-		width: 100%;
-		background: transparent;
-		color: rgba(0,0,0,0.3);
-		font-size: 0.65em;
-		line-height: 3;
-		text-align: center;
-		pointer-events: none;
-		
-		@media screen and (max-width: 52.5em) {
-			content: '';
-		}
-	}
-
 	&::before {
 		@media screen and (max-width: 52.5em) {
 			content: '\27A1';

@@ -28,7 +28,7 @@
 								{
 									block: 'field',
 									id: 'text',
-									title: 'What info do you want to safe?',
+									title: 'What information do you want to share?',
 									content: {
 										block: 'textarea',
 										id: 'text',
