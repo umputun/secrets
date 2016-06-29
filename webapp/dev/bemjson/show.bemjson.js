@@ -1,6 +1,6 @@
 ({
 	block: 'document',
-	title: 'Safe Secret Info',
+	title: 'SafeSecret.Info',
 	styles: ['../css/main.css'],
 	scripts: ['../js/main.js'],
 	content: [
@@ -12,7 +12,7 @@
 			content: [
 				{
 					block: 'header',
-					content: 'Safe Secret Info'
+					content: 'SafeSecret.Info'
 				},
 				{
 					elem: 'content',
