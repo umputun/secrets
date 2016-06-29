@@ -11,6 +11,12 @@ $b: '.textarea';
 	font-size: 0.65em;
 	resize: none;
 	
+	&_size {
+		&_m {
+			height: 100px; 
+		}
+	}
+
 	&:focus {
 		outline: none;
 	}
