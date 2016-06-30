@@ -8,6 +8,11 @@ SSL_CERT=/etc/nginx/ssl/${SSL_CERT}
 sed -i "s|SECRETS_KEY|${SSL_KEY}|g" /etc/nginx/conf.d/secrets.conf
 sed -i "s|SECRETS_CERT|${SSL_CERT}|g" /etc/nginx/conf.d/secrets.conf
 
+cd /etc/nginx/ssl
+echo "make dhparams"
+openssl dhparam -out dhparams.pem 2048
+chmod 600 dhparams.pem
+
 cp -f /robots.txt /srv/docroot/robots.txt
 
 #disable ssl configuration and let it run without SSL
