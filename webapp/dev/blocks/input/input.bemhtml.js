@@ -7,7 +7,8 @@ block('input')(
 		return {
 			id: ctx.id,
 			placeholder: ctx.placeholder,
-			required: true
+			required: true,
+			autofocus: true
 		};
 	})
 );

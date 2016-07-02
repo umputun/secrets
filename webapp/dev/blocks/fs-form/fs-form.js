@@ -282,7 +282,10 @@
 						self.ctrlFldStatus.removeChild(self.ctrlFldStatusNew);
 						classie.remove(self.ctrlFldStatus, 'numbers_shown-' + self.navdir);
 					}
+
+					nextField.querySelectorAll('.input, .textarea')[0].focus();
 				}
+
 				self.isAnimating = false;
 			};
 
@@ -443,9 +446,12 @@ function formInit() {
 			pin = document.getElementById('pin').value;
 
 		API.send(exp, message, pin, function(data) {
-			var link = location.protocol + '//' + location.host + '/show/' + data.key;
+			var link = location.protocol + '//' + location.host + '/show/' + data.key,
+				resField = document.getElementById('result__info');
 
-			document.getElementById('result__info').value = link;
+			resField.value = link;
+			resField.focus();
+			resField.select();
 		});
 	}
 
@@ -454,8 +460,12 @@ function formInit() {
 			key = location.pathname.replace('/show/', '');
 
 		API.get(key, pin, function(data) {
+			var resField = document.getElementById('result__info');
+
 			document.getElementById('result__tip').textContent = 'Here is your info:';
-			document.getElementById('result__info').value = data.message;
+			resField.value = data.message;
+			resField.focus();
+			resField.select();
 		}, function() {
 			var tip = document.getElementById('result__tip');
 
