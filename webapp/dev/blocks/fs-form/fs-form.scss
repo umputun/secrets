@@ -116,6 +116,11 @@ $b: '.fs-form';
 			.result {
 				display: block;
 			}
+
+			.description {
+				color: rgba(0, 0, 0, .5);
+				font-size: 1em;
+			}
 		}
 
 		&.shown, &_shown {
