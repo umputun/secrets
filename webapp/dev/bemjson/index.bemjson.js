@@ -93,6 +93,10 @@
 									attrs: {
 										id: 'result__info'
 									}
+								},
+								{
+									block: 'description',
+									content: 'Use this link to access to saving information.'
 								}
 							]
 						}
