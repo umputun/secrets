@@ -39,31 +39,43 @@
 									block: 'field',
 									id: 'time',
 									title: 'How long to keep?',
-									content: {
-										block: 'input',
-										mods: { type: 'number' },
-										id: 'time',
-										placeholder: '10'
-									}
+									content: [
+										{
+											block: 'input',
+											mods: { type: 'number' },
+											id: 'time',
+											placeholder: '10'
+										},
+										{
+											elem: 'desc',
+											content: 'How many minutes?'
+										}
+									]
 								},
 								{
 									block: 'field',
 									id: 'pin',
 									title: 'Enter the PIN to protect your info',
-									content: {
-										block: 'input',
-										mods: { type: 'pin' },
-										id: 'pin',
-										placeholder: (function() {
-											var text = '';
-										    var possible = '0123456789';
+									content: [
+										{
+											block: 'input',
+											mods: { type: 'pin' },
+											id: 'pin',
+											placeholder: (function() {
+												var text = '';
+											    var possible = '0123456789';
 
-										    for (var i = 0; i < 5; i++)
-										        text += possible.charAt(Math.floor(Math.random() * possible.length));
+											    for (var i = 0; i < 5; i++)
+											        text += possible.charAt(Math.floor(Math.random() * possible.length));
 
-										    return text;
-										})()
-									}
+											    return text;
+											})()
+										},
+										{
+											elem: 'desc',
+											content: 'PIN is a 5-digit password.'
+										}
+									]
 								}
 							]
 						},

@@ -27,4 +27,10 @@ $b: '.field';
 		font-weight: 700;
 		pointer-events: none;
 	}
+
+	&__desc {
+	    margin-top: 1em;
+	    color: rgba(#fff, .5);
+		font-size: .4em;
+	}
 }			
