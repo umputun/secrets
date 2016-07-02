@@ -2,12 +2,12 @@ FROM nginx:stable-alpine
 
 ARG TZ=America/Chicago
 
-ADD nginx.conf /etc/nginx/nginx.conf
-ADD secrets-nginx.conf /etc/nginx/conf.d/secrets.conf
-ADD robots.txt /robots.txt
+ADD conf/nginx.conf /etc/nginx/nginx.conf
+ADD conf/secrets-nginx.conf /etc/nginx/conf.d/secrets.conf
+ADD conf/robots.txt /robots.txt
 
-ADD entrypoint.sh /entrypoint.sh
-ADD le.sh /le.sh
+ADD script/entrypoint.sh /entrypoint.sh
+ADD script/le.sh /le.sh
 
 RUN \
  chmod +x /entrypoint.sh && \
