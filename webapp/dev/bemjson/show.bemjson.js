@@ -54,6 +54,10 @@
 									attrs: {
 										id: 'result__info'
 									}
+								},
+								{
+									block: 'description',
+									content: 'This is the last time this information will be available for any access.'
 								}
 							]
 						}
