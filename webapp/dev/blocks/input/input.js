@@ -1,6 +1,8 @@
-function isButtonNumber(e) {
-	var charCode = (e.which) ? e.which : e.keyCode;
+function getCharCode(e) {
+	return (e.which) ? e.which : e.keyCode;
+}
 
+function isButtonNumber(charCode) {
 	if ((charCode < 48 || charCode > 57)) {
 		return false;
 	}
@@ -9,16 +11,26 @@ function isButtonNumber(e) {
 }
 
 function pinCheck(e) {
-	if (!isButtonNumber(e)) {
+	var charCode = getCharCode(e);
+
+	if (!isButtonNumber(charCode)) {
 		e.preventDefault();
 		return;
 	}
 }
 
 function numberCheck(e) {
-	if (!isButtonNumber(e)) {
+	var charCode = getCharCode(e);
+
+	if (!isButtonNumber(charCode)) {
 		e.preventDefault();
 		return;
+	}
+
+	var newValue = new Number(e.target.value + String.fromCharCode(charCode));
+
+	if (newValue > API.params.max_exp_sec / 60) {
+		e.preventDefault();
 	}
 }
 
