@@ -402,6 +402,8 @@
 		} else if (input.classList.contains('input_type_pin')) {
 			if (!input.value.match(/^[0-9]{5}$/)) {
 				error = 'WRONGVAL';
+			} else if (input.value.length != API.params.pin_size) {
+				error = 'PINSIZE';
 			}
 		}
 
@@ -428,8 +430,11 @@
 				break;
 			case 'MAXNUM':
 				message = 'Maximum keeping time is ' + Math.floor(API.params.max_exp_sec / 60) + ' minutes';
+				break;
+			case 'MAXPINSIZE':
+				message = 'PIN length must be ' + API.params.pin_size + ' symbols';
 		};
-		
+
 		this.msgError.innerHTML = message;
 		this._showCtrl(this.msgError);
 	}
