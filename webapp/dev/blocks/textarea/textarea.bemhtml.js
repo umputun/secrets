@@ -19,6 +19,7 @@ block('textarea').mod('autoselect', true)(
 
 		return {
 			id: ctx.id,
+			placeholder: ctx.placeholder,
 			onclick: 'this.focus(); this.select()',
 			readonly: true
 		};

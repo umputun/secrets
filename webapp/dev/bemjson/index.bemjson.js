@@ -92,7 +92,8 @@
 									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
-									}
+									},
+									placeholder: 'Loading..'
 								},
 								{
 									block: 'description',
