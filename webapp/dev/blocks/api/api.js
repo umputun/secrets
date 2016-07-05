@@ -1,5 +1,9 @@
 var API = (function() {
-	var xhrPath = 'https://safesecret.info/api/v1/message';
+	var that = this,
+		basePath = 'https://safesecret.info/api/v1/';
+
+	var xhrPath = basePath + 'message',
+		paramsPath = basePath + 'params';
 
 	this.send = function(exp, message, pin, cb) {
 		var request = new XMLHttpRequest(),
@@ -39,6 +43,31 @@ var API = (function() {
 
 		request.send();
 	}
+
+	this._getParams = function() {
+		var request = new XMLHttpRequest();
+
+		request.open('GET', paramsPath, true);
+
+		request.onreadystatechange = function() {
+			if (request.readyState == 4) {
+				if (request.status == 200) {
+					that.params = JSON.parse(request.responseText);
+				}
+  			}
+		};
+
+		request.send();
+	}
+
+	// default values
+	this.params = {
+		pin_size: 5,
+		max_pin_attempts: 3,
+		max_exp_sec: 86400
+	};
+
+	this._getParams();
 
 	return this;
 })();
