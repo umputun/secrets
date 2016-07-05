@@ -26,12 +26,6 @@ function numberCheck(e) {
 		e.preventDefault();
 		return;
 	}
-
-	var newValue = new Number(e.target.value + String.fromCharCode(charCode));
-
-	if (newValue > API.params.max_exp_sec / 60) {
-		e.preventDefault();
-	}
 }
 
 function numInputsInit() {
