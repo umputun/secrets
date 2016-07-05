@@ -55,7 +55,7 @@
 								{
 									block: 'field',
 									id: 'pin',
-									title: 'Enter the PIN to protect your info',
+									title: 'Enter the PIN to protect your information',
 									content: [
 										{
 											block: 'input',
