@@ -389,12 +389,15 @@
 		if (input.value.length == 0) {
 			error = 'NOVAL';
 		} else if (input.classList.contains('input_type_number')) {
-			var num = new Number(input.value);
+			var num = new Number(input.value),
+				maxNum = Math.floor(API.params.max_exp_sec / 60);
 
 			if (input.value.substr(0, 1) == '-') {
 				error = 'NONEG';
 			} else if (input.value != num.toString()) {
 				error = 'WRONGVAL';
+			} else if (num > maxNum) {
+				error = 'MAXNUM';
 			}
 		} else if (input.classList.contains('input_type_pin')) {
 			if (!input.value.match(/^[0-9]{5}$/)) {
@@ -423,8 +426,10 @@
 			case 'WRONGVAL': 
 				message = 'Please enter the valid value';
 				break;
-			// ...
+			case 'MAXNUM':
+				message = 'Maximum keeping time is ' + Math.floor(API.params.max_exp_sec / 60) + ' minutes';
 		};
+		
 		this.msgError.innerHTML = message;
 		this._showCtrl(this.msgError);
 	}
