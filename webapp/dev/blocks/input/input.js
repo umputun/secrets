@@ -13,7 +13,7 @@ function isButtonNumber(charCode) {
 function pinCheck(e) {
 	var charCode = getCharCode(e);
 
-	if (!isButtonNumber(charCode)) {
+	if (!isButtonNumber(charCode) || e.target.value + 1 > API.params.pin_size) {
 		e.preventDefault();
 		return;
 	}
