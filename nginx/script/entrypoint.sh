@@ -29,7 +29,7 @@ mv -v /etc/nginx/conf.d/secrets.conf /etc/nginx/conf.d/secrets.disabled
     /le.sh
     rm -f /etc/nginx/conf.d/default.conf 2>/dev/null #remove default config, conflicting on 80
     mv -v /etc/nginx/conf.d/secrets.disabled /etc/nginx/conf.d/secrets.conf #enable
-    echo "relaod nginx with ssl"
+    echo "reload nginx with ssl"
     nginx -s reload
     sleep 60d
  done
