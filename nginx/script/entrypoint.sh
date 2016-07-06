@@ -21,7 +21,7 @@ cp -f /robots.txt /srv/docroot/robots.txt
 mv -v /etc/nginx/conf.d/secrets.conf /etc/nginx/conf.d/secrets.disabled
 
 (
- sleep 3 #give nginx time to start
+ sleep 5 #give nginx time to start
  echo "start letsencrypt updater"
  while :
  do
