@@ -121,6 +121,18 @@ $b: '.fs-form';
 				color: rgba(0, 0, 0, .5);
 				font-size: 1em;
 			}
+
+			.link {
+				border-bottom: 1px solid;
+				color: #3b3f45;
+				transition: border-color 200ms;
+				
+				&:hover, 
+				&:focus {
+					border-color: transparent;
+					color: #3b3f45;
+				}
+			}
 		}
 
 		&.shown, &_shown {
