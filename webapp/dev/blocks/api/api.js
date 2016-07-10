@@ -37,9 +37,7 @@ var API = (function() {
 					cb(JSON.parse(request.responseText));
 				} else if (typeof err == 'function') {
 					if (request.responseText.length > 0) {
-						err(JSON.parse(request.responseText));
-					} else {
-						err({error: "something gone wrong"});
+						err(JSON.parse(request.responseText), request.status);
 					}
 				}
   			}
