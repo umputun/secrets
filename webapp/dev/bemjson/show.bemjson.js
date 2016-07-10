@@ -12,7 +12,11 @@
 			content: [
 				{
 					block: 'header',
-					content: 'SafeSecret.Info'
+					content: {
+						block: 'link',
+						url: '/',
+						content: 'SafeSecret.Info'
+					}
 				},
 				{
 					elem: 'content',
