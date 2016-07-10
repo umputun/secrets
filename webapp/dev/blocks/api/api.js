@@ -36,7 +36,7 @@ var API = (function() {
 				if (request.status == 200) {
 					cb(JSON.parse(request.responseText));
 				} else {
-					err();
+					err(JSON.parse(request.responseText));
 				}
   			}
 		};
