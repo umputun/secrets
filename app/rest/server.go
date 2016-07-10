@@ -60,7 +60,7 @@ func (s Server) saveMessageCtrl(c *gin.Context) {
 
 	if len(request.Pin) != s.PinSize {
 		log.Printf("[WARN] incorrect pin size %d", len(request.Pin))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "incorrect pin size"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect pin size"})
 		return
 	}
 
