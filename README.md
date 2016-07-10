@@ -2,7 +2,7 @@
 
 The primary use-case is sharing sensetive data by making this information self-destructed, accessible only once and protected
 by easy-to-pass pin code. I just needed a simple and better alternative to the most popular way of passing passwords.
-Doing this by email made me always worry and the usual "protection" by sending user and password info in two different
+Doing this by email always made me worry and the usual "protection" by sending user and password info in two different
 emails is just a joke.
 
 ## Usage
@@ -41,7 +41,7 @@ _Feel free to suggest any other ways to make it safer._
     - PIN_SIZE - default 5
     - PIN_ATTEMPTS - default 3
 1. Setup SSL:
-    - The system can make valid certificates for you fully automatically. Just set:
+    - The system can make valid certificates for you automatically. Just set:
         - LETSENCRYPT=true
         - LE_EMAIL=name@example.com
         - LE_FQDN=www.example.com
