@@ -2,15 +2,66 @@ $b: '.result';
 
 #{$b} {
 	display: none;
+	position: relative;
 	
 	&__tip {
+		display: none;
 		margin-bottom: 1.5em;
 		color: #3b3f45;
 		font-weight: 700;
 		font-size: 1.85em;
-		
-		&_error {
+	}
+
+	&__throbber {
+		color: rgba(0, 0, 0, 0.2);
+		font-weight: 700;
+		font-size: 1.85em;
+	}
+
+	&__again,
+	&__info,
+	&__desc,
+	&__button,
+	&__to-main {
+		display: none;
+	}
+
+	&_loaded {
+		#{$b}__throbber {
+			display: none;
+		}
+
+		#{$b}__tip,
+		#{$b}__info,
+		#{$b}__desc,
+		#{$b}__button {
+			display: block;
+		}
+	}
+
+	&_error {
+		#{$b}__throbber {
+			display: none;
+		}
+
+		#{$b}__tip {
+			display: block;
+			margin-bottom: .5em;
 			color: #f00000;
+		}
+
+		#{$b}__to-main {
+			display: inline;
+		}
+	}
+
+	&_again {
+		#{$b}__again {
+			display: inline;
+		}
+
+		#{$b}__to-main {
+			display: none;
 		}
 	}
 }

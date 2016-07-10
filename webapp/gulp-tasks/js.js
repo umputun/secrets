@@ -2,7 +2,6 @@ module.exports = function(gulp, $, path, options) {
 	'use strict';
 
 	options = options || {
-		isProduction: false,
 		errorHandler: function() {
 			return $.plumber();
 		}
@@ -14,7 +13,7 @@ module.exports = function(gulp, $, path, options) {
 			
 			.pipe($.order())
 			.pipe($.concat('main.js'))
-			.pipe($.ifelse(options.isProduction, $.uglify()))
+			.pipe($.uglify())
 			.pipe(gulp.dest(path.outputJS))
 	});
 };

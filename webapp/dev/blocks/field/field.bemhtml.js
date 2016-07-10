@@ -23,3 +23,10 @@ block('field').elem('title')(
 		};
 	})
 );
+
+block('field').elem('desc')(
+	mix()([
+		{ block: 'animation', elem: 'upper' },
+		{ block: 'description'}
+	])
+);

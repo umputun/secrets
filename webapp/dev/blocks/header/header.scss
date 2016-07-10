@@ -16,4 +16,14 @@ $b: '.header';
 	&__content {
 		margin: 0;
 	}
+
+	.link {
+		color: #fff; 
+		border-bottom: 1px solid transparent;
+		
+		&:hover,
+		&:focus {
+			border-color: rgba(#fff, .5);
+		}
+	}
 }

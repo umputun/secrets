@@ -1,6 +1,6 @@
 ({
 	block: 'document',
-	title: 'Safe Secret Info',
+	title: 'SafeSecret.Info',
 	styles: ['css/main.css'],
 	scripts: ['js/main.js'],
 	content: [
@@ -12,7 +12,7 @@
 			content: [
 				{
 					block: 'header',
-					content: 'Safe Secret Info'
+					content: 'SafeSecret.Info'
 				},
 				{
 					elem: 'content',
@@ -28,7 +28,7 @@
 								{
 									block: 'field',
 									id: 'text',
-									title: 'What info do you want to safe?',
+									title: 'What information do you want to share?',
 									content: {
 										block: 'textarea',
 										id: 'text',
@@ -39,31 +39,43 @@
 									block: 'field',
 									id: 'time',
 									title: 'How long to keep?',
-									content: {
-										block: 'input',
-										mods: { type: 'number' },
-										id: 'time',
-										placeholder: '10'
-									}
+									content: [
+										{
+											block: 'input',
+											mods: { type: 'number' },
+											id: 'time',
+											placeholder: '10'
+										},
+										{
+											elem: 'desc',
+											content: 'How many minutes?'
+										}
+									]
 								},
 								{
 									block: 'field',
 									id: 'pin',
-									title: 'Enter the PIN to protect your info',
-									content: {
-										block: 'input',
-										mods: { type: 'pin' },
-										id: 'pin',
-										placeholder: (function() {
-											var text = '';
-										    var possible = '0123456789';
+									title: 'Enter the PIN to protect your information',
+									content: [
+										{
+											block: 'input',
+											mods: { type: 'pin' },
+											id: 'pin',
+											placeholder: (function() {
+												var text = '';
+											    var possible = '0123456789';
 
-										    for (var i = 0; i < 5; i++)
-										        text += possible.charAt(Math.floor(Math.random() * possible.length));
+											    for (var i = 0; i < 5; i++)
+											        text += possible.charAt(Math.floor(Math.random() * possible.length));
 
-										    return text;
-										})()
-									}
+											    return text;
+											})()
+										},
+										{
+											elem: 'desc',
+											content: 'PIN is a 5-digit password.'
+										}
+									]
 								}
 							]
 						},
@@ -71,16 +83,41 @@
 							block: 'result',
 							content: [
 								{
+									elem: 'throbber',
+									content: 'Loading..'
+								},
+								{
 									elem: 'tip',
 									content: 'Here is your link and don\'t forget your PIN!'
 								},
 								{
 									block: 'textarea',
-									mods: { autoselect: true },
+									mods: { result: true, size: 'm' },
 									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
 									}
+								},
+								{
+									block: 'description',
+									mix: { block: 'result', elem: 'desc' },
+									content: [
+										'Use this link to access to saving information. ',
+										{
+											block: 'link',
+											url: 'javascript:location.reload()',
+											content: 'Save yet another one?'
+										}
+									]
+								},
+								{
+									block: 'button',
+									mods: { content: 'copy', shown: true },
+									mix: { block: 'result', elem: 'button' },
+									attrs: {
+										'data-clipboard-target': '#result__info'
+									},
+									content: 'Copy'
 								}
 							]
 						}

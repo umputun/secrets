@@ -43,4 +43,16 @@ $b: '.input';
 	&::placeholder {
 		color: rgba(0, 0, 0, 0.1);
 	}
+
+	&_type {
+		&_number,
+		&_pin {
+			-moz-appearance: textfield;
+
+			&::-webkit-outer-spin-button,
+			&::-webkit-inner-spin-button {
+				-webkit-appearance: none;
+			}
+		}
+	}
 }		

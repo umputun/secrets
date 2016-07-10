@@ -43,7 +43,6 @@ const path = {
 const taskList = require('fs').readdirSync(path.tasks);
 
 const options = {
-	isProduction: process.env.NODE_ENV == 'production',
 	isOnline: process.env.SERVER_MODE == 'online',
 	bs: bs,
 	errorHandler: function(title) {
