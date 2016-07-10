@@ -83,6 +83,10 @@
 							block: 'result',
 							content: [
 								{
+									elem: 'throbber',
+									content: 'Loading..'
+								},
+								{
 									elem: 'tip',
 									content: 'Here is your link and don\'t forget your PIN!'
 								},
@@ -92,16 +96,16 @@
 									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
-									},
-									placeholder: 'Loading..'
+									}
 								},
 								{
 									block: 'description',
+									mix: { block: 'result', elem: 'desc' },
 									content: [
 										'Use this link to access to saving information. ',
 										{
 											block: 'link',
-											url: '/',
+											url: 'javascript:location.reload()',
 											content: 'Save yet another information?'
 										}
 									]
@@ -109,6 +113,7 @@
 								{
 									block: 'button',
 									mods: { content: 'copy', shown: true },
+									mix: { block: 'result', elem: 'button' },
 									attrs: {
 										'data-clipboard-target': '#result__info'
 									},
