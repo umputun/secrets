@@ -88,7 +88,7 @@
 								},
 								{
 									block: 'textarea',
-									mods: { autoselect: true, size: 'm' },
+									mods: { result: true, size: 'm' },
 									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
@@ -98,6 +98,14 @@
 								{
 									block: 'description',
 									content: 'Use this link to access to saving information.'
+								},
+								{
+									block: 'button',
+									mods: { content: 'copy', shown: true },
+									attrs: {
+										'data-clipboard-target': '#result__info'
+									},
+									content: 'Copy'
 								}
 							]
 						}

@@ -13,14 +13,13 @@ block('textarea')(
 	})
 );
 
-block('textarea').mod('autoselect', true)(
+block('textarea').mod('result', true)(
 	attrs()(function() {
 		var ctx = this.ctx;
 
 		return {
 			id: ctx.id,
 			placeholder: ctx.placeholder,
-			onclick: 'this.focus(); this.select()',
 			readonly: true
 		};
 	})
