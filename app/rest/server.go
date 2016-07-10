@@ -89,6 +89,9 @@ func (s Server) getMessageCtrl(c *gin.Context) {
 		r, err := s.Messager.LoadMessage(key, pin)
 		if err != nil {
 			log.Printf("[WARN] failed to load key %v", key)
+			if err == messager.ErrBadPinAttempt {
+				return http.StatusExpectationFailed, gin.H{"error": err.Error()}
+			}
 			return http.StatusBadRequest, gin.H{"error": err.Error()}
 		}
 		return http.StatusOK, gin.H{"key": r.Key, "message": r.Data}
