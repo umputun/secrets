@@ -42,10 +42,20 @@
 							block: 'result',
 							content: [
 								{
+									elem: 'throbber',
+									content: 'Loading..'
+								},
+								{
 									elem: 'tip',
 									attrs: {
 										id: 'result__tip'
 									}
+								},
+								{
+									block: 'link',
+									mix: { block: 'result', elem: 'again' },
+									url: 'javascript:location.reload()',
+									content: 'Try again?'
 								},
 								{
 									block: 'textarea',
@@ -53,21 +63,22 @@
 									mix: { block: 'result', elem: 'info' },
 									attrs: {
 										id: 'result__info'
-									},
-									placeholder: 'Loading..'
+									}
 								},
 								{
 									block: 'description',
+									mix: { block: 'result', elem: 'desc' },
 									content: 'This is the last time this information will be available for any access.'
 								},
 								{
 									block: 'button',
 									mods: { content: 'copy', shown: true },
+									mix: { block: 'result', elem: 'button' },
 									attrs: {
 										'data-clipboard-target': '#result__info'
 									},
 									content: 'Copy'
-								}
+								},
 							]
 						}
 					]

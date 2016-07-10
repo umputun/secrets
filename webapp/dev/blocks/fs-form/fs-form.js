@@ -453,11 +453,15 @@ function formInit() {
 	function getLink() {
 		var message = document.getElementById('text').value,
 			exp = document.getElementById('time').value,
-			pin = document.getElementById('pin').value;
+			pin = document.getElementById('pin').value,
+			resField = document.getElementById('result__info');
+
+		var res = resField.parentNode;
 
 		API.send(exp, message, pin, function(data) {
-			var link = location.protocol + '//' + location.host + '/show/' + data.key,
-				resField = document.getElementById('result__info');
+			var link = location.protocol + '//' + location.host + '/show/' + data.key;
+
+			res.classList.add('result_loaded');
 
 			resField.value = link;
 			resField.focus();
@@ -467,20 +471,23 @@ function formInit() {
 
 	function getInfo() {
 		var pin = document.getElementById('pin').value,
-			key = location.pathname.replace('/show/', '');
+			key = location.pathname.replace('/show/', ''),
+			resField = document.getElementById('result__info'),
+			resTip = document.getElementById('result__tip');
+
+		var res = resTip.parentNode;
 
 		API.get(key, pin, function(data) {
-			var resField = document.getElementById('result__info');
+			res.classList.add('result_loaded');
 
-			document.getElementById('result__tip').textContent = 'Here is your info:';
+			resTip.textContent = 'Here is your info:';
 			resField.value = data.message;
 			resField.focus();
 			resField.select();
-		}, function() {
-			var tip = document.getElementById('result__tip');
+		}, function(json) {
+			res.classList.add('result_error');
 
-			tip.classList.add('result__tip_error');
-			tip.textContent = 'Sorry, but your PIN is wrong.';
+			resTip.textContent = json.error.charAt(0).toUpperCase() + json.error.slice(1);
 		});
 	}
 

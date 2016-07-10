@@ -35,8 +35,12 @@ var API = (function() {
 			if (request.readyState == 4 && typeof cb == 'function') {
 				if (request.status == 200) {
 					cb(JSON.parse(request.responseText));
-				} else {
-					err(JSON.parse(request.responseText));
+				} else if (typeof err == 'function') {
+					if (request.responseText.length > 0) {
+						err(JSON.parse(request.responseText));
+					} else {
+						err({error: "something gone wrong"});
+					}
 				}
   			}
 		};
