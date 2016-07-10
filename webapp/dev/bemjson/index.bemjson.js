@@ -106,7 +106,7 @@
 										{
 											block: 'link',
 											url: 'javascript:location.reload()',
-											content: 'Save yet another information?'
+											content: 'Save yet another one?'
 										}
 									]
 								},
