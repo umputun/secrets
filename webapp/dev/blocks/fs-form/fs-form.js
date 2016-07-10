@@ -118,7 +118,7 @@
 		this.ctrls = createElement('div', { cName: 'controls', appendTo: this.el });
 
 		// continue button (jump to next field)
-		this.ctrlContinue = createElement('button', { cName: 'continue', inner: 'Continue', appendTo: this.ctrls });
+		this.ctrlContinue = createElement('button', { cName: 'button button_content_continue', inner: 'Continue', appendTo: this.ctrls });
 		this._showCtrl(this.ctrlContinue);
 
 		// navigation dots

@@ -2,6 +2,7 @@ $b: '.result';
 
 #{$b} {
 	display: none;
+	position: relative;
 	
 	&__tip {
 		margin-bottom: 1.5em;
