@@ -62,6 +62,12 @@
 									content: 'Try again?'
 								},
 								{
+									block: 'link',
+									mix: { block: 'result', elem: 'to-main' },
+									url: '/',
+									content: 'Back to main page'
+								},
+								{
 									block: 'textarea',
 									mods: { result: true },
 									mix: { block: 'result', elem: 'info' },
