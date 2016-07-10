@@ -97,7 +97,14 @@
 								},
 								{
 									block: 'description',
-									content: 'Use this link to access to saving information.'
+									content: [
+										'Use this link to access to saving information. ',
+										{
+											block: 'link',
+											url: '/',
+											content: 'Save yet another information?'
+										}
+									]
 								},
 								{
 									block: 'button',
