@@ -28,7 +28,7 @@
 								{
 									block: 'field',
 									id: 'text',
-									title: 'What information do you want to share?',
+									title: 'Enter the content you\'d like to share',
 									content: {
 										block: 'textarea',
 										id: 'text',
@@ -38,7 +38,7 @@
 								{
 									block: 'field',
 									id: 'time',
-									title: 'How long to keep?',
+									title: 'Life span of your contect',
 									content: [
 										{
 											block: 'input',
@@ -48,14 +48,14 @@
 										},
 										{
 											elem: 'desc',
-											content: 'How many minutes?'
+											content: 'Minutes'
 										}
 									]
 								},
 								{
 									block: 'field',
 									id: 'pin',
-									title: 'Enter the PIN to protect your information',
+									title: 'Select a secret PIN',
 									content: [
 										{
 											block: 'input',
@@ -73,7 +73,7 @@
 										},
 										{
 											elem: 'desc',
-											content: 'PIN is a 5-digit password.'
+											content: '5-digit PIN - Don\'t forget it!'
 										}
 									]
 								}
@@ -102,11 +102,11 @@
 									block: 'description',
 									mix: { block: 'result', elem: 'desc' },
 									content: [
-										'Use this link to access to saving information. ',
+										'Use and share this link to access your secret content.',
 										{
 											block: 'link',
 											url: 'javascript:location.reload()',
-											content: 'Save yet another one?'
+											content: 'Share more secret content'
 										}
 									]
 								},

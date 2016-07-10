@@ -32,12 +32,12 @@
 								{
 									block: 'field',
 									id: 'pin',
-									title: 'Enter the PIN to get protected info',
+									title: 'Enter the secret PIN to see content',
 									content: {
 										block: 'input',
 										mods: { type: 'pin' },
 										id: 'pin',
-										placeholder: 'PIN here'
+										placeholder: '5-diget PIN'
 									}
 								}
 							]
@@ -59,7 +59,7 @@
 									block: 'link',
 									mix: { block: 'result', elem: 'again' },
 									url: 'javascript:location.reload()',
-									content: 'Try again?'
+									content: 'Try again'
 								},
 								{
 									block: 'link',
@@ -78,7 +78,7 @@
 								{
 									block: 'description',
 									mix: { block: 'result', elem: 'desc' },
-									content: 'This is the last time this information will be available for any access.'
+									content: 'This information will self-destruct after you close this page.'
 								},
 								{
 									block: 'button',

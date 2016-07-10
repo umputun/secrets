@@ -1,37 +1,37 @@
 # Safe Secrets - safer and easy way to transfer passwords.
 
-The primary use-case is sharing sensetive data by making this information self-destructed, accessible only once and protected
-by easy-to-pass pin code. I just needed a simple and better alternative to the most popular way of passing passwords.
-Doing this by email always made me worry and the usual "protection" by sending user and password info in two different
-emails is just a joke.
+The primary use-case is sharing sensetive data by making the information self-destructed, accessible only once and protected
+by easy-to-share PIN code. I just needed a simple and better alternative to the most popular way of passing passwords,
+which is why this project was created. Doing this by email always made me concerned about the usual "security" of sending user
+and password info in two different emails - which is just a joke.
 
 ## Usage
 
-It runs on **[safesecret.info](https://safesecret.info)** for real. Feel free to use it if you crazy enough to trust me,
-or just run your own from prepared docker image. Sure, you can build from sources as well.
+It runs on **[safesecret.info](https://safesecret.info)** for real. Feel free to use it if you are crazy enough to trust me,
+or just run your own from prepared docker image. And of course, you can build from sources as well.
 
-Create safesecret link to your message by entering 3 things:
- - message itself
- - expiration time
- - pin code
+Create a Safesecret link to your message by entering 3 things:
+ - Content of your secret message
+ - Expiration time of your secret message
+ - Secret PIN
 
- This will give you a link you could send by email, chat or transfered by using any other transport.
- As soon as recipient opens the link he will be asked for the pin and will get your message.
- Pin is (usually) numeric and easy to pass by voice call or sms.
- Each link can be opened only once and number of attempt to enter wrong pin is limited (3 by default).
+ This will give you a link which you can send by email, chat or share by using any other means.
+ As soon as yout recipient opens the link they will be asked for the secret PIN and see your secret message.
+ The PIN is (typically) numeric and easy to pass by a voice call or text message.
+ Each link can be opened only ONCE and the number of attempts to enter a wrong PIN is limited to 3 times by default.
 
 
 ## How safe is this thing?
 
-- it doesn't keep your original message or pin anywhere, but encrypts message with pin (hashed as well)
-- it doesn't keep any sensitive info in any logs
-- it doesn't keep anything on disk in any form (in case of default engine)
-- as soon as message read or expired it will be deleted and destroyed
-- in order to steal your message, bad guys will need access to your link as well as pin code
+- It doesn't keep your original message or PIN anywhere, but encrypts your message with PIN (hashed as well)
+- It doesn't keep any sensitive info in any logs
+- It doesn't keep anything on a disk in any form (in case of default engine)
+- As soon as a message is read or expired it will be deleted and destroyed permanently
+- In order to steal your message, bad guys would need access to your link as well as PIN code
 
-_Feel free to suggest any other ways to make it safer._
+_Feel free to suggest any other ways to make the process safer._
 
-## Install
+## Installation
 
 1. Download `docker-compose.yml`
 1. Adjust your local `docker-compose.yml` with:
@@ -45,10 +45,10 @@ _Feel free to suggest any other ways to make it safer._
         - LETSENCRYPT=true
         - LE_EMAIL=name@example.com
         - LE_FQDN=www.example.com
-    - In case you have your own certificates already, copy them to `etc/ssl` and define:
+    - In case you have your own certificates, copy them to `etc/ssl` and define:
         - SSL_CERT - SSL certificate (file name, not path)
         - SSL_KEY - SSL key (file name, not path)
-1. Run the system with `docker-compose up -d`. This will download prepared image from docker hub and start all components.
+1. Run the system with `docker-compose up -d`. This will download a prepared image from docker hub and start all components.
 1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
 
 _See `docker-compose.yml` for more details_
@@ -61,7 +61,7 @@ Secrets provides trivial REST to save and load messages.
 
 `POST /v1/message`, body - `{"message":"some top secret info", "exp": 120, "pin": 12345}`
 - `exp` expire in N seconds
-- `pin` fixed-size ping code
+- `pin` fixed-size PINg code
 
 ```
     $ http POST https://safesecret.info/api/v1/message pin=12345 message=testtest-12345678 exp:=1000
@@ -76,7 +76,7 @@ Secrets provides trivial REST to save and load messages.
 
 ### Load message
 
-`GET /v1/message/:key/:pin`
+`GET /v1/message/:key/:PIN`
 
 ```
     $ http GET https://safesecret.info/api/v1/message/6ceab760-3059-4a52-5670-649509b128fc/12345
@@ -89,7 +89,7 @@ Secrets provides trivial REST to save and load messages.
     }
 ```
 
-### Ping
+### ping
 
 `GET /v1/ping`
 
