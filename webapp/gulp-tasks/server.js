@@ -21,7 +21,8 @@ module.exports = function(gulp, $, path, options) {
 			open: false,
 			browser: 'browser',
 			reloadOnRestart: true,
-			online: options.isOnline
+			online: options.isOnline,
+			https: true
 		});
 
 		bs.watch(path.output + '/**/*.*').on('change', bs.reload);
