@@ -484,8 +484,12 @@ function formInit() {
 			resField.value = data.message;
 			resField.focus();
 			resField.select();
-		}, function(json) {
+		}, function(json, code) {
 			res.classList.add('result_error');
+
+			if (code == 417) {
+				res.classList.add('result_again');
+			}
 
 			resTip.textContent = json.error.charAt(0).toUpperCase() + json.error.slice(1);
 		});
