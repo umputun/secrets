@@ -21,7 +21,8 @@ $b: '.result';
 	&__again,
 	&__info,
 	&__desc,
-	&__button {
+	&__button,
+	&__to-main {
 		display: none;
 	}
 
@@ -49,8 +50,18 @@ $b: '.result';
 			color: #f00000;
 		}
 
+		#{$b}__to-main {
+			display: inline;
+		}
+	}
+
+	&_again {
 		#{$b}__again {
 			display: inline;
+		}
+
+		#{$b}__to-main {
+			display: none;
 		}
 	}
 }
