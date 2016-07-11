@@ -61,7 +61,7 @@ Secrets provides trivial REST to save and load messages.
 
 `POST /v1/message`, body - `{"message":"some top secret info", "exp": 120, "pin": 12345}`
 - `exp` expire in N seconds
-- `pin` fixed-size PINg code
+- `pin` fixed-size pin code
 
 ```
     $ http POST https://safesecret.info/api/v1/message pin=12345 message=testtest-12345678 exp:=1000
