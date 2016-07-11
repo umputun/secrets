@@ -1,7 +1,6 @@
 cache:
     paths:
-        - npm_cache/
-        - node_modules/
+        - webapp/node_modules/
 
 stages:
     - build
@@ -9,8 +8,6 @@ stages:
     - remote
 
 before_script:
-    - mkdir -p ~/.npm
-    - ln -s $PWD/npm_cache ~/.npm
     - export TZ=America/Chicago
     - export REV=${CI_BUILD_REF:0:7}-$CI_BUILD_ID-$CI_BUILD_REF_NAME-$(date +%Y%m%d-%H:%M:%S)
     - export IMAGE=docker.umputun.com:5500/umputun/secrets:${CI_BUILD_REF_NAME/\//-}
