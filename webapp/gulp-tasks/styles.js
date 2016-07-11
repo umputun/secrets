@@ -8,20 +8,6 @@ module.exports = function(gulp, $, path, options) {
 	};
 
 	gulp.task('styles', function() {
-		function urlMapper(url, type) {
-			if (url[0] == '.'
-				|| url[0] == '/'
-				|| url.indexOf('http') == 0) {
-				return url;
-			}
-
-			if (type == 'src') {
-				return '../fonts/' + url;
-			} else {
-				return '../images/' + url;
-			}
-		}
-
 		return gulp.src(path.inputStyles)
 			.pipe(options.errorHandler('Styles'))
 
@@ -30,8 +16,7 @@ module.exports = function(gulp, $, path, options) {
 			.pipe($.sass())
 			
 			.pipe($.postcss([
-				$.autoprefixer({ browsers: '> 0.3%, not ie < 10' }),
-				$.urlMapper(urlMapper)
+				$.autoprefixer({ browsers: '> 0.3%, not ie < 10' })
 			]))
 			
 			.pipe($.combineMq({

@@ -8,14 +8,12 @@ const $ = require('gulp-load-plugins')({
 	replaceString: /^gulp(-|\.)|postcss-/,
 	pattern: ['*'],
 	rename: {
-		'gulp-if': 'ifelse',
-		'imagemin-pngquant': 'pngquant'
+		'gulp-if': 'ifelse'
 	}
 });
 
 const path = {
 	tasks: './gulp-tasks/',
-	releases: 'releases',
 	output: 'public',
 	tmp: '.tmp',
 
@@ -28,16 +26,7 @@ const path = {
 	outputStyles: 'public/css',
 	
 	inputJS: ['dev/blocks/**/*.js', '!dev/blocks/**/*.bemhtml.js'],
-	outputJS: 'public/js',
-	
-	inputImages: ['dev/blocks/**/*.{jpg,png,gif,svg}'],
-	outputImages: 'public/images',
-	
-	inputFiles: 'dev/files/**/*',
-	outputFiles: 'public/files',
-	
-	inputFonts: 'dev/blocks/font/**/*.{eot,svg,ttf,woff,woff2}',
-	outputFonts: 'public/fonts'
+	outputJS: 'public/js'
 };
 
 const taskList = require('fs').readdirSync(path.tasks);
@@ -61,22 +50,10 @@ taskList.forEach(function (taskFile) {
 	require(path.tasks + taskFile)(gulp, $, path, options);
 });
 
-gulp.task('build', gulp.parallel('html', 'styles', 'js', 'images', 'files', 'fonts'));
+gulp.task('build', gulp.parallel('html', 'styles', 'js'));
 
 gulp.task('default', gulp.series('build', gulp.parallel('watch', 'server')));
 
 gulp.task('clean', function() {
 	return $.del([path.output, path.tmp])
 });
-
-gulp.task('zip', function() {
-	const name = require('./package.json').version;
-
-	return gulp.src(path.output + '/**/*.*')
-		.pipe(options.errorHandler('zip'))
-
-		.pipe($.zip(name + '.zip'))
-		.pipe(gulp.dest(path.releases));
-});
-
-gulp.task('release', gulp.series('clean', 'build', 'zip'));
