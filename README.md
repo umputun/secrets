@@ -51,7 +51,7 @@ _Feel free to suggest any other ways to make the process safer._
 1. Run the system with `docker-compose up -d`. This will download a prepared image from docker hub and start all components.
 1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
 
-_See `docker-compose.yml` for more details_
+_See [docker-compose.yml](https://github.com/umputun/secrets/blob/master/docker-compose.yml) for more details_
 
 ## API
 
