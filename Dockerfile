@@ -25,7 +25,7 @@ ADD webapp /srv/webapp
 RUN \
  apk --update --no-progress add nodejs-lts git python make g++ && \
  cd /srv/webapp && \
- npm i -g gulp && npm i && npm run build && \
+ npm i --production && npm run build && \
  mv -fv /srv/webapp/public/ /srv/docroot && \
  rm -rf  /srv/webapp && \
  apk del nodejs-lts git python make g++ && rm -rf /var/cache/apk/*
