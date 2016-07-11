@@ -33,6 +33,8 @@ build_web:
         - apk --update --no-progress add nodejs-lts git python make g++
         - cd /builds/umputun/secrets/webapp
         - npm i -g gulp && npm i && npm run build
+        - ls -la /builds/umputun/secrets/webapp
+        - ls -laR /builds/umputun/secrets/webapp/public/ 
         - mv -fv /builds/umputun/secrets/webapp/public/ /builds/umputun/secrets/target/docroot
     artifacts:
         paths:
