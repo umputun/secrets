@@ -26,22 +26,12 @@ var path = {
 
 var taskList = require('fs').readdirSync(path.tasks);
 
-var options = {
-	isOnline: process.env.SERVER_MODE == 'online',
-	errorHandler: function(title) {
-		return $.plumber({
-			errorHandler: $.notify.onError(function(err) {
-				return {
-					title: title  + ' (' + err.plugin + ')',
-					message: err.message
-				};
-			})
-		});
-	}
-};
-
 taskList.forEach(function (taskFile) {
-	require(path.tasks + taskFile)(gulp, $, path, options);
+	require(path.tasks + taskFile)(gulp, $, path);
 });
 
-gulp.task('default', gulp.series('dev'));
+if (process.env.NODE_ENV == 'dev') {
+	gulp.task('default', gulp.series('dev'));
+} else {
+	gulp.task('default', gulp.series('build'));
+}

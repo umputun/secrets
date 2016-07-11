@@ -1,4 +1,4 @@
-module.exports = function(gulp, $, path, options) {
+module.exports = function(gulp, $, path) {
 	'use strict';
 
 	gulp.task('build:html:bemhtml', function() {

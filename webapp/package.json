@@ -32,9 +32,9 @@
     "url": "https://github.com/umputun/secrets.git"
   },
   "scripts": {
-    "dev": "gulp",
+    "dev": "SET NODE_ENV=dev& gulp",
     "build": "gulp build",
     "clean": "gulp clean",
-    "devOnline": "gulp devOnline"
+    "devOnline": "SET NODE_ENV=dev& gulp devOnline"
   }
 }
