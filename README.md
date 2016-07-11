@@ -76,7 +76,7 @@ Secrets provides trivial REST to save and load messages.
 
 ### Load message
 
-`GET /v1/message/:key/:PIN`
+`GET /v1/message/:key/:pin`
 
 ```
     $ http GET https://safesecret.info/api/v1/message/6ceab760-3059-4a52-5670-649509b128fc/12345
