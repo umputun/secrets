@@ -34,6 +34,8 @@ build_web:
         - cd /builds/umputun/secrets/webapp
         - npm i -g gulp && npm i && npm run build
         - mkdir -p /builds/umputun/secrets/target/docroot
+        - ls -la /builds/umputun/secrets/webapp
+        - ls -laR /builds/umputun/secrets/webapp/public/
         - mv -fv /builds/umputun/secrets/webapp/public/ /builds/umputun/secrets/target/docroot
     artifacts:
         paths:
