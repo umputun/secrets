@@ -1,4 +1,4 @@
-# Safe Secrets - safer and easy way to transfer passwords.
+# Safe Secrets - safe(r) and easy way to transfer passwords.
 
 The primary use-case is sharing sensetive data by making the information self-destructed, accessible only once and protected
 by easy-to-share PIN code. I just needed a simple and better alternative to the most popular way of passing passwords,
@@ -18,7 +18,7 @@ Create a Safesecret link to your message by entering 3 things:
  This will give you a link which you can send by email, chat or share by using any other means.
  As soon as yout recipient opens the link they will be asked for the secret PIN and see your secret message.
  The PIN is (typically) numeric and easy to pass by a voice call or text message.
- Each link can be opened only ONCE and the number of attempts to enter a wrong PIN is limited to 3 times by default.
+ Each link can be opened only **once** and the number of attempts to enter a wrong PIN is limited to 3 times by default.
 
 
 ## How safe is this thing?
