@@ -59,6 +59,7 @@ deploy_image:
     stage: deploy
     dependencies:
         - build_app
+        - build_web
     script:
         - echo "image = $IMAGE"
         - docker build -t $IMAGE -f Dockerfile.gitlab .
