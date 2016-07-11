@@ -38,7 +38,7 @@
 								{
 									block: 'field',
 									id: 'time',
-									title: 'Life span of your contect',
+									title: 'Life span of your content',
 									content: [
 										{
 											block: 'input',
@@ -102,7 +102,7 @@
 									block: 'description',
 									mix: { block: 'result', elem: 'desc' },
 									content: [
-										'Use and share this link to access your secret content.',
+										'Use and share this link to access your secret content. ',
 										{
 											block: 'link',
 											url: 'javascript:location.reload()',
