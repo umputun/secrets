@@ -36,7 +36,7 @@ build_web:
     script:
         - apk --update --no-progress add nodejs-lts git python make g++
         - cd /builds/umputun/secrets/webapp
-        - npm i -g gulp && npm i && npm run build
+        - npm i --production && npm run build
         - mkdir -p /builds/umputun/secrets/target
         - ls -la /builds/umputun/secrets/webapp
         - ls -laR /builds/umputun/secrets/webapp/public/
