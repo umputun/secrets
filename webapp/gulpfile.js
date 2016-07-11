@@ -1,18 +1,13 @@
 'use strict';
 
-const gulp 			= require('gulp');
-const bs 			= require('browser-sync').create();
-const pathResolver 	= require('path');
+var gulp = require('gulp');
 
-const $ = require('gulp-load-plugins')({
+var $ = require('gulp-load-plugins')({
 	replaceString: /^gulp(-|\.)|postcss-/,
-	pattern: ['*'],
-	rename: {
-		'gulp-if': 'ifelse'
-	}
+	pattern: ['*']
 });
 
-const path = {
+var path = {
 	tasks: './gulp-tasks/',
 	output: 'public',
 	tmp: '.tmp',
@@ -29,11 +24,10 @@ const path = {
 	outputJS: 'public/js'
 };
 
-const taskList = require('fs').readdirSync(path.tasks);
+var taskList = require('fs').readdirSync(path.tasks);
 
-const options = {
+var options = {
 	isOnline: process.env.SERVER_MODE == 'online',
-	bs: bs,
 	errorHandler: function(title) {
 		return $.plumber({
 			errorHandler: $.notify.onError(function(err) {
@@ -50,10 +44,4 @@ taskList.forEach(function (taskFile) {
 	require(path.tasks + taskFile)(gulp, $, path, options);
 });
 
-gulp.task('build', gulp.parallel('html', 'styles', 'js'));
-
-gulp.task('default', gulp.series('build', gulp.parallel('watch', 'server')));
-
-gulp.task('clean', function() {
-	return $.del([path.output, path.tmp])
-});
+gulp.task('default', gulp.series('dev'));
