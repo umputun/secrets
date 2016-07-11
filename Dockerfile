@@ -33,5 +33,5 @@ RUN \
 EXPOSE 8080
 USER secrets
 WORKDIR /srv
-
+VOLUME ["/srv/docroot"]
 ENTRYPOINT ["/srv/secrets"]
