@@ -3,7 +3,7 @@ services:
 
     secrets:
         build: .
-        image: umputun/secrets-service:latest
+        image: umputun/secrets:latest
         container_name: secrets
         hostname: secrets
         restart: always
@@ -27,7 +27,7 @@ services:
 
     nginx:
         build: nginx
-        image: umputun/secrets-nginx:latest
+        image: umputun/secrets:nginx
         hostname: nginx
         restart: always
         container_name: nginx

@@ -116,8 +116,3 @@ Secrets provides trivial REST to save and load messages.
         "pin_size": 5
     }
 ```
-
-
-## Status
-
-Can be built locally just fine. Still working on making auto-build on docker hub ...
