@@ -1,4 +1,4 @@
 *.sublime*
 node_modules/
 \.tmp/
-info/
+public/
