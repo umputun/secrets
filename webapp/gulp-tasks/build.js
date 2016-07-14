@@ -50,5 +50,10 @@ module.exports = function(gulp, $, path) {
 			.pipe(gulp.dest(path.outputJS))
 	});
 
-	gulp.task('build', gulp.parallel('build:html', 'build:styles', 'build:js'));
+	gulp.task('build:files', function() {
+		return gulp.src(path.inputFiles)
+			.pipe(gulp.dest(path.output))
+	});
+
+	gulp.task('build', gulp.parallel('build:html', 'build:styles', 'build:js', 'build:files'));
 };

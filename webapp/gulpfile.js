@@ -21,7 +21,9 @@ var path = {
 	outputStyles: 'public/css',
 	
 	inputJS: ['dev/blocks/**/*.js', '!dev/blocks/**/*.bemhtml.js'],
-	outputJS: 'public/js'
+	outputJS: 'public/js',
+
+	inputFiles: ['dev/blocks/favicon/**/*']
 };
 
 var taskList = require('fs').readdirSync(path.tasks);

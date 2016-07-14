@@ -78,12 +78,20 @@ module.exports = function(gulp, $, path) {
 				.pipe(gulp.dest(path.outputJS))
 		});
 
-		gulp.task('dev:build', gulp.parallel('dev:html', 'dev:styles', 'dev:js'));
+		gulp.task('dev:files', function() {
+			return gulp.src(path.inputFiles)
+				.pipe(errorHandler('Files'))
+
+				.pipe(gulp.dest(path.output))
+		});
+
+		gulp.task('dev:build', gulp.parallel('dev:html', 'dev:styles', 'dev:js', 'dev:files'));
 
 		gulp.task('dev:watch', function() {
 			gulp.watch([path.inputBEMHTML, path.inputBEMJSON], gulp.series('dev:html'));
 			gulp.watch(path.inputStyles, gulp.series('dev:styles'));
 			gulp.watch(path.inputJS, gulp.series('dev:js'));
+			gulp.watch(path.inputFiles, gulp.series('dev:files'));
 		});
 
 		gulp.task('dev:server', function() {
