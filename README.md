@@ -59,7 +59,7 @@ Secrets provides trivial REST to save and load messages.
 
 ### Save message
 
-`POST /v1/message`, body - `{"message":"some top secret info", "exp": 120, "pin": 12345}`
+`POST /v1/message`, body - `{"message":"some top secret info", "exp": 120, "pin": "12345"}`
 - `exp` expire in N seconds
 - `pin` fixed-size pin code
 
