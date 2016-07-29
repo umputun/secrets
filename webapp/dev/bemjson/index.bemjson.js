@@ -59,17 +59,9 @@
 									content: [
 										{
 											block: 'input',
-											mods: { type: 'pin' },
+											mods: { type: 'pin', random: true },
 											id: 'pin',
-											placeholder: (function() {
-												var text = '';
-											    var possible = '0123456789';
-
-											    for (var i = 0; i < 5; i++)
-											        text += possible.charAt(Math.floor(Math.random() * possible.length));
-
-											    return text;
-											})()
+											placeholder: '12345'
 										},
 										{
 											elem: 'desc',
