@@ -33,6 +33,10 @@ $b: '.popup';
 			margin: 0;
 		}
 	}
+
+	&_fast {
+		transition: all 500ms 0s;
+	}
 	
 	&__content {
 		margin-bottom: 20px;

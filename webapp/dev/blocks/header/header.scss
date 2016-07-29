@@ -14,7 +14,34 @@ $b: '.header';
 	}
 	
 	&__content {
+		display: inline-block;
 		margin: 0;
+		vertical-align: middle;
+	}
+
+	&__info {
+		display: inline-block;
+		width: 25px;
+		height: 25px;
+		margin-left: 1.5em;
+		vertical-align: middle;
+		border: 2px solid;
+		color: rgba(#fff, .3);
+		font-size: 16px;
+		line-height: 1.25;
+		text-align: center;
+		transition: color 250ms;
+		
+		@media screen and (max-width: 52.5em) {
+			width: 22px;
+			height: 22px;
+			font-size: 14px;
+		}
+		
+		&:hover,
+		&:focus {
+			color: rgba(#fff, .7);
+		}
 	}
 
 	.link {
