@@ -19,6 +19,9 @@ var API = (function() {
 			if (request.readyState == 4 && typeof cb == 'function') {
 				if (request.status == 201) {
 					cb(JSON.parse(request.responseText));
+				} else {
+					alert('Something goes wrong. Try again later.');
+					location.href = '/';
 				}
   			}
 		};
@@ -38,7 +41,11 @@ var API = (function() {
 				} else if (typeof err == 'function') {
 					if (request.responseText.length > 0) {
 						err(JSON.parse(request.responseText), request.status);
+					} else {
+						alert('Something goes wrong. Try again later.');
 					}
+				} else {
+					alert('Something goes wrong. Try again later.');
 				}
   			}
 		};
