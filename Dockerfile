@@ -30,8 +30,15 @@ RUN \
  rm -rf  /srv/webapp && \
  apk del nodejs-lts git python make g++ && rm -rf /var/cache/apk/*
 
+RUN \
+ echo "#!/bin/sh" > /srv/exec.sh && \
+ echo "tail -F /srv/logs/secrets.log &" /srv/exec.sh && \
+ echo "/srv/secrets >> /srv/logs/secrets.log" >> /srv/exec.sh && \
+ chmod +x /srv/exec.sh
+
+
 EXPOSE 8080
 USER secrets
 WORKDIR /srv
-VOLUME ["/srv/docroot"]
-ENTRYPOINT ["/srv/secrets"]
+VOLUME ["/srv/docroot", "/srv/logs"]
+ENTRYPOINT ["/srv/exec.sh"]
