@@ -30,6 +30,10 @@ $b: '.button';
 			color: rgba(0, 0, 0, .75);
 			font-size: .75em;
 			
+			@media screen and (max-width: 52.5em) {
+				bottom: -2em;
+			}
+			
 			&:hover,
 			&:focus {
 			    border-color: #111;

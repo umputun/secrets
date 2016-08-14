@@ -103,6 +103,14 @@ $b: '.fs-form';
 			color: #3b3f45;
 			font-size: 1.2em;
 			
+			@media screen and (max-width: 52.5em) {
+				top: 0;
+				right: 0;
+				left: 0;
+				padding: 1em;
+				font-size: 1.6em;
+			}
+			
 			.fields {
 				display: none;
 			}
@@ -111,6 +119,10 @@ $b: '.fs-form';
 				color: #3b3f45;
 				font-weight: 700;
 				font-size: 1.85em;
+				
+				@media screen and (max-width: 52.5em) {
+					font-size: 1.2em;
+				}
 			}
 
 			.result {

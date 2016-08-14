@@ -10,6 +10,10 @@ $b: '.result';
 		color: #3b3f45;
 		font-weight: 700;
 		font-size: 1.85em;
+		
+		@media screen and (max-width: 52.5em) {
+			margin-bottom: 1em;
+		}
 	}
 
 	&__throbber {

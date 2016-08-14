@@ -15,8 +15,9 @@ $b: '.error';
 	font-weight: 700;
 	
 	@media screen and (max-width: 52.5em) {
-		bottom: 1.75em;
+		bottom: 5em;
 		left: 0;
+		box-sizing: border-box;
 		width: 100%;
 		padding: 0 90px 0 2em;
 		font-size: 1.5em;

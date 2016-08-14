@@ -16,6 +16,10 @@ $b: '.textarea';
 		&_m {
 			height: auto;
 			max-height: 200px;
+			
+			@media screen and (max-width: 52.5em) {
+				max-height: 10em;
+			}
 		}
 	}
 

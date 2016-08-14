@@ -466,6 +466,7 @@ function formInit() {
 			resField.value = link;
 			resField.focus();
 			resField.select();
+			resField.style.height = resField.scrollHeight + 'px'
 		});
 	}
 
