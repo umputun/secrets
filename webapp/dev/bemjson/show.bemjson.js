@@ -37,7 +37,7 @@
 										block: 'input',
 										mods: { type: 'pin' },
 										id: 'pin',
-										placeholder: '5-diget PIN'
+										placeholder: '5-digit PIN'
 									}
 								}
 							]
