@@ -1,6 +1,6 @@
 # Safe Secrets - safe(r) and easy way to transfer passwords.
 
-The primary use-case is sharing sensetive data by making the information self-destructed, accessible only once and protected
+The primary use-case is sharing sensitive data by making the information self-destructed, accessible only once and protected
 by easy-to-share PIN code. I just needed a simple and better alternative to the most popular way of passing passwords,
 which is why this project was created. Doing this by email always made me concerned about the usual "security" of sending user
 and password info in two different emails - which is just a joke.
