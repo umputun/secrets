@@ -23,12 +23,12 @@ RUN \
 # build webapp
 ADD webapp /srv/webapp
 RUN \
- apk --update --no-progress add nodejs-lts git python make g++ && \
+ apk --update --no-progress add nodejs-current nodejs-current-npm git python make g++ && \
  cd /srv/webapp && \
  npm i --production && npm run build && \
  mv -fv /srv/webapp/public/ /srv/docroot && \
  rm -rf  /srv/webapp && \
- apk del nodejs-lts git python make g++ && rm -rf /var/cache/apk/*
+ apk del nodejs-current nodejs-current-npm git python make g++ && rm -rf /var/cache/apk/*
 
 RUN \
  echo "#!/bin/sh" > /srv/exec.sh && \
