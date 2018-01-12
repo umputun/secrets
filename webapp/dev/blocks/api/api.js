@@ -1,6 +1,6 @@
 var API = (function() {
 	var that = this,
-		basePath = 'https://' + location.hostname + '/api/v1/';
+		basePath = location.origin + '/api/v1/';
 
 	var xhrPath = basePath + 'message',
 		paramsPath = basePath + 'params';
