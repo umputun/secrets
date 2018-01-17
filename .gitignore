@@ -28,3 +28,4 @@ etc/ssl/
 ssl/
 target/
 secrets.bd
+docroot

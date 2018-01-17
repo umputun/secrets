@@ -11,9 +11,11 @@ import (
 
 func TestSaveAndLoadBolt(t *testing.T) {
 	s, err := NewBolt("/tmp/test.bd", time.Minute)
+	defer os.Remove("/tmp/test.bd")
 	assert.Nil(t, err, "engine created")
 
-	msg := Message{Key: "key123456", Exp: time.Now(), Data: "data string", PinHash: "123456"}
+	msg := Message{Key: "key123456", Exp: time.Date(2018, 1, 16, 18, 30, 12, 123, time.Local),
+		Data: "data string", PinHash: "123456"}
 	assert.Nil(t, s.Save(&msg), "saved fine")
 	savedMsg, err := s.Load("key123456")
 	assert.Nil(t, err, "key found")
@@ -21,11 +23,11 @@ func TestSaveAndLoadBolt(t *testing.T) {
 	_, err = s.Load("badkey123456")
 	assert.Equal(t, ErrLoadRejected, err, "no such key")
 
-	os.Remove("/tmp/test.bd")
 }
 
 func TestIncErrBolt(t *testing.T) {
 	s, err := NewBolt("/tmp/test.bd", time.Minute)
+	defer os.Remove("/tmp/test.bd")
 	assert.Nil(t, err, "engine created")
 
 	msg := Message{Key: "key123456", Exp: time.Now(), Data: "data string", PinHash: "123456"}
@@ -41,11 +43,11 @@ func TestIncErrBolt(t *testing.T) {
 
 	_, err = s.IncErr("aaakey123456")
 	assert.Equal(t, ErrLoadRejected, err)
-	os.Remove("/tmp/test.bd")
 }
 
 func TestCleanerBolt(t *testing.T) {
 	s, err := NewBolt("/tmp/test.bd", time.Millisecond*50)
+	defer os.Remove("/tmp/test.bd")
 	assert.Nil(t, err, "engine created")
 	exp := time.Now().Add(time.Second)
 	msg := Message{Key: fmt.Sprintf("%d-key123456", exp.Unix()), Exp: exp, Data: "data string", PinHash: "123456"}
@@ -57,5 +59,4 @@ func TestCleanerBolt(t *testing.T) {
 
 	_, err = s.Load(fmt.Sprintf("%d-key123456", exp.Unix()))
 	assert.Equal(t, ErrLoadRejected, err, "msg gone")
-	os.Remove("/tmp/test.bd")
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -29,12 +30,12 @@ func main() {
 	if _, err := flags.Parse(&opts); err != nil {
 		os.Exit(1)
 	}
+	fmt.Printf("secrets %s\n", revision)
 
 	log.SetFlags(log.Ldate | log.Ltime)
 	if opts.Dbg {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
 	}
-	log.Printf("secrets %s", revision)
 
 	store := getEngine(opts.Engine, opts.BoltDB)
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
@@ -44,6 +45,7 @@ func main() {
 		PinSize:        opts.PinSize,
 		MaxExpSecs:     opts.MaxExpSecs,
 		MaxPinAttempts: opts.MaxPinAttempts,
+		Version:        revision,
 	}
 	server.Run()
 }
@@ -53,11 +55,11 @@ func getEngine(engineType string, boltFile string) store.Engine {
 	case "MEMORY":
 		return store.NewInMemory(time.Minute * 5)
 	case "BOLT":
-		store, err := store.NewBolt(boltFile, time.Minute*5)
+		boltStore, err := store.NewBolt(boltFile, time.Minute*5)
 		if err != nil {
 			log.Fatalf("[ERROR] can't open db, %v", err)
 		}
-		return store
+		return boltStore
 	}
 	log.Fatalf("[ERROR] unknown engine type %s", engineType)
 	return nil

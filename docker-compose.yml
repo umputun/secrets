@@ -26,8 +26,7 @@ services:
            - MAX_EXPIRE=86400
 
     nginx:
-        build: nginx
-        image: umputun/secrets:nginx
+        image: umputun/nginx-le
         hostname: nginx
         restart: always
         container_name: nginx
@@ -43,9 +42,6 @@ services:
 
         volumes:
             - ./etc/ssl:/etc/nginx/ssl
-
-        volumes_from:
-            - secrets
 
         ports:
             - "80:80"
