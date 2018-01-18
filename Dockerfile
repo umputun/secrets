@@ -18,9 +18,9 @@ WORKDIR /go/src/github.com/umputun/secrets
 
 RUN cd app && go test -v $(go list -e ./... | grep -v vendor)
 
-# RUN gometalinter --disable-all --deadline=300s --vendor --enable=vet --enable=vetshadow --enable=golint \
-#     --enable=staticcheck --enable=ineffassign --enable=goconst --enable=errcheck --enable=unconvert \
-#     --enable=deadcode  --enable=gosimple --exclude=test --exclude=mock --exclude=vendor ./...
+RUN gometalinter --disable-all --deadline=300s --vendor --enable=vet --enable=vetshadow --enable=golint \
+    --enable=staticcheck --enable=ineffassign --enable=goconst --enable=errcheck --enable=unconvert \
+    --enable=deadcode  --enable=gosimple --exclude=test --exclude=mock --exclude=vendor ./...
 
 RUN go build -o secrets -ldflags "-X main.revision=$(git rev-parse --abbrev-ref HEAD)-$(git describe --abbrev=7 --always --tags)-$(date +%Y%m%d-%H:%M:%S) -s -w" ./app
 

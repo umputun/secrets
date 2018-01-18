@@ -42,7 +42,7 @@ services:
 
         volumes:
             - ./etc/ssl:/etc/nginx/ssl
-
+            - ./secrets-nginx.conf:/etc/nginx/service.conf
         ports:
             - "80:80"
             - "443:443"

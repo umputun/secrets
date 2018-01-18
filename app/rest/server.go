@@ -32,9 +32,9 @@ func (s Server) Run() {
 	router.Use(middleware.Throttle(1000), middleware.Timeout(60*time.Second))
 	router.Use(Limiter(10), AppInfo("secrets", s.Version), Ping)
 	router.Use(Rewrite("/show/(.*)", "/show/?$1"))
-	router.Use(Logger())
 
 	router.Route("/api/v1", func(r chi.Router) {
+		r.Use(Logger())
 		r.Post("/message", s.saveMessageCtrl)
 		r.Get("/message/{key}/{pin}", s.getMessageCtrl)
 		r.Get("/params", s.getParamsCtrl)
@@ -137,7 +137,6 @@ func (s Server) fileServer(r chi.Router, path string, root http.FileSystem) {
 	path += "*"
 
 	r.Get(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Print(r.URL)
 		// don't show dirs, just serve files
 		if strings.HasSuffix(r.URL.Path, "/") && len(r.URL.Path) > 1 && r.URL.Path != "/show/" {
 			http.NotFound(w, r)
