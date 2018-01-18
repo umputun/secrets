@@ -14,7 +14,8 @@ pipeline:
     image: plugins/docker
     repo: umputun/secrets
     secrets: [ docker_username, docker_password ]
-    tags: ${DRONE_REPO_BRANCH/\//-}
+    tags: 
+      - ${DRONE_REPO_BRANCH/\//-}
 
   deploy:
     image: appleboy/drone-ssh
