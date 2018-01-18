@@ -44,8 +44,6 @@ RUN \
     adduser -s /bin/bash -D -u 1001 secrets && \
     chown -R secrets:secrets /srv
 
-COPY --from=build-frontend /srv/webapp/public/show/index.html /srv/docroot/show/s.html
-
 EXPOSE 8080
 USER secrets
 WORKDIR /srv
