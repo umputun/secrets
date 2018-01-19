@@ -53,7 +53,7 @@ func (s *Bolt) Save(msg *Message) (err error) {
 		return b.Put([]byte(msg.Key), jdata)
 	})
 
-	log.Printf("[DEBUG] saved, exp=%v, total=%d", msg.Exp, total+1)
+	log.Printf("[DEBUG] saved, exp=%v, total=%d", msg.Exp.Local().Format(time.RFC3339), total+1)
 	return err
 }
 
@@ -92,7 +92,7 @@ func (s *Bolt) IncErr(key string) (count int, err error) {
 	return msg.Errors, err
 }
 
-// activateCleaner runs periodic clenaups to get rid or expired msgs
+// activateCleaner runs periodic cleanups to get rid or expired msgs
 // detection based on ts (unix time) prefix of the key.
 func (s *Bolt) activateCleaner(every time.Duration) {
 	log.Printf("[INFO] cleaner activated, every %v", every)
