@@ -19,7 +19,7 @@ type Server struct {
 	Messager       *messager.MessageProc
 	PinSize        int
 	MaxPinAttempts int
-	MaxExpSecs     int
+	MaxExpire      time.Duration
 	Version        string
 }
 
@@ -118,11 +118,11 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
 		PinSize        int `json:"pin_size"`
 		MaxPinAttempts int `json:"max_pin_attempts"`
 		MaxExpSecs     int `json:"max_exp_sec"`
-	}{}
-
-	params.PinSize = s.PinSize
-	params.MaxPinAttempts = s.MaxPinAttempts
-	params.MaxExpSecs = s.MaxExpSecs
+	}{
+		PinSize:        s.PinSize,
+		MaxPinAttempts: s.MaxPinAttempts,
+		MaxExpSecs:     int(s.MaxExpire.Seconds()),
+	}
 	render.JSON(w, r, params)
 }
 

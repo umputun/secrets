@@ -14,13 +14,13 @@ import (
 )
 
 var opts struct {
-	Engine         string `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"`
-	SignKey        string `short:"k" long:"key" env:"SIGN_KEY" description:"sign key" required:"true"`
-	PinSize        int    `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
-	MaxExpSecs     int    `long:"expire" env:"MAX_EXPIRE" default:"86400" description:"max lifetime, in seconds"`
-	MaxPinAttempts int    `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
-	BoltDB         string `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
-	Dbg            bool   `long:"dbg" description:"debug mode"`
+	Engine         string        `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"`
+	SignKey        string        `short:"k" long:"key" env:"SIGN_KEY" description:"sign key" required:"true"`
+	PinSize        int           `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
+	MaxExpire      time.Duration `long:"expire" env:"MAX_EXPIRE" default:"24h" description:"max lifetime"`
+	MaxPinAttempts int           `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
+	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
+	Dbg            bool          `long:"dbg" description:"debug mode"`
 }
 
 var revision string
@@ -39,11 +39,11 @@ func main() {
 
 	store := getEngine(opts.Engine, opts.BoltDB)
 	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
-	params := messager.Params{MaxDuration: time.Second * time.Duration(opts.MaxExpSecs), MaxPinAttempts: opts.MaxPinAttempts}
+	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
 		Messager:       messager.New(store, crypt, params),
 		PinSize:        opts.PinSize,
-		MaxExpSecs:     opts.MaxExpSecs,
+		MaxExpire:      opts.MaxExpire,
 		MaxPinAttempts: opts.MaxPinAttempts,
 		Version:        revision,
 	}

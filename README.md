@@ -39,15 +39,15 @@ _Feel free to suggest any other ways to make the process safer._
 1. Adjust your local `docker-compose.yml` with:
     - TZ - your local time zone
     - SIGN_KEY - something long and random
-    - MAX_EXPIRE - maximum expiration period in secs, default 86400 (24h)
-    - PIN_SIZE - default 5
-    - PIN_ATTEMPTS - default 3
+    - MAX_EXPIRE - maximum lifetime period, default 24h
+    - PIN_SIZE - size (in characters) of the pin, default 5
+    - PIN_ATTEMPTS - maximum number of failed attempts to enter pin, default 3
 1. Setup SSL:
-    - The system can make valid certificates for you automatically. Just set:
+    - The system can make valid certificates for you automatically with integrated [nginx-le](https://github.com/umputun/nginx-le). Just set:
         - LETSENCRYPT=true
         - LE_EMAIL=name@example.com
         - LE_FQDN=www.example.com
-    - In case you have your own certificates, copy them to `etc/ssl` and define:
+    - In case you have your own certificates, copy them to `etc/ssl` and set:
         - SSL_CERT - SSL certificate (file name, not path)
         - SSL_KEY - SSL key (file name, not path)
 1. Run the system with `docker-compose up -d`. This will download a prepared image from docker hub and start all components.
@@ -55,16 +55,15 @@ _Feel free to suggest any other ways to make the process safer._
 
 _See [docker-compose.yml](https://github.com/umputun/secrets/blob/master/docker-compose.yml) for more details_
 
-
 ### Technical details
 
-**Safesecret** usually deployed with docker-compose and has two containers in:
+**Safesecret** usually deployed via docker-compose and has two containers in:
 
 - application `secrets` container providing both backend (API) and frontend (UI)
 - nginx-le container with nginx proxy and let's encrypt SSL support
 
-Application container is fully functional without nginx proxy and can be used in stand-alone mode. You can use such setup
-in case you want to put **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB and so on.
+Application container is fully functional without nginx proxy and can be used in stand-alone mode. You may want such setup
+in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB and so on.
 
 ## API
 
