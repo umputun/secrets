@@ -201,8 +201,8 @@ func Logger(flags ...LoggerFlag) func(http.Handler) http.Handler {
 				// hide id and pin
 				if strings.Contains(q, "/api/v1/message/") {
 					elems := strings.Split(q, "/")
-					if len(elems) >= 4 {
-						q = fmt.Sprintf("/api/v1/message/%s/*****", elems[3][:20])
+					if len(elems) >= 5 && len(elems[4]) >= 20 {
+						q = fmt.Sprintf("/api/v1/message/%s/*****", elems[4][:19])
 					}
 				}
 				log.Printf("[INFO] REST %s - %s - %s - %d (%d) - %v %s",
