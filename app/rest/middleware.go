@@ -3,6 +3,7 @@ package rest
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -170,29 +171,23 @@ func Logger(flags ...LoggerFlag) func(http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ww := middleware.NewWrapResponseWriter(w, 1)
 
-			body, user := func() (body string, user string) {
-				ctx := r.Context()
-				if ctx == nil {
-					return "", ""
-				}
-
+			body := func() (result string) {
 				if inFlags(LogBody) {
 					if content, err := ioutil.ReadAll(r.Body); err == nil {
-						body = string(content)
+						result = string(content)
 						r.Body = ioutil.NopCloser(bytes.NewReader(content))
 
-						if len(body) > 0 {
-							body = strings.Replace(body, "\n", " ", -1)
-							body = reMultWhtsp.ReplaceAllString(body, " ")
+						if len(result) > 0 {
+							result = strings.Replace(result, "\n", " ", -1)
+							result = reMultWhtsp.ReplaceAllString(result, " ")
 						}
 
-						if len(body) > maxBody {
-							body = body[:maxBody] + "..."
+						if len(result) > maxBody {
+							result = result[:maxBody] + "..."
 						}
 					}
 				}
-
-				return body, user
+				return result
 			}()
 
 			t1 := time.Now()
@@ -203,9 +198,13 @@ func Logger(flags ...LoggerFlag) func(http.Handler) http.Handler {
 				if qun, err := url.QueryUnescape(q); err == nil {
 					q = qun
 				}
-
-				log.Printf("[INFO] REST %s%s - %s - %s - %d (%d) - %v %s",
-					r.Method, user, q, strings.Split(r.RemoteAddr, ":")[0],
+				// hide id and pin
+				if strings.Contains(q, "/api/v1/message/") {
+					elems := strings.Split(q, "/")
+					q = fmt.Sprintf("/api/v1/message/%s/*****", elems[3][:20])
+				}
+				log.Printf("[INFO] REST %s - %s - %s - %d (%d) - %v %s",
+					r.Method, q, strings.Split(r.RemoteAddr, ":")[0],
 					ww.Status(), ww.BytesWritten(), t2.Sub(t1), body)
 			}()
 
@@ -215,5 +214,4 @@ func Logger(flags ...LoggerFlag) func(http.Handler) http.Handler {
 	}
 
 	return f
-
 }

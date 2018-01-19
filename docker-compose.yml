@@ -48,6 +48,7 @@ services:
             - "443:443"
 
         environment:
+            - TZ=America/Chicago
             - LETSENCRYPT=false
             - LE_EMAIL=name@example.com
             - LE_FQDN=www.example.com
