@@ -112,15 +112,15 @@ func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, er
 
 	if time.Now().After(msg.Exp) {
 		log.Printf("[WARN] expired %s on %v", msg.Key, msg.Exp)
-		p.engine.Remove(key)
+		_ = p.engine.Remove(key)
 		return nil, ErrExpired
 	}
 
 	if !p.checkHash(msg, pin) {
-		p.engine.IncErr(key)
+		_, _ = p.engine.IncErr(key)
 		log.Printf("[WARN] wrong pin provided (%d times)", msg.Errors+1)
 		if msg.Errors > p.MaxPinAttempts {
-			p.engine.Remove(key)
+			_ = p.engine.Remove(key)
 			return nil, ErrBadPin
 		}
 		return msg, ErrBadPinAttempt
@@ -129,7 +129,7 @@ func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, er
 	r, err := p.Decrypt(crypt.Request{Data: msg.Data, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
-		p.engine.Remove(key)
+		_ = p.engine.Remove(key)
 		return nil, ErrBadPin
 
 	}

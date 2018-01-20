@@ -1,9 +1,11 @@
-_testmain.go
-
-*.exe
 *.test
 *.prof
-
+.cover/
+etc/ssl/
+ssl/
+target/
+secrets.bd
+docroot
 *.cov
 .cover
 target
@@ -14,8 +16,7 @@ debug
 debug.test
 .vscode
 .idea/
+/web/node_modules/
+/web/public/
 *.prof
 *.test
-/etc/ssl/
-secrets.bd
-

@@ -1,44 +1,52 @@
-FROM golang:alpine
+FROM golang:1.9-alpine as build-backend
 
-ARG TZ=America/Chicago
+RUN go version
 
-# add user and set TZ
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
+
 RUN \
- apk add --update tzdata && \
- adduser -s /bin/bash -D -u 1001 secrets && \
- mkdir -p /srv && chown -R secrets:secrets /srv && \
- cp /usr/share/zoneinfo/$TZ /etc/localtime && \
- echo $TZ > /etc/timezone && \
- rm -rf /var/cache/apk/*
+    apk add --no-cache --update tzdata git &&\
+    cp /usr/share/zoneinfo/America/Chicago /etc/localtime &&\
+    go get -u gopkg.in/alecthomas/gometalinter.v1 && \
+    ln -s /go/bin/gometalinter.v1 /go/bin/gometalinter && \
+    gometalinter --install --force
 
-# build service
-ADD app /go/src/github.com/umputun/secrets/app
-RUN \
- apk add --update --no-progress git && \
- cd /go/src/github.com/umputun/secrets/app && \
- go get -v && \
- go build -ldflags "-X main.revision=$(date +%Y%m%d-%H%M%S)" -o /srv/secrets && \
- apk del git && rm -rf /go/src/* && rm -rf /var/cache/apk/*
+ADD . /go/src/github.com/umputun/secrets
+WORKDIR /go/src/github.com/umputun/secrets
 
-# build webapp
+RUN cd app && go test -v $(go list -e ./... | grep -v vendor)
+
+RUN gometalinter --disable-all --deadline=300s --vendor --enable=vet --enable=vetshadow --enable=golint \
+    --enable=staticcheck --enable=ineffassign --enable=goconst --enable=errcheck --enable=unconvert \
+    --enable=deadcode  --enable=gosimple --exclude=test --exclude=mock --exclude=vendor ./...
+
+RUN go build -o secrets -ldflags "-X main.revision=$(git rev-parse --abbrev-ref HEAD)-$(git describe --abbrev=7 --always --tags)-$(date +%Y%m%d-%H:%M:%S) -s -w" ./app
+
+
+FROM node:9.4-alpine as build-frontend
+
 ADD webapp /srv/webapp
+RUN apk add --no-cache --update git python make g++
 RUN \
- apk --update --no-progress add nodejs-current nodejs-current-npm git python make g++ && \
- cd /srv/webapp && \
- npm i --production && npm run build && \
- mv -fv /srv/webapp/public/ /srv/docroot && \
- rm -rf  /srv/webapp && \
- apk del nodejs-current nodejs-current-npm git python make g++ && rm -rf /var/cache/apk/*
+    cd /srv/webapp && \
+    npm i --production && npm run build
+
+
+FROM alpine:3.7
+
+COPY --from=build-backend /go/src/github.com/umputun/secrets/secrets /srv/
+COPY --from=build-frontend /srv/webapp/public/ /srv/docroot
 
 RUN \
- echo "#!/bin/sh" > /srv/exec.sh && \
- echo "tail -F /srv/logs/secrets.log &" /srv/exec.sh && \
- echo "/srv/secrets >> /srv/logs/secrets.log" >> /srv/exec.sh && \
- chmod +x /srv/exec.sh
-
+    apk add --update --no-cache tzdata && \
+    adduser -s /bin/bash -D -u 1001 secrets && \
+    chown -R secrets:secrets /srv
 
 EXPOSE 8080
 USER secrets
 WORKDIR /srv
-VOLUME ["/srv/docroot", "/srv/logs"]
-ENTRYPOINT ["/srv/exec.sh"]
+VOLUME ["/srv/docroot"]
+
+ENTRYPOINT ["/srv/secrets"]

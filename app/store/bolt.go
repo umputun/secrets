@@ -19,15 +19,21 @@ type Bolt struct {
 	db *bolt.DB
 }
 
-// NewBolt makes persitent boltdb based store
+// NewBolt makes persistent boltdb based store
 func NewBolt(dbFile string, cleanupDuration time.Duration) (*Bolt, error) {
-	log.Printf("[INFO] bolt (persitent) store, %s", dbFile)
+	log.Printf("[INFO] bolt (persistent) store, %s", dbFile)
 	result := Bolt{}
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
-	db.Update(func(tx *bolt.Tx) error {
+	if err != nil {
+		return nil, err
+	}
+	err = db.Update(func(tx *bolt.Tx) error {
 		_, e := tx.CreateBucketIfNotExists(bucket)
 		return e
 	})
+	if err != nil {
+		return nil, err
+	}
 	result.db = db
 	result.activateCleaner(cleanupDuration)
 	return &result, err
@@ -47,7 +53,7 @@ func (s *Bolt) Save(msg *Message) (err error) {
 		return b.Put([]byte(msg.Key), jdata)
 	})
 
-	log.Printf("[DEBUG] saved, exp=%v, total=%d", msg.Exp, total+1)
+	log.Printf("[DEBUG] saved, exp=%v, total=%d", msg.Exp.Local().Format(time.RFC3339), total+1)
 	return err
 }
 
@@ -86,7 +92,7 @@ func (s *Bolt) IncErr(key string) (count int, err error) {
 	return msg.Errors, err
 }
 
-// activateCleaner runs periodic clenaups to get rid or expired msgs
+// activateCleaner runs periodic cleanups to get rid or expired msgs
 // detection based on ts (unix time) prefix of the key.
 func (s *Bolt) activateCleaner(every time.Duration) {
 	log.Printf("[INFO] cleaner activated, every %v", every)
@@ -97,7 +103,7 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 
 			expired := [][]byte{}
 
-			s.db.View(func(tx *bolt.Tx) error {
+			_ = s.db.View(func(tx *bolt.Tx) error {
 				c := tx.Bucket(bucket).Cursor()
 
 				// uuid just a place holder to make keys sorted properly by ts prefix
@@ -115,17 +121,22 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 
 			if len(expired) > 0 {
 				log.Printf("[INFO] expired keys=%d", len(expired))
-				s.db.Update(func(tx *bolt.Tx) error {
+				err := s.db.Update(func(tx *bolt.Tx) error {
 					for _, key := range expired {
-						tx.Bucket(bucket).Delete(key)
+						if e := tx.Bucket(bucket).Delete(key); e != nil {
+							return e
+						}
 						if exp, err := strconv.Atoi(strings.Split(string(key), "-")[0]); err == nil {
 							log.Printf("[DEBUG] cleaned %s on %v", string(key), time.Unix(int64(exp), 0))
 						}
 					}
 					return nil
 				})
-			}
 
+				if err != nil {
+					log.Printf("[WARN] failed to remove expired, %s", err)
+				}
+			}
 		}
 	}()
 }

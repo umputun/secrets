@@ -74,13 +74,15 @@ func (c Crypt) Decrypt(req Request) (result string, err error) {
 	}
 
 	data := make([]byte, hex.DecodedLen(len(req.Data)))
-	hex.Decode(data, []byte(req.Data))
+	if _, err = hex.Decode(data, []byte(req.Data)); err != nil {
+		return "", err
+	}
 	if len(data) < aes.BlockSize {
 		return "", errors.New("ciphertext too short")
 	}
 
-	iv := []byte(data[:aes.BlockSize])
-	ciphertext := []byte(data[aes.BlockSize:])
+	iv := data[:aes.BlockSize]
+	ciphertext := data[aes.BlockSize:]
 
 	cfb := cipher.NewCFBDecrypter(block, iv)
 	cfb.XORKeyStream(ciphertext, ciphertext)
