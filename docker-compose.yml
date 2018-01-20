@@ -23,7 +23,7 @@ services:
            - PIN_SIZE=5
            - BOLT_FILE=/data/secrets.bd
            - PIN_ATTEMPTS=3
-           - MAX_EXPIRE=86400
+           - MAX_EXPIRE=24h
 
     nginx:
         image: umputun/nginx-le
