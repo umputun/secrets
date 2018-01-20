@@ -1,4 +1,4 @@
-# Safe Secrets - safe(r) and easy way to transfer passwords.
+# Safe Secrets - safe(r) and easy way to transfer passwords
 
 The primary use-case is sharing sensitive data by making the information self-destructed, accessible only once and protected
 by easy-to-share PIN code. I just needed a simple and better alternative to the most popular way of passing passwords,
@@ -10,7 +10,7 @@ and password info in two different emails - which is just a joke.
 It runs on **[safesecret.info](https://safesecret.info)** for real. Feel free to use it if you are crazy enough to trust me,
 or just run your own from prepared docker image. And of course, you can build from sources as well.
 
-Create a **Safesecret** link to your message by entering 3 things:
+Create a **safesecret** link to your message by entering 3 things:
 
 - Content of your secret message
 - Expiration time of your secret message
@@ -23,7 +23,7 @@ Create a **Safesecret** link to your message by entering 3 things:
 
 [![ScreenShot](https://raw.github.com/umputun/secrets/master/webapp/demo/demo.png)](https://www.youtube.com/watch?v=erT1QYiDD-Q)
 
-## How safe is this thing?
+## How safe is this thing
 
 - It doesn't keep your original message or PIN anywhere, but encrypts your message with PIN (hashed as well)
 - It doesn't keep any sensitive info in any logs
