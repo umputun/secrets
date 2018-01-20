@@ -24,7 +24,7 @@ pipeline:
     port: 22
     secrets: [ ssh_key ]
     script:
-      - cd /srv/safesecret
+      - cd /srv/secrets
       - docker-compose pull
       - docker-compose up -d
     when:
