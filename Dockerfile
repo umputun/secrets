@@ -29,6 +29,8 @@ RUN go build -o secrets -ldflags "-X main.revision=$(git rev-parse --abbrev-ref 
 
 FROM node:9.4-alpine as build-frontend
 
+ARG TZ
+
 ADD webapp /srv/webapp
 RUN apk add --no-cache --update git python make g++
 RUN \
