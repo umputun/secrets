@@ -1,5 +1,7 @@
 FROM golang:1.9-alpine as build-backend
 
+ARG TZ
+
 RUN go version
 
 ENV CGO_ENABLED=0
@@ -8,7 +10,7 @@ ENV GOARCH=amd64
 
 RUN \
     apk add --no-cache --update tzdata git &&\
-    cp /usr/share/zoneinfo/America/Chicago /etc/localtime &&\
+    cp /usr/share/zoneinfo/$TZ /etc/localtime &&\
     go get -u gopkg.in/alecthomas/gometalinter.v1 && \
     ln -s /go/bin/gometalinter.v1 /go/bin/gometalinter && \
     gometalinter --install --force
@@ -36,11 +38,14 @@ RUN \
 
 FROM alpine:3.7
 
+ARG TZ
+
 COPY --from=build-backend /go/src/github.com/umputun/secrets/secrets /srv/
 COPY --from=build-frontend /srv/webapp/public/ /srv/docroot
 
 RUN \
     apk add --update --no-cache tzdata && \
+    cp /usr/share/zoneinfo/$TZ /etc/localtime &&\
     adduser -s /bin/bash -D -u 1001 secrets && \
     chown -R secrets:secrets /srv
 
