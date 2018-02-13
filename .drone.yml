@@ -16,6 +16,17 @@ pipeline:
     secrets: [ docker_username, docker_password ]
     tags: 
       - ${DRONE_COMMIT_BRANCH/\//-}
+    when:
+      event: push
+
+  pr_build:
+    image: docker
+    commands:
+      - docker build .
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    when:
+      event: pull
 
   deploy:
     image: appleboy/drone-ssh
@@ -29,6 +40,7 @@ pipeline:
       - docker-compose up -d
     when:
       branch: master
+      event: push
 
   notify:
     image: drillster/drone-email
