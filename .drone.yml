@@ -53,3 +53,5 @@ pipeline:
     secrets: [ email_username, email_password ]
     when:
       status: [ changed, failure ]
+
+      
