@@ -1,3 +1,5 @@
+ARG TZ=America/Chicago
+
 FROM golang:1.9-alpine as build-backend
 
 ARG TZ
