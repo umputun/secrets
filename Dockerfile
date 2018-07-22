@@ -1,24 +1,9 @@
 ARG TZ=America/Chicago
 
-FROM golang:1.9-alpine as build-backend
-
-ARG TZ
-
-RUN go version
-
-ENV CGO_ENABLED=0
-ENV GOOS=linux
-ENV GOARCH=amd64
-
-RUN \
-    apk add --no-cache --update tzdata git &&\
-    cp /usr/share/zoneinfo/$TZ /etc/localtime &&\
-    go get -u gopkg.in/alecthomas/gometalinter.v1 && \
-    ln -s /go/bin/gometalinter.v1 /go/bin/gometalinter && \
-    gometalinter --install --force
+FROM umputun/baseimage:buildgo-latest as build-backend
 
 ADD . /go/src/github.com/umputun/secrets
-WORKDIR /go/src/github.com/umputun/secrets
+WORKDIR /go/src/github.com/umputun/secrets/backend
 
 RUN cd app && go test -v $(go list -e ./... | grep -v vendor)
 
