@@ -27,7 +27,7 @@ FROM alpine:3.7
 
 ARG TZ
 
-COPY --from=build-backend /go/src/github.com/umputun/secrets/secrets /srv/
+COPY --from=build-backend /go/src/github.com/umputun/secrets/backend/secrets /srv/
 COPY --from=build-frontend /srv/webapp/public/ /srv/docroot
 
 RUN \
