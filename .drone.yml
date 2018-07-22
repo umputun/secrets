@@ -1,13 +1,13 @@
 workspace:
   base: /go
-  path: src/github.com/umputun/secrets/backend
+  path: src/github.com/umputun/secrets
 
 pipeline:
   
   build:
     image: golang:1.10-alpine
     commands:
-      - cd app
+      - cd backend/app
       - go build -v ./...
 
   docker:
