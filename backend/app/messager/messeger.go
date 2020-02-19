@@ -122,8 +122,8 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 	}
 
 	if !p.checkHash(msg, pin) {
-		count, err := p.engine.IncErr(key)
-		if err != nil {
+		count, e := p.engine.IncErr(key)
+		if e != nil {
 			return nil, ErrBadPin
 		}
 		log.Printf("[WARN] wrong pin provided (%d times)", count)
