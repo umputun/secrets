@@ -1,13 +1,8 @@
 'use strict';
 
-var gulp = require('gulp');
+const gulp = require('gulp');
 
-var $ = require('gulp-load-plugins')({
-	replaceString: /^gulp(-|\.)|postcss-/,
-	pattern: ['*']
-});
-
-var path = {
+const path = {
 	tasks: './gulp-tasks/',
 	output: 'public',
 	tmp: '.tmp',
@@ -26,11 +21,9 @@ var path = {
 	inputFiles: ['dev/blocks/favicon/**/*']
 };
 
-var taskList = require('fs').readdirSync(path.tasks);
+const taskList = require('fs').readdirSync(path.tasks);
 
-taskList.forEach(function (taskFile) {
-	require(path.tasks + taskFile)(gulp, $, path);
-});
+taskList.forEach(taskFile => require(path.tasks + taskFile)(path));
 
 if (process.env.NODE_ENV == 'dev') {
 	gulp.task('default', gulp.series('dev'));

@@ -27,7 +27,7 @@ RUN \
     go build -o secrets -ldflags "-X main.revision=${version} -s -w" ./app
 
 
-FROM node:9.4-alpine as build-frontend
+FROM node:10.19.0-alpine3.11 as build-frontend
 
 ADD frontend /srv/frontend
 RUN apk add --no-cache --update git python make g++

@@ -1,16 +1,29 @@
-module.exports = function(gulp, $, path) {
-	'use strict';
+const gulp = require('gulp');
+const Fiber = require('fibers');
+const concat = require('gulp-concat');
+const order = require('gulp-order');
+const sass = require('gulp-sass');
+const bemjson2html = require('gulp-bemjson2html');
+const rename = require('gulp-rename');
+const combineMq = require('gulp-combine-mq');
+const postcss = require('gulp-postcss');
+const autoprefixer = require('autoprefixer');
+const csso = require('gulp-csso');
+const uglify = require('gulp-uglify');
 
-	gulp.task('build:html:bemhtml', function() {
+sass.compiler = require('sass');
+
+module.exports = path => {
+	gulp.task('build:html:bemhtml', () => {
 		return gulp.src(path.inputBEMHTML)
-			.pipe($.concat(path.BEMHTML))
+			.pipe(concat(path.BEMHTML))
 			.pipe(gulp.dest(path.tmp));
 	});
 
-	gulp.task('build:html:bemjson', function() {
+	gulp.task('build:html:bemjson', () => {
 		return gulp.src(path.inputBEMJSON)
-			.pipe($.bemjson2html({ template: path.tmp + '/' + path.BEMHTML }))
-			.pipe($.rename(function(path) {
+			.pipe(bemjson2html({ template: path.tmp + '/' + path.BEMHTML }))
+			.pipe(rename(path => {
 				var dirname = path.basename.replace(/.bemjson/, '');
 
 				if (dirname != 'index') {
@@ -25,32 +38,32 @@ module.exports = function(gulp, $, path) {
 
 	gulp.task('build:html', gulp.series('build:html:bemhtml', 'build:html:bemjson'));
 
-	gulp.task('build:styles', function() {
+	gulp.task('build:styles', () => {
 		return gulp.src(path.inputStyles)
-			.pipe($.order())
-			.pipe($.concat('main.scss'))
-			.pipe($.sass())
+			.pipe(order())
+			.pipe(concat('main.scss'))
+			.pipe(sass({ fiber: Fiber }))
 			
-			.pipe($.postcss([
-				$.autoprefixer({ browsers: '> 0.3%, not ie < 10' })
+			.pipe(postcss([
+				autoprefixer({ browsers: '> 0.3%, not ie < 10' })
 			]))
 			
-			.pipe($.combineMq({
+			.pipe(combineMq({
 				beautify: false
 			}))
-			.pipe($.csso())
+			.pipe(csso())
 			.pipe(gulp.dest(path.outputStyles))
 	});
 
-	gulp.task('build:js', function() {
+	gulp.task('build:js', () => {
 		return gulp.src(path.inputJS)
-			.pipe($.order())
-			.pipe($.concat('main.js'))
-			.pipe($.uglify())
+			.pipe(order())
+			.pipe(concat('main.js'))
+			.pipe(uglify())
 			.pipe(gulp.dest(path.outputJS))
 	});
 
-	gulp.task('build:files', function() {
+	gulp.task('build:files', () => {
 		return gulp.src(path.inputFiles)
 			.pipe(gulp.dest(path.output))
 	});

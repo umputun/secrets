@@ -1,7 +1,6 @@
-module.exports = function(gulp, $, path) {
-	'use strict';
+const gulp = require('gulp');
+const del = require('del');
 
-	gulp.task('clean', function() {
-		return $.del([path.output, path.tmp])
-	});
+module.exports = path => {
+	gulp.task('clean', () => del([path.output, path.tmp]));
 };
