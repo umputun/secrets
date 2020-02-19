@@ -29,8 +29,11 @@ github.com/pkg/errors
 github.com/pkg4go/rewrite
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
+# github.com/stretchr/objx v0.1.0
+github.com/stretchr/objx
 # github.com/stretchr/testify v1.3.0
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
 # github.com/umputun/go-flags v1.5.1
 github.com/umputun/go-flags
