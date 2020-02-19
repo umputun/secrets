@@ -1,4 +1,4 @@
-// Package rest provides rest-like api
+// Package server provides rest-like api and serves static assets as well
 package server
 
 import (
