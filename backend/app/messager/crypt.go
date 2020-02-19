@@ -1,5 +1,3 @@
-// Package crypt provides basic AES encryption for data
-// needed to prevent storing it naked form even in_memory storage
 package messager
 
 import (
@@ -13,6 +11,8 @@ import (
 )
 
 // Crypt data with a global key + pin
+// It provides basic AES encryption for data
+// needed to prevent storing it naked form even in_memory storage
 type Crypt struct {
 	Key string
 }
