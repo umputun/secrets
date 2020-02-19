@@ -29,11 +29,11 @@ jobs:
         go get -u github.com/mattn/goveralls
 
     - name: run linters
-      run: $GITHUB_WORKSPACE/golangci-lint run --config .golangci.yml ./...
+      run: $GITHUB_WORKSPACE/golangci-lint run --config ../../.golangci.yml ./...
       working-directory: backend/app
 
     - name: build
-      run: cd app && go build -v -mod=vendor
+      run: go build -v -mod=vendor
       working-directory: backend/app
 
     - name: submit coverage
