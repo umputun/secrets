@@ -1,0 +1,45 @@
+# github.com/boltdb/bolt v1.3.1
+github.com/boltdb/bolt
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
+# github.com/didip/tollbooth v4.0.2+incompatible
+github.com/didip/tollbooth
+github.com/didip/tollbooth/errors
+github.com/didip/tollbooth/libstring
+github.com/didip/tollbooth/limiter
+# github.com/didip/tollbooth_chi v0.0.0-20170928041846-6ab5f3083f3d
+github.com/didip/tollbooth_chi
+# github.com/go-chi/chi v4.0.3+incompatible
+github.com/go-chi/chi
+github.com/go-chi/chi/middleware
+# github.com/go-chi/render v1.0.1
+github.com/go-chi/render
+# github.com/go-pkgz/lgr v0.7.0
+github.com/go-pkgz/lgr
+# github.com/go-pkgz/rest v1.4.1
+github.com/go-pkgz/rest
+github.com/go-pkgz/rest/logger
+# github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
+github.com/nu7hatch/gouuid
+# github.com/patrickmn/go-cache v2.1.0+incompatible
+github.com/patrickmn/go-cache
+# github.com/pkg/errors v0.8.0
+github.com/pkg/errors
+# github.com/pkg4go/rewrite v0.0.0-20171010025509-7a613570d084
+github.com/pkg4go/rewrite
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
+# github.com/stretchr/objx v0.1.0
+github.com/stretchr/objx
+# github.com/stretchr/testify v1.3.0
+github.com/stretchr/testify/assert
+github.com/stretchr/testify/mock
+# github.com/umputun/go-flags v1.5.1
+github.com/umputun/go-flags
+# golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
+# golang.org/x/sys v0.0.0-20200217220822-9197077df867
+golang.org/x/sys/unix
+# golang.org/x/time v0.0.0-20191024005414-555d28b269f0
+golang.org/x/time/rate
