@@ -12,7 +12,6 @@ import (
 	uuid "github.com/nu7hatch/gouuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/umputun/secrets/backend/app/crypt"
 	"github.com/umputun/secrets/backend/app/store"
 )
 
@@ -28,7 +27,7 @@ var (
 
 // MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
-	crypt.Crypt
+	Crypt
 	Params
 	engine store.Engine
 }
@@ -40,7 +39,7 @@ type Params struct {
 }
 
 // New makes MessageProc with the engine and crypt
-func New(engine store.Engine, crypter crypt.Crypt, params Params) *MessageProc {
+func New(engine store.Engine, crypter Crypt, params Params) *MessageProc {
 
 	if params.MaxDuration == 0 {
 		params.MaxDuration = time.Hour * 24 * 31 // 31 days if nothing defined
@@ -89,7 +88,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		PinHash: pinHash,
 	}
 
-	result.Data, err = p.Encrypt(crypt.Request{Data: msg, Pin: pin})
+	result.Data, err = p.Encrypt(Request{Data: msg, Pin: pin})
 	if err != nil {
 		log.Printf("[ERROR] failed to encrypt, %v", err)
 		return nil, ErrCrypto
@@ -124,7 +123,7 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		return msg, ErrBadPinAttempt
 	}
 
-	r, err := p.Decrypt(crypt.Request{Data: msg.Data, Pin: pin})
+	r, err := p.Decrypt(Request{Data: msg.Data, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
 		_ = p.engine.Remove(key)

@@ -1,5 +1,5 @@
 // Package rest provides rest-like api
-package rest
+package server
 
 import (
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
+	"github.com/umputun/secrets/backend/app/store"
 
 	log "github.com/go-pkgz/lgr"
 	um "github.com/go-pkgz/rest"
@@ -21,11 +22,17 @@ import (
 
 // Server is a rest with store
 type Server struct {
-	Messager       *messager.MessageProc
+	Messager       Messager
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
 	Version        string
+}
+
+// Messager interface making and loading messages
+type Messager interface {
+	MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
+	LoadMessage(key, pin string) (msg *store.Message, err error)
 }
 
 // Run the lister and request's router, activate rest server

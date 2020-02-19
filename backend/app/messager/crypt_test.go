@@ -1,10 +1,12 @@
-package crypt
+package messager
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCrypt(t *testing.T) {
@@ -38,18 +40,20 @@ func TestCrypt(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tbl {
-		r1, err := c.Encrypt(Request{Data: tt.data, Pin: tt.pin})
-		if tt.err != nil {
-			assert.Equal(t, tt.err, err)
-			continue
-		}
-		assert.Nil(t, err)
-		t.Logf("%s", r1)
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			r1, err := c.Encrypt(Request{Data: tt.data, Pin: tt.pin})
+			if tt.err != nil {
+				require.Equal(t, tt.err, err)
+				return
+			}
+			assert.NoError(t, err)
+			t.Logf("%s", r1)
 
-		r2, err := c.Decrypt(Request{Data: r1, Pin: tt.pin})
-		assert.Nil(t, err)
-		assert.Equal(t, tt.data, r2)
+			r2, err := c.Decrypt(Request{Data: r1, Pin: tt.pin})
+			assert.NoError(t, err)
+			assert.Equal(t, tt.data, r2)
+		})
 	}
 }
 
@@ -76,8 +80,10 @@ func TestMakeSignKey(t *testing.T) {
 			res:     "11223344556677889900112233",
 		},
 	}
-	for _, tt := range tbl {
-		assert.Equal(t, tt.res, MakeSignKey(tt.key, tt.pinSize))
-		assert.Equal(t, 32, len(tt.res)+tt.pinSize)
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			assert.Equal(t, tt.res, MakeSignKey(tt.key, tt.pinSize))
+			assert.Equal(t, 32, len(tt.res)+tt.pinSize)
+		})
 	}
 }

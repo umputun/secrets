@@ -8,9 +8,8 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
 
-	"github.com/umputun/secrets/backend/app/crypt"
 	"github.com/umputun/secrets/backend/app/messager"
-	"github.com/umputun/secrets/backend/app/rest"
+	"github.com/umputun/secrets/backend/app/server"
 	"github.com/umputun/secrets/backend/app/store"
 )
 
@@ -36,16 +35,16 @@ func main() {
 	setupLog(opts.Dbg)
 
 	dataStore := getEngine(opts.Engine, opts.BoltDB)
-	crypter := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
+	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts}
-	server := rest.Server{
+	srv := server.Server{
 		Messager:       messager.New(dataStore, crypter, params),
 		PinSize:        opts.PinSize,
 		MaxExpire:      opts.MaxExpire,
 		MaxPinAttempts: opts.MaxPinAttempts,
 		Version:        revision,
 	}
-	server.Run()
+	srv.Run()
 }
 
 func getEngine(engineType, boltFile string) store.Engine {

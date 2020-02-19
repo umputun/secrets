@@ -1,6 +1,6 @@
 // Package crypt provides basic AES encryption for data
 // needed to prevent storing it naked form even in_memory storage
-package crypt
+package messager
 
 import (
 	"crypto/aes"
@@ -11,12 +11,6 @@ import (
 	"fmt"
 	"io"
 )
-
-// Interface to encrypt/decrypt
-type Interface interface {
-	Encrypt(req Request) (result string, err error)
-	Decrypt(req Request) (result string, err error)
-}
 
 // Crypt data with a global key + pin
 type Crypt struct {
