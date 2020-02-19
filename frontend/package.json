@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "SET NODE_ENV=dev& gulp",
-    "build": "gulp build",
+    "build": "./node_modules/.bin/gulp build",
     "clean": "gulp clean",
     "devOnline": "SET NODE_ENV=dev& gulp devOnline"
   },
