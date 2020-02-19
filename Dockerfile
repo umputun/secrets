@@ -33,6 +33,7 @@ ADD frontend /srv/frontend
 RUN apk add --no-cache --update git python make g++
 RUN \
     cd /srv/frontend && \
+    npm i gulp-install && \
     npm i --production && npm run build
 
 
