@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+//go:generate mockery -inpkg -name Engine -case snake
+
 // Error messages
 var (
 	ErrLoadRejected = fmt.Errorf("message expired or deleted")
@@ -24,7 +26,7 @@ type Message struct {
 // Engine defines interface to save, load, remove and inc errors count for messages
 type Engine interface {
 	Save(msg *Message) (err error)
-	Load(key string) (resutl *Message, err error)
+	Load(key string) (result *Message, err error)
 	IncErr(key string) (count int, err error)
 	Remove(key string) (err error)
 }

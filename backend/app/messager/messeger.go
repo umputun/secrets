@@ -15,6 +15,8 @@ import (
 	"github.com/umputun/secrets/backend/app/store"
 )
 
+//go:generate mockery -inpkg -name Crypter -case snake
+
 // Errors
 var (
 	ErrBadPin        = fmt.Errorf("wrong pin")
@@ -27,8 +29,8 @@ var (
 
 // MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
-	Crypt
 	Params
+	crypt  Crypter
 	engine store.Engine
 }
 
@@ -38,8 +40,14 @@ type Params struct {
 	MaxPinAttempts int
 }
 
+// Crypter interface wraps crypt methods
+type Crypter interface {
+	Encrypt(req Request) (result string, err error)
+	Decrypt(req Request) (result string, err error)
+}
+
 // New makes MessageProc with the engine and crypt
-func New(engine store.Engine, crypter Crypt, params Params) *MessageProc {
+func New(engine store.Engine, crypter Crypter, params Params) *MessageProc {
 
 	if params.MaxDuration == 0 {
 		params.MaxDuration = time.Hour * 24 * 31 // 31 days if nothing defined
@@ -51,7 +59,7 @@ func New(engine store.Engine, crypter Crypt, params Params) *MessageProc {
 
 	return &MessageProc{
 		engine: engine,
-		Crypt:  crypter,
+		crypt:  crypter,
 		Params: params,
 	}
 }
@@ -88,7 +96,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		PinHash: pinHash,
 	}
 
-	result.Data, err = p.Encrypt(Request{Data: msg, Pin: pin})
+	result.Data, err = p.crypt.Encrypt(Request{Data: msg, Pin: pin})
 	if err != nil {
 		log.Printf("[ERROR] failed to encrypt, %v", err)
 		return nil, ErrCrypto
@@ -114,16 +122,19 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 	}
 
 	if !p.checkHash(msg, pin) {
-		_, _ = p.engine.IncErr(key)
-		log.Printf("[WARN] wrong pin provided (%d times)", msg.Errors+1)
-		if msg.Errors > p.MaxPinAttempts {
+		count, err := p.engine.IncErr(key)
+		if err != nil {
+			return nil, ErrBadPin
+		}
+		log.Printf("[WARN] wrong pin provided (%d times)", count)
+		if count >= p.MaxPinAttempts {
 			_ = p.engine.Remove(key)
 			return nil, ErrBadPin
 		}
 		return msg, ErrBadPinAttempt
 	}
 
-	r, err := p.Decrypt(Request{Data: msg.Data, Pin: pin})
+	r, err := p.crypt.Decrypt(Request{Data: msg.Data, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
 		_ = p.engine.Remove(key)
