@@ -18,6 +18,7 @@ jobs:
 
     - name: test
       run: |
+        export TZ="America/Chicago"
         go test -v -mod=vendor -timeout=60s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
         cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "_mock.go" > $GITHUB_WORKSPACE/profile.cov
       working-directory: backend/app
