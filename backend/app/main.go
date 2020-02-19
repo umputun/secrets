@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 
-	"github.com/jessevdk/go-flags"
+	log "github.com/go-pkgz/lgr"
+	"github.com/umputun/go-flags"
+
 	"github.com/umputun/secrets/backend/app/crypt"
 	"github.com/umputun/secrets/backend/app/messager"
 	"github.com/umputun/secrets/backend/app/rest"
@@ -14,7 +15,7 @@ import (
 )
 
 var opts struct {
-	Engine         string        `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"`
+	Engine         string        `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"` // nolint
 	SignKey        string        `short:"k" long:"key" env:"SIGN_KEY" description:"sign key" required:"true"`
 	PinSize        int           `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
 	MaxExpire      time.Duration `long:"expire" env:"MAX_EXPIRE" default:"24h" description:"max lifetime"`
@@ -32,16 +33,13 @@ func main() {
 	}
 	fmt.Printf("secrets %s\n", revision)
 
-	log.SetFlags(log.Ldate | log.Ltime)
-	if opts.Dbg {
-		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
-	}
+	setupLog(opts.Dbg)
 
-	store := getEngine(opts.Engine, opts.BoltDB)
-	crypt := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
+	dataStore := getEngine(opts.Engine, opts.BoltDB)
+	crypter := crypt.Crypt{Key: crypt.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts}
 	server := rest.Server{
-		Messager:       messager.New(store, crypt, params),
+		Messager:       messager.New(dataStore, crypter, params),
 		PinSize:        opts.PinSize,
 		MaxExpire:      opts.MaxExpire,
 		MaxPinAttempts: opts.MaxPinAttempts,
@@ -50,7 +48,7 @@ func main() {
 	server.Run()
 }
 
-func getEngine(engineType string, boltFile string) store.Engine {
+func getEngine(engineType, boltFile string) store.Engine {
 	switch engineType {
 	case "MEMORY":
 		return store.NewInMemory(time.Minute * 5)
@@ -63,4 +61,12 @@ func getEngine(engineType string, boltFile string) store.Engine {
 	}
 	log.Fatalf("[ERROR] unknown engine type %s", engineType)
 	return nil
+}
+
+func setupLog(dbg bool) {
+	if dbg {
+		log.Setup(log.Debug, log.CallerFile, log.Msec, log.LevelBraces)
+		return
+	}
+	log.Setup(log.Msec, log.LevelBraces)
 }

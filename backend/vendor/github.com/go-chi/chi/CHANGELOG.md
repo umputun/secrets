@@ -1,6 +1,79 @@
 # Changelog
 
-## v3.1.5
+## v4.0.3 (2020-01-09)
+
+- core: fix regexp routing to include default value when param is not matched
+- middleware: rewrite of middleware.Compress
+- middleware: suppress http.ErrAbortHandler in middleware.Recoverer
+- History of changes: see https://github.com/go-chi/chi/compare/v4.0.2...v4.0.3
+
+
+## v4.0.2 (2019-02-26)
+
+- Minor fixes
+- History of changes: see https://github.com/go-chi/chi/compare/v4.0.1...v4.0.2
+
+
+## v4.0.1 (2019-01-21)
+
+- Fixes issue with compress middleware: #382 #385
+- History of changes: see https://github.com/go-chi/chi/compare/v4.0.0...v4.0.1
+
+
+## v4.0.0 (2019-01-10)
+
+- chi v4 requires Go 1.10.3+ (or Go 1.9.7+) - we have deprecated support for Go 1.7 and 1.8
+- router: respond with 404 on router with no routes (#362)
+- router: additional check to ensure wildcard is at the end of a url pattern (#333)
+- middleware: deprecate use of http.CloseNotifier (#347)
+- middleware: fix RedirectSlashes to include query params on redirect (#334)
+- History of changes: see https://github.com/go-chi/chi/compare/v3.3.4...v4.0.0
+
+
+## v3.3.4 (2019-01-07)
+
+- Minor middleware improvements. No changes to core library/router. Moving v3 into its
+- own branch as a version of chi for Go 1.7, 1.8, 1.9, 1.10, 1.11
+- History of changes: see https://github.com/go-chi/chi/compare/v3.3.3...v3.3.4
+
+
+## v3.3.3 (2018-08-27)
+
+- Minor release
+- See https://github.com/go-chi/chi/compare/v3.3.2...v3.3.3
+
+
+## v3.3.2 (2017-12-22)
+
+- Support to route trailing slashes on mounted sub-routers (#281)
+- middleware: new `ContentCharset` to check matching charsets. Thank you
+  @csucu for your community contribution!
+
+
+## v3.3.1 (2017-11-20)
+
+- middleware: new `AllowContentType` handler for explicit whitelist of accepted request Content-Types
+- middleware: new `SetHeader` handler for short-hand middleware to set a response header key/value
+- Minor bug fixes
+
+
+## v3.3.0 (2017-10-10)
+
+- New chi.RegisterMethod(method) to add support for custom HTTP methods, see _examples/custom-method for usage
+- Deprecated LINK and UNLINK methods from the default list, please use `chi.RegisterMethod("LINK")` and `chi.RegisterMethod("UNLINK")` in an `init()` function
+
+
+## v3.2.1 (2017-08-31)
+
+- Add new `Match(rctx *Context, method, path string) bool` method to `Routes` interface
+  and `Mux`. Match searches the mux's routing tree for a handler that matches the method/path
+- Add new `RouteMethod` to `*Context`
+- Add new `Routes` pointer to `*Context`
+- Add new `middleware.GetHead` to route missing HEAD requests to GET handler
+- Updated benchmarks (see README)
+
+
+## v3.1.5 (2017-08-02)
 
 - Setup golint and go vet for the project
 - As per golint, we've redefined `func ServerBaseContext(h http.Handler, baseCtx context.Context) http.Handler`

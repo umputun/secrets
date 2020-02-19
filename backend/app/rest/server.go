@@ -1,15 +1,20 @@
+// Package rest provides rest-like api
 package rest
 
 import (
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/didip/tollbooth"
+	"github.com/didip/tollbooth_chi"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
+
+	log "github.com/go-pkgz/lgr"
+	um "github.com/go-pkgz/rest"
 
 	"github.com/umputun/secrets/backend/app/messager"
 )
@@ -23,14 +28,16 @@ type Server struct {
 	Version        string
 }
 
-//Run the lister and request's router, activate rest server
+// Run the lister and request's router, activate rest server
 func (s Server) Run() {
 	log.Printf("[INFO] activate rest server")
 
 	router := chi.NewRouter()
-	router.Use(middleware.RealIP, Recoverer)
+
+	router.Use(middleware.RequestID, middleware.RealIP, um.Recoverer(log.Default()))
 	router.Use(middleware.Throttle(1000), middleware.Timeout(60*time.Second))
-	router.Use(Limiter(10), AppInfo("secrets", s.Version), Ping)
+	router.Use(um.AppInfo("secrets", "Umputun", s.Version), um.Ping)
+	router.Use(tollbooth_chi.LimitHandler(tollbooth.NewLimiter(10, nil)))
 	router.Use(Rewrite("/show/(.*)", "/show/?$1"))
 
 	router.Route("/api/v1", func(r chi.Router) {
@@ -46,7 +53,7 @@ func (s Server) Run() {
 
 	s.fileServer(router, "/", http.Dir(filepath.Join(".", "docroot")))
 
-	log.Fatal(http.ListenAndServe(":8080", router))
+	log.Fatalf("server failed, %v", http.ListenAndServe(":8080", router))
 }
 
 // POST /v1/message
@@ -104,7 +111,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return http.StatusOK, JSON{"key": msg.Key, "message": msg.Data}
 	}
 
-	//make sure serveRequest works constant time on any branch
+	// make sure serveRequest works constant time on any branch
 	st := time.Now()
 	status, res := serveRequest()
 	time.Sleep(time.Millisecond*100 - time.Since(st))
@@ -131,17 +138,17 @@ func (s Server) fileServer(r chi.Router, path string, root http.FileSystem) {
 	log.Printf("[INFO] run file server for %s", root)
 	fs := http.StripPrefix(path, http.FileServer(root))
 	if path != "/" && path[len(path)-1] != '/' {
-		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		r.Get(path, http.RedirectHandler(path+"/", http.StatusMovedPermanently).ServeHTTP)
 		path += "/"
 	}
 	path += "*"
 
-	r.Get(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
 		// don't show dirs, just serve files
 		if strings.HasSuffix(r.URL.Path, "/") && len(r.URL.Path) > 1 && r.URL.Path != "/show/" {
 			http.NotFound(w, r)
 			return
 		}
 		fs.ServeHTTP(w, r)
-	}))
+	})
 }

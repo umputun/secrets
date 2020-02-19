@@ -1,9 +1,10 @@
 package store
 
 import (
-	"log"
 	"sync"
 	"time"
+
+	log "github.com/go-pkgz/lgr"
 )
 
 // InMemory implements store.Interface with concurrent map

@@ -1,17 +1,15 @@
-// Messager package using injected store.Engine to save and load messages.
+// Package messager package using injected store.Engine to save and load messages.
 // It does all encryption/decryption and hashing. Engine used as a dump storage only.
 // Passed (from user) pin used as a part of encryption key for data and delegated to crypt.Crypt.
 // Pin is not saved directly, but hashed with bcrypt.
-
 package messager
 
 import (
 	"fmt"
-	"log"
-	"math/rand"
 	"time"
 
-	"github.com/nu7hatch/gouuid"
+	log "github.com/go-pkgz/lgr"
+	uuid "github.com/nu7hatch/gouuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/umputun/secrets/backend/app/crypt"
@@ -28,7 +26,7 @@ var (
 	ErrDuration      = fmt.Errorf("bad duration")
 )
 
-// MessageProc creates and save messages and retrive per key
+// MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
 	crypt.Crypt
 	Params
@@ -41,11 +39,11 @@ type Params struct {
 	MaxPinAttempts int
 }
 
-// New makes MessageProc with engine and crypt
-func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
+// New makes MessageProc with the engine and crypt
+func New(engine store.Engine, crypter crypt.Crypt, params Params) *MessageProc {
 
 	if params.MaxDuration == 0 {
-		params.MaxDuration = time.Hour * 24 * 31 //31 days if nothing defined
+		params.MaxDuration = time.Hour * 24 * 31 // 31 days if nothing defined
 	}
 	if params.MaxPinAttempts == 0 {
 		params.MaxPinAttempts = 3
@@ -54,13 +52,13 @@ func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
 
 	return &MessageProc{
 		engine: engine,
-		Crypt:  crypt,
+		Crypt:  crypter,
 		Params: params,
 	}
 }
 
 // MakeMessage from data, pin and duration, saves to store. Encrypts data part with pin.
-func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string) (result *store.Message, err error) {
+func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error) {
 
 	if pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")
@@ -103,7 +101,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 // LoadMessage gets from store, verifies Message with pin and decrypts content.
 // It also removes accessed messages and invalidate them on multiple wrong pins.
 // Message decrypted by this function will be returned naked to consumer.
-func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, err error) {
+func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error) {
 
 	msg, err = p.engine.Load(key)
 	if err != nil {
@@ -153,8 +151,4 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 		return "", err
 	}
 	return string(hashedPin), nil
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }

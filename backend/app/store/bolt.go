@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
+	log "github.com/go-pkgz/lgr"
 )
 
 var bucket = []byte("secrets")
@@ -23,7 +23,7 @@ type Bolt struct {
 func NewBolt(dbFile string, cleanupDuration time.Duration) (*Bolt, error) {
 	log.Printf("[INFO] bolt (persistent) store, %s", dbFile)
 	result := Bolt{}
-	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second}) // nolint
 	if err != nil {
 		return nil, err
 	}

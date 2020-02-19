@@ -1,3 +1,4 @@
+// Package store defines and implements data store for boltdb and in-memory
 package store
 
 import (

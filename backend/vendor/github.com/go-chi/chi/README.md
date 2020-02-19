@@ -3,7 +3,7 @@
 
 [![GoDoc Widget]][GoDoc] [![Travis Widget]][Travis]
 
-`chi` is a lightweight, idiomatic and composable router for building Go 1.7+ HTTP services. It's
+`chi` is a lightweight, idiomatic and composable router for building Go HTTP services. It's
 especially good at helping you write large REST API services that are kept maintainable as your
 project grows and changes. `chi` is built on the new `context` package introduced in Go 1.7 to
 handle signaling, cancelation and request-scoped values across a handler chain.
@@ -24,25 +24,19 @@ included some useful/optional subpackages: [middleware](/middleware), [render](h
 
 ## Features
 
-* **Lightweight** - cloc'd in <1000 LOC for the chi router
+* **Lightweight** - cloc'd in ~1000 LOC for the chi router
 * **Fast** - yes, see [benchmarks](#benchmarks)
 * **100% compatible with net/http** - use any http or middleware pkg in the ecosystem that is also compatible with `net/http`
 * **Designed for modular/composable APIs** - middlewares, inline middlewares, route groups and subrouter mounting
-* **Context control** - built on new `context` package, providing value chaining, cancelations and timeouts
+* **Context control** - built on new `context` package, providing value chaining, cancellations and timeouts
 * **Robust** - in production at Pressly, CloudFlare, Heroku, 99Designs, and many others (see [discussion](https://github.com/go-chi/chi/issues/91))
 * **Doc generation** - `docgen` auto-generates routing documentation from your source to JSON or Markdown
-* **No external dependencies** - plain ol' Go 1.7+ stdlib + net/http
+* **No external dependencies** - plain ol' Go stdlib + net/http
 
 
 ## Examples
 
-* [rest](https://github.com/go-chi/chi/blob/master/_examples/rest/main.go) - REST APIs made easy, productive and maintainable
-* [logging](https://github.com/go-chi/chi/blob/master/_examples/logging/main.go) - Easy structured logging for any backend
-* [limits](https://github.com/go-chi/chi/blob/master/_examples/limits/main.go) - Timeouts and Throttling
-* [todos-resource](https://github.com/go-chi/chi/blob/master/_examples/todos-resource/main.go) - Struct routers/handlers, an example of another code layout style
-* [versions](https://github.com/go-chi/chi/blob/master/_examples/versions/main.go) - Demo of `chi/render` subpkg
-* [fileserver](https://github.com/go-chi/chi/blob/master/_examples/fileserver/main.go) - Easily serve static files
-* [graceful](https://github.com/go-chi/chi/blob/master/_examples/graceful/main.go) - Graceful context signaling and server shutdown
+See [_examples/](https://github.com/go-chi/chi/blob/master/_examples/) for a variety of examples.
 
 
 **As easy as:**
@@ -70,8 +64,8 @@ Here is a little preview of how routing looks like with chi. Also take a look at
 in JSON ([routes.json](https://github.com/go-chi/chi/blob/master/_examples/rest/routes.json)) and in
 Markdown ([routes.md](https://github.com/go-chi/chi/blob/master/_examples/rest/routes.md)).
 
-I highly recommend reading the source of the [examples](#examples) listed above, they will show you all the features
-of chi and serve as a good form of documentation.
+I highly recommend reading the source of the [examples](https://github.com/go-chi/chi/blob/master/_examples/) listed
+above, they will show you all the features of chi and serve as a good form of documentation.
 
 ```go
 import (
@@ -109,7 +103,7 @@ func main() {
 
     // Regexp url parameters:
     r.Get("/{articleSlug:[a-z-]+}", getArticleBySlug)                // GET /articles/home-is-toronto
-    
+
     // Subrouters:
     r.Route("/{articleID}", func(r chi.Router) {
       r.Use(ArticleCtx)
@@ -185,7 +179,7 @@ type Router interface {
 	http.Handler
 	Routes
 
-	// Use appends one of more middlewares onto the Router stack.
+	// Use appends one or more middlewares onto the Router stack.
 	Use(middlewares ...func(http.Handler) http.Handler)
 
 	// With adds inline middlewares for an endpoint handler.
@@ -232,13 +226,18 @@ type Router interface {
 }
 
 // Routes interface adds two methods for router traversal, which is also
-// used by the `docgen` subpackage to generation documentation for Routers.
+// used by the github.com/go-chi/docgen package to generate documentation for Routers.
 type Routes interface {
 	// Routes returns the routing tree in an easily traversable structure.
 	Routes() []Route
 
 	// Middlewares returns the list of middlewares in use by the router.
 	Middlewares() Middlewares
+
+	// Match searches the routing tree for a handler that matches
+	// the method/path - similar to routing a http request, but without
+	// executing the handler thereafter.
+	Match(rctx *Context, method, path string) bool
 }
 ```
 
@@ -256,7 +255,7 @@ friendly with any middleware in the community. This offers much better extensibi
 of packages and is at the heart of chi's purpose.
 
 Here is an example of a standard net/http middleware handler using the new request context
-available in Go 1.7+. This middleware sets a hypothetical user identifier on the request
+available in Go. This middleware sets a hypothetical user identifier on the request
 context and calls the next handler in the chain.
 
 ```go
@@ -310,32 +309,47 @@ chi comes equipped with an optional `middleware` package, providing a suite of s
 `net/http` middlewares. Please note, any middleware in the ecosystem that is also compatible
 with `net/http` can be used with chi's mux.
 
-----------------------------------------------------------------------------------------------------------
-| Middleware           | Description                                                                     |
-|:---------------------|:---------------------------------------------------------------------------------
-| RequestID            | Injects a request ID into the context of each request.                          |
-| RealIP               | Sets a http.Request's RemoteAddr to either X-Forwarded-For or X-Real-IP.        |
-| Logger               | Logs the start and end of each request with the elapsed processing time.        |
-| Recoverer            | Gracefully absorb panics and prints the stack trace.                            |
-| NoCache              | Sets response headers to prevent clients from caching.                          |
-| Timeout              | Signals to the request context when the timeout deadline is reached.            |
-| Throttle             | Puts a ceiling on the number of concurrent requests.                            |
-| Compress             | Gzip compression for clients that accept compressed responses.                  |
-| Profiler             | Easily attach net/http/pprof to your routers.                                   |
-| StripSlashes         | Strip slashes on routing paths.                                                 |
-| RedirectSlashes      | Redirect slashes on routing paths.                                              |
-| WithValue            | Short-hand middleware to set a key/value on the request context.                |
-| Heartbeat            | Monitoring endpoint to check the servers pulse.                                 |
-----------------------------------------------------------------------------------------------------------
+### Core middlewares
 
-Other cool community net/http middlewares:
+-----------------------------------------------------------------------------------------------------------
+| chi/middleware Handler | description                                                                     |
+|:----------------------|:---------------------------------------------------------------------------------
+| AllowContentType      | Explicit whitelist of accepted request Content-Types                            |
+| Compress              | Gzip compression for clients that accept compressed responses                   |
+| GetHead               | Automatically route undefined HEAD requests to GET handlers                     |
+| Heartbeat             | Monitoring endpoint to check the servers pulse                                  |
+| Logger                | Logs the start and end of each request with the elapsed processing time         |
+| NoCache               | Sets response headers to prevent clients from caching                           |
+| Profiler              | Easily attach net/http/pprof to your routers                                    |
+| RealIP                | Sets a http.Request's RemoteAddr to either X-Forwarded-For or X-Real-IP         |
+| Recoverer             | Gracefully absorb panics and prints the stack trace                             |
+| RequestID             | Injects a request ID into the context of each request                           |
+| RedirectSlashes       | Redirect slashes on routing paths                                               |
+| SetHeader             | Short-hand middleware to set a response header key/value                        |
+| StripSlashes          | Strip slashes on routing paths                                                  |
+| Throttle              | Puts a ceiling on the number of concurrent requests                             |
+| Timeout               | Signals to the request context when the timeout deadline is reached             |
+| URLFormat             | Parse extension from url and put it on request context                          |
+| WithValue             | Short-hand middleware to set a key/value on the request context                 |
+-----------------------------------------------------------------------------------------------------------
 
-* [jwtauth](https://github.com/goware/jwtauth) - JWT authenticator
-* [cors](https://github.com/goware/cors) - CORS middleware
-* [httpcoala](https://github.com/goware/httpcoala) - Request coalescer
-* [chi-authz](https://github.com/casbin/chi-authz) - Authorization middleware built on https://github.com/hsluoyz/casbin
+### Auxiliary middlewares & packages
 
-please [submit a PR](./CONTRIBUTING.md) if you'd like to include a link to a chi middleware
+Please see https://github.com/go-chi for additional packages.
+
+--------------------------------------------------------------------------------------------------------------------
+| package                                            | description                                                 |
+|:---------------------------------------------------|:-------------------------------------------------------------
+| [cors](https://github.com/go-chi/cors)             | Cross-origin resource sharing (CORS)                        |
+| [docgen](https://github.com/go-chi/docgen)         | Print chi.Router routes at runtime                          |
+| [jwtauth](https://github.com/go-chi/jwtauth)       | JWT authentication                                          |
+| [hostrouter](https://github.com/go-chi/hostrouter) | Domain/host based request routing                           |
+| [httpcoala](https://github.com/go-chi/httpcoala)   | HTTP request coalescer                                      |
+| [chi-authz](https://github.com/casbin/chi-authz)   | Request ACL via https://github.com/hsluoyz/casbin           |
+| [phi](https://github.com/fate-lovely/phi)          | Port chi to [fasthttp](https://github.com/valyala/fasthttp) |
+--------------------------------------------------------------------------------------------------------------------
+
+please [submit a PR](./CONTRIBUTING.md) if you'd like to include a link to a chi-compatible middleware
 
 
 ## context?
@@ -355,31 +369,33 @@ and..
 
 The benchmark suite: https://github.com/pkieltyka/go-http-routing-benchmark
 
-Comparison with other routers (as of June 21, 2017): https://gist.github.com/pkieltyka/c089f309abeb179cfc4deaa519956d8c
+Results as of Jan 9, 2019 with Go 1.11.4 on Linux X1 Carbon laptop
 
 ```shell
-BenchmarkChi_Param        	 3000000	       427 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_Param5       	 2000000	       631 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_Param20      	 1000000	      1343 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_ParamWrite   	 3000000	       477 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_GithubStatic 	 3000000	       452 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_GithubParam  	 2000000	       616 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_GithubAll    	   10000	    130637 ns/op	   61716 B/op	     406 allocs/op
-BenchmarkChi_GPlusStatic  	 3000000	       415 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_GPlusParam   	 3000000	       465 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_GPlus2Params 	 3000000	       548 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_GPlusAll     	  200000	      6895 ns/op	    3952 B/op	      26 allocs/op
-BenchmarkChi_ParseStatic  	 3000000	       407 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_ParseParam   	 3000000	       451 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_Parse2Params 	 3000000	       504 ns/op	     304 B/op	       2 allocs/op
-BenchmarkChi_ParseAll     	  100000	     13221 ns/op	    7904 B/op	      52 allocs/op
-BenchmarkChi_StaticAll    	   20000	     84327 ns/op	   47731 B/op	     314 allocs/op
+BenchmarkChi_Param            3000000         475 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_Param5           2000000         696 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_Param20          1000000        1275 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_ParamWrite       3000000         505 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_GithubStatic     3000000         508 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_GithubParam      2000000         669 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_GithubAll          10000      134627 ns/op     87699 B/op    609 allocs/op
+BenchmarkChi_GPlusStatic      3000000         402 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_GPlusParam       3000000         500 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_GPlus2Params     3000000         586 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_GPlusAll          200000        7237 ns/op      5616 B/op     39 allocs/op
+BenchmarkChi_ParseStatic      3000000         408 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_ParseParam       3000000         488 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_Parse2Params     3000000         551 ns/op       432 B/op      3 allocs/op
+BenchmarkChi_ParseAll          100000       13508 ns/op     11232 B/op     78 allocs/op
+BenchmarkChi_StaticAll          20000       81933 ns/op     67826 B/op    471 allocs/op
 ```
+
+Comparison with other routers: https://gist.github.com/pkieltyka/123032f12052520aaccab752bd3e78cc
 
 NOTE: the allocs in the benchmark above are from the calls to http.Request's
 `WithContext(context.Context)` method that clones the http.Request, sets the `Context()`
 on the duplicated (alloc'd) request and returns it the new request object. This is just
-how setting context on a request in Go 1.7+ works.
+how setting context on a request in Go works.
 
 
 ## Credits
@@ -396,18 +412,15 @@ We'll be more than happy to see [your contributions](./CONTRIBUTING.md)!
 ## Beyond REST
 
 chi is just a http router that lets you decompose request handling into many smaller layers.
-Many companies including Pressly.com (of course) use chi to write REST services for their public
-APIs. But, REST is just a convention for managing state via HTTP, and there's a lot of other pieces
-required to write a complete client-server system or network of microservices.
+Many companies use chi to write REST services for their public APIs. But, REST is just a convention
+for managing state via HTTP, and there's a lot of other pieces required to write a complete client-server
+system or network of microservices.
 
-Looking ahead beyond REST, I also recommend some newer works in the field coming from
-[gRPC](https://github.com/grpc/grpc-go), [NATS](https://nats.io), [go-kit](https://github.com/go-kit/kit)
-and even [graphql](https://github.com/graphql-go/graphql). They're all pretty cool with their
-own unique approaches and benefits. Specifically, I'd look at gRPC since it makes client-server
-communication feel like a single program on a single computer, no need to hand-write a client library
-and the request/response payloads are typed contracts. NATS is pretty amazing too as a super
-fast and lightweight pub-sub transport that can speak protobufs, with nice service discovery -
-an excellent combination with gRPC.
+Looking beyond REST, I also recommend some newer works in the field:
+* [webrpc](https://github.com/webrpc/webrpc) - Web-focused RPC client+server framework with code-gen
+* [gRPC](https://github.com/grpc/grpc-go) - Google's RPC framework via protobufs
+* [graphql](https://github.com/99designs/gqlgen) - Declarative query language
+* [NATS](https://nats.io) - lightweight pub-sub
 
 
 ## License
