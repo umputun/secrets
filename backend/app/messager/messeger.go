@@ -9,7 +9,8 @@ import (
 	"time"
 
 	log "github.com/go-pkgz/lgr"
-	uuid "github.com/nu7hatch/gouuid"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/umputun/secrets/backend/app/store"
@@ -83,15 +84,11 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		return nil, ErrDuration
 	}
 
-	key, err := uuid.NewV4()
-	if err != nil {
-		log.Printf("[ERROR] can't make uuid, %v", err)
-		return nil, ErrInternal
-	}
+	key := uuid.New().String()
 
 	exp := time.Now().Add(duration)
 	result = &store.Message{
-		Key:     fmt.Sprintf("%d-%s", exp.Unix(), key.String()),
+		Key:     store.Key(exp, key),
 		Exp:     time.Now().Add(duration),
 		PinHash: pinHash,
 	}
@@ -158,7 +155,7 @@ func (p MessageProc) checkHash(msg *store.Message, pin string) bool {
 func (p MessageProc) makeHash(pin string) (result string, err error) {
 	hashedPin, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "can't make hashed pin")
 	}
 	return string(hashedPin), nil
 }

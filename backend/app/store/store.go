@@ -30,3 +30,8 @@ type Engine interface {
 	IncErr(key string) (count int, err error)
 	Remove(key string) (err error)
 }
+
+// Key makes store key with ts prefix
+func Key(ts time.Time, key string) string {
+	return fmt.Sprintf("%x-%s", ts.Unix(), key)
+}

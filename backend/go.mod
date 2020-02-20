@@ -10,12 +10,13 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-pkgz/lgr v0.7.0
 	github.com/go-pkgz/rest v1.4.1
-	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
+	github.com/google/uuid v1.1.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
+	github.com/pkg/errors v0.8.0
 	github.com/pkg4go/rewrite v0.0.0-20171010025509-7a613570d084
 	github.com/stretchr/testify v1.3.0
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
+	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2 // indirect
 	golang.org/x/sys v0.0.0-20200217220822-9197077df867 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect

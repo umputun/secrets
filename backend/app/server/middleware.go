@@ -65,7 +65,7 @@ const maxBody = 1024
 var reMultWhtsp = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
 
 // Logger middleware prints http log. Customized by set of LoggerFlag
-func Logger(flags ...LoggerFlag) func(http.Handler) http.Handler {
+func Logger(l log.L, flags ...LoggerFlag) func(http.Handler) http.Handler {
 
 	inFlags := func(f LoggerFlag) bool {
 		for _, flg := range flags {
@@ -111,11 +111,11 @@ func Logger(flags ...LoggerFlag) func(http.Handler) http.Handler {
 				// hide id and pin
 				if strings.Contains(q, "/api/v1/message/") {
 					elems := strings.Split(q, "/")
-					if len(elems) >= 5 && len(elems[4]) >= 20 {
-						q = fmt.Sprintf("/api/v1/message/%s/*****", elems[4][:19])
+					if len(elems) >= 5 && len(elems[4]) >= 18 {
+						q = fmt.Sprintf("/api/v1/message/%s/*****", elems[4][:17])
 					}
 				}
-				log.Printf("[INFO] REST %s - %s - %s - %d (%d) - %v %s",
+				l.Logf("[INFO] REST %s - %s - %s - %d (%d) - %v %s",
 					r.Method, q, strings.Split(r.RemoteAddr, ":")[0],
 					ww.Status(), ww.BytesWritten(), t2.Sub(t1), body)
 			}()

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
+	"github.com/pkg/errors"
 	"github.com/umputun/secrets/backend/app/store"
 
 	log "github.com/go-pkgz/lgr"
@@ -36,9 +37,15 @@ type Messager interface {
 }
 
 // Run the lister and request's router, activate rest server
-func (s Server) Run() {
+func (s Server) Run() error {
 	log.Printf("[INFO] activate rest server")
+	if err := http.ListenAndServe(":8080", s.routes()); err != http.ErrServerClosed {
+		return errors.Wrap(err, "server failed")
+	}
+	return nil
+}
 
+func (s Server) routes() chi.Router {
 	router := chi.NewRouter()
 
 	router.Use(middleware.RequestID, middleware.RealIP, um.Recoverer(log.Default()))
@@ -48,7 +55,7 @@ func (s Server) Run() {
 	router.Use(Rewrite("/show/(.*)", "/show/?$1"))
 
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Use(Logger())
+		r.Use(Logger(log.Default()))
 		r.Post("/message", s.saveMessageCtrl)
 		r.Get("/message/{key}/{pin}", s.getMessageCtrl)
 		r.Get("/params", s.getParamsCtrl)
@@ -59,8 +66,7 @@ func (s Server) Run() {
 	})
 
 	s.fileServer(router, "/", http.Dir(filepath.Join(".", "docroot")))
-
-	log.Fatalf("server failed, %v", http.ListenAndServe(":8080", router))
+	return router
 }
 
 // POST /v1/message
@@ -95,7 +101,7 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, JSON{"key": msg.Key, "exp": msg.Exp})
 }
 
-// GET /v1/message/:key/:pin
+// GET /v1/message/{key}/{pin}
 func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	key, pin := chi.URLParam(r, "key"), chi.URLParam(r, "pin")

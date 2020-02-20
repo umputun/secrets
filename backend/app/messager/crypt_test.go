@@ -44,7 +44,7 @@ func TestCrypt(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			r1, err := c.Encrypt(Request{Data: tt.data, Pin: tt.pin})
 			if tt.err != nil {
-				require.Equal(t, tt.err, err)
+				require.EqualError(t, err, tt.err.Error())
 				return
 			}
 			assert.NoError(t, err)
