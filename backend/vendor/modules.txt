@@ -19,8 +19,8 @@ github.com/go-pkgz/lgr
 # github.com/go-pkgz/rest v1.4.1
 github.com/go-pkgz/rest
 github.com/go-pkgz/rest/logger
-# github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
-github.com/nu7hatch/gouuid
+# github.com/google/uuid v1.1.1
+github.com/google/uuid
 # github.com/patrickmn/go-cache v2.1.0+incompatible
 github.com/patrickmn/go-cache
 # github.com/pkg/errors v0.8.0
@@ -37,7 +37,7 @@ github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
 # github.com/umputun/go-flags v1.5.1
 github.com/umputun/go-flags
-# golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
+# golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 # golang.org/x/sys v0.0.0-20200217220822-9197077df867
