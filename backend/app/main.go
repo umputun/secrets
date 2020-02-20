@@ -44,7 +44,9 @@ func main() {
 		MaxPinAttempts: opts.MaxPinAttempts,
 		Version:        revision,
 	}
-	srv.Run()
+	if err := srv.Run(); err != nil {
+		log.Printf("[ERROR] failed, %+v", err)
+	}
 }
 
 func getEngine(engineType, boltFile string) store.Engine {

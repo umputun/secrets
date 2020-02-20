@@ -103,6 +103,9 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 	url = fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
 	req, err = http.NewRequest("GET", url, nil)
 	require.NoError(t, err)
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
 }
 
 func TestServer_saveAndGoodPinAttempt(t *testing.T) {
@@ -162,7 +165,7 @@ func TestServer_getParams(t *testing.T) {
 	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000}`+"\n", string(body))
 }
 
-func prepTestServer() (*httptest.Server, func()) {
+func prepTestServer() (ts *httptest.Server, teardown func()) {
 	eng := store.NewInMemory(time.Second)
 	srv := Server{
 		Messager: messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
@@ -174,6 +177,6 @@ func prepTestServer() (*httptest.Server, func()) {
 		MaxExpire:      10 * time.Hour,
 		Version:        "1",
 	}
-	ts := httptest.NewServer(srv.routes())
+	ts = httptest.NewServer(srv.routes())
 	return ts, ts.Close
 }
