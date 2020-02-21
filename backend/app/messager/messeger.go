@@ -1,7 +1,7 @@
 // Package messager package using injected store.Engine to save and load messages.
 // It does all encryption/decryption and hashing. Engine used as a dump storage only.
 // Passed (from user) pin used as a part of encryption key for data and delegated to crypt.Crypt.
-// Pin is not saved directly, but hashed with bcrypt.
+// Pins not saved directly, but hashed with bcrypt.
 package messager
 
 import (
