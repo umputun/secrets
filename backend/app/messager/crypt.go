@@ -28,7 +28,8 @@ func (c Crypt) Encrypt(req Request) ([]byte, error) {
 	if len(c.Key)+len(req.Pin) != 32 {
 		return nil, errors.New("key+pin should be 32 bytes")
 	}
-	key, err := nacl.Load(hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin))))
+	hexKey := hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin)))
+	key, err := nacl.Load(hexKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "can't make encryption key")
 	}
@@ -62,5 +63,6 @@ func MakeSignKey(signKey string, pinSize int) (result string) {
 	for i := 0; i <= (32-pinSize)/len(signKey); i++ {
 		result += signKey
 	}
+
 	return result[:32-pinSize]
 }

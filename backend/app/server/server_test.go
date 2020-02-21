@@ -70,8 +70,9 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 	defer func() {
 		require.NoError(t, os.Remove("/tmp/secrets-test.bdb"))
 	}()
+	signKey := messager.MakeSignKey("stew-pub-barcan-scatty-daimio-wicker-yakona", 5)
 	srv := Server{
-		Messager: messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		Messager: messager.New(eng, messager.Crypt{Key: signKey}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
 		}),
