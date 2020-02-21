@@ -1,9 +1,12 @@
+// Package store defines and implements data store for boltdb and in-memory
 package store
 
 import (
 	"fmt"
 	"time"
 )
+
+//go:generate mockery -inpkg -name Engine -case snake
 
 // Error messages
 var (
@@ -23,7 +26,12 @@ type Message struct {
 // Engine defines interface to save, load, remove and inc errors count for messages
 type Engine interface {
 	Save(msg *Message) (err error)
-	Load(key string) (resutl *Message, err error)
+	Load(key string) (result *Message, err error)
 	IncErr(key string) (count int, err error)
 	Remove(key string) (err error)
+}
+
+// Key makes store key with ts prefix
+func Key(ts time.Time, key string) string {
+	return fmt.Sprintf("%x-%s", ts.Unix(), key)
 }

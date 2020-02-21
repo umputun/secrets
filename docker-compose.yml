@@ -24,34 +24,36 @@ services:
            - BOLT_FILE=/data/secrets.bd
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
-
-    nginx:
-        image: umputun/nginx-le
-        hostname: nginx
-        restart: always
-        container_name: nginx
-
-        logging:
-          driver: json-file
-          options:
-              max-size: "10m"
-              max-file: "5"
-
-        depends_on:
-            - secrets
-
-        volumes:
-            - ./etc/ssl:/etc/nginx/ssl
-            - ./secrets-nginx.conf:/etc/nginx/service.conf
         ports:
-            - "80:80"
-            - "443:443"
+          - "80:8080"
 
-        environment:
-            - TZ=America/Chicago
-            - LETSENCRYPT=false
-            - LE_EMAIL=name@example.com
-            - LE_FQDN=www.example.com
-
-            - SSL_CERT=secrets-crt.pem
-            - SSL_KEY=secrets-key.pem
+#    nginx:
+#        image: umputun/nginx-le
+#        hostname: nginx
+#        restart: always
+#        container_name: nginx
+#
+#        logging:
+#          driver: json-file
+#          options:
+#              max-size: "10m"
+#              max-file: "5"
+#
+#        depends_on:
+#            - secrets
+#
+#        volumes:
+#            - ./etc/ssl:/etc/nginx/ssl
+#            - ./secrets-nginx.conf:/etc/nginx/service.conf
+#        ports:
+#            - "80:80"
+#            - "443:443"
+#
+#        environment:
+#            - TZ=America/Chicago
+#            - LETSENCRYPT=false
+#            - LE_EMAIL=name@example.com
+#            - LE_FQDN=www.example.com
+#
+#            - SSL_CERT=secrets-crt.pem
+#            - SSL_KEY=secrets-key.pem

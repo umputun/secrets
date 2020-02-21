@@ -3,13 +3,10 @@ package store
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"log"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
+	log "github.com/go-pkgz/lgr"
 )
 
 var bucket = []byte("secrets")
@@ -23,7 +20,7 @@ type Bolt struct {
 func NewBolt(dbFile string, cleanupDuration time.Duration) (*Bolt, error) {
 	log.Printf("[INFO] bolt (persistent) store, %s", dbFile)
 	result := Bolt{}
-	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second}) // nolint
 	if err != nil {
 		return nil, err
 	}
@@ -107,9 +104,8 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 				c := tx.Bucket(bucket).Cursor()
 
 				// uuid just a place holder to make keys sorted properly by ts prefix
-				min := []byte(fmt.Sprintf("%d-06bcb86c-0b6d-4c1b-604a-7a2dbf1ab53b",
-					time.Date(2016, 6, 1, 0, 0, 0, 0, time.UTC).Unix()))
-				max := []byte(fmt.Sprintf("%d-06bcb86c-0b6d-4c1b-604a-7a2dbf1ab53b", time.Now().Unix()))
+				min := []byte(Key(time.Date(2016, 6, 1, 0, 0, 0, 0, time.UTC), "06bcb86c-0b6d-4c1b-604a-7a2dbf1ab53b"))
+				max := []byte(Key(time.Now(), "06bcb86c-0b6d-4c1b-604a-7a2dbf1ab53b"))
 
 				for k, v := c.Seek(min); k != nil && bytes.Compare(k, max) <= 0; k, v = c.Next() {
 					expired = append(expired, k)
@@ -126,9 +122,7 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 						if e := tx.Bucket(bucket).Delete(key); e != nil {
 							return e
 						}
-						if exp, err := strconv.Atoi(strings.Split(string(key), "-")[0]); err == nil {
-							log.Printf("[DEBUG] cleaned %s on %v", string(key), time.Unix(int64(exp), 0))
-						}
+						log.Printf("[DEBUG] cleaned %s", string(key))
 					}
 					return nil
 				})

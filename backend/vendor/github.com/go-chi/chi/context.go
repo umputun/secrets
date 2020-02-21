@@ -16,9 +16,12 @@ var (
 // request context to track route patterns, URL parameters and
 // an optional routing path.
 type Context struct {
-	// Routing path override used during the route search.
+	Routes Routes
+
+	// Routing path/method override used during the route search.
 	// See Mux#routeHTTP method.
-	RoutePath string
+	RoutePath   string
+	RouteMethod string
 
 	// Routing pattern stack throughout the lifecycle of the request,
 	// across all connected routers. It is a record of all matching
@@ -48,9 +51,11 @@ func NewRouteContext() *Context {
 	return &Context{}
 }
 
-// reset a routing context to its initial state.
-func (x *Context) reset() {
+// Reset a routing context to its initial state.
+func (x *Context) Reset() {
+	x.Routes = nil
 	x.RoutePath = ""
+	x.RouteMethod = ""
 	x.RoutePatterns = x.RoutePatterns[:0]
 	x.URLParams.Keys = x.URLParams.Keys[:0]
 	x.URLParams.Values = x.URLParams.Values[:0]
@@ -79,13 +84,13 @@ func (x *Context) URLParam(key string) string {
 //
 // For example,
 //
-// func Instrument(next http.Handler) http.Handler {
-//   return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//     next.ServeHTTP(w, r)
-//     routePattern := chi.RouteContext(r.Context()).RoutePattern()
-//     measure(w, r, routePattern)
-// 	 })
-// }
+//   func Instrument(next http.Handler) http.Handler {
+//     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//       next.ServeHTTP(w, r)
+//       routePattern := chi.RouteContext(r.Context()).RoutePattern()
+//       measure(w, r, routePattern)
+//   	 })
+//   }
 func (x *Context) RoutePattern() string {
 	routePattern := strings.Join(x.RoutePatterns, "")
 	return strings.Replace(routePattern, "/*/", "/", -1)
@@ -94,7 +99,8 @@ func (x *Context) RoutePattern() string {
 // RouteContext returns chi's routing Context object from a
 // http.Request Context.
 func RouteContext(ctx context.Context) *Context {
-	return ctx.Value(RouteCtxKey).(*Context)
+	val, _ := ctx.Value(RouteCtxKey).(*Context)
+	return val
 }
 
 // URLParam returns the url parameter from a http.Request object.
@@ -120,8 +126,8 @@ type RouteParams struct {
 
 // Add will append a URL parameter to the end of the route param
 func (s *RouteParams) Add(key, value string) {
-	(*s).Keys = append((*s).Keys, key)
-	(*s).Values = append((*s).Values, value)
+	s.Keys = append(s.Keys, key)
+	s.Values = append(s.Values, value)
 }
 
 // ServerBaseContext wraps an http.Handler to set the request context to the

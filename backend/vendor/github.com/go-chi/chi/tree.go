@@ -6,44 +6,61 @@ package chi
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 type methodTyp int
 
 const (
-	mCONNECT methodTyp = 1 << iota
+	mSTUB methodTyp = 1 << iota
+	mCONNECT
 	mDELETE
 	mGET
 	mHEAD
-	mLINK
 	mOPTIONS
 	mPATCH
 	mPOST
 	mPUT
 	mTRACE
-	mUNLINK
-	mSTUB
-
-	mALL methodTyp = mCONNECT | mDELETE | mGET | mHEAD | mLINK |
-		mOPTIONS | mPATCH | mPOST | mPUT | mTRACE | mUNLINK
 )
 
+var mALL = mCONNECT | mDELETE | mGET | mHEAD |
+	mOPTIONS | mPATCH | mPOST | mPUT | mTRACE
+
 var methodMap = map[string]methodTyp{
-	"CONNECT": mCONNECT,
-	"DELETE":  mDELETE,
-	"GET":     mGET,
-	"HEAD":    mHEAD,
-	"LINK":    mLINK,
-	"OPTIONS": mOPTIONS,
-	"PATCH":   mPATCH,
-	"POST":    mPOST,
-	"PUT":     mPUT,
-	"TRACE":   mTRACE,
-	"UNLINK":  mUNLINK,
+	http.MethodConnect: mCONNECT,
+	http.MethodDelete:  mDELETE,
+	http.MethodGet:     mGET,
+	http.MethodHead:    mHEAD,
+	http.MethodOptions: mOPTIONS,
+	http.MethodPatch:   mPATCH,
+	http.MethodPost:    mPOST,
+	http.MethodPut:     mPUT,
+	http.MethodTrace:   mTRACE,
+}
+
+// RegisterMethod adds support for custom HTTP method handlers, available
+// via Router#Method and Router#MethodFunc
+func RegisterMethod(method string) {
+	if method == "" {
+		return
+	}
+	method = strings.ToUpper(method)
+	if _, ok := methodMap[method]; ok {
+		return
+	}
+	n := len(methodMap)
+	if n > strconv.IntSize {
+		panic(fmt.Sprintf("chi: max number of methods reached (%d)", strconv.IntSize))
+	}
+	mt := methodTyp(math.Exp2(float64(n)))
+	methodMap[method] = mt
+	mALL |= mt
 }
 
 type nodeTyp uint8
@@ -314,7 +331,7 @@ func (n *node) getEdge(ntyp nodeTyp, label, tail byte, prefix string) *node {
 func (n *node) setEndpoint(method methodTyp, handler http.Handler, pattern string) {
 	// Set the handler for the method type on the node
 	if n.endpoints == nil {
-		n.endpoints = make(endpoints, 0)
+		n.endpoints = make(endpoints)
 	}
 
 	paramKeys := patParamKeys(pattern)
@@ -341,7 +358,7 @@ func (n *node) setEndpoint(method methodTyp, handler http.Handler, pattern strin
 	}
 }
 
-func (n *node) FindRoute(rctx *Context, method methodTyp, path string) endpoints {
+func (n *node) FindRoute(rctx *Context, method methodTyp, path string) (*node, endpoints, http.Handler) {
 	// Reset the context routing pattern and params
 	rctx.routePattern = ""
 	rctx.routeParams.Keys = rctx.routeParams.Keys[:0]
@@ -350,7 +367,7 @@ func (n *node) FindRoute(rctx *Context, method methodTyp, path string) endpoints
 	// Find the routing handlers for the path
 	rn := n.findRoute(rctx, method, path)
 	if rn == nil {
-		return nil
+		return nil, nil, nil
 	}
 
 	// Record the routing params in the request lifecycle
@@ -363,7 +380,7 @@ func (n *node) FindRoute(rctx *Context, method methodTyp, path string) endpoints
 		rctx.RoutePatterns = append(rctx.RoutePatterns, rctx.routePattern)
 	}
 
-	return rn.endpoints
+	return rn, rn.endpoints, rn.endpoints[method].handler
 }
 
 // Recursive edge traversal by checking all nodeTyp groups along the way.
@@ -400,6 +417,8 @@ func (n *node) findRoute(rctx *Context, method methodTyp, path string) *node {
 				continue
 			}
 
+			found := false
+
 			// serially loop through each node grouped by the tail delimiter
 			for idx := 0; idx < len(nds); idx++ {
 				xn = nds[idx]
@@ -407,7 +426,7 @@ func (n *node) findRoute(rctx *Context, method methodTyp, path string) *node {
 				// label for param nodes is the delimiter byte
 				p := strings.IndexByte(xsearch, xn.tail)
 
-				if p <= 0 {
+				if p < 0 {
 					if xn.tail == '/' {
 						p = len(xsearch)
 					} else {
@@ -416,7 +435,7 @@ func (n *node) findRoute(rctx *Context, method methodTyp, path string) *node {
 				}
 
 				if ntyp == ntRegexp && xn.rex != nil {
-					if xn.rex.Match([]byte(xsearch[:p])) == false {
+					if !xn.rex.Match([]byte(xsearch[:p])) {
 						continue
 					}
 				} else if strings.IndexByte(xsearch[:p], '/') != -1 {
@@ -426,7 +445,12 @@ func (n *node) findRoute(rctx *Context, method methodTyp, path string) *node {
 
 				rctx.routeParams.Values = append(rctx.routeParams.Values, xsearch[:p])
 				xsearch = xsearch[p:]
+				found = true
 				break
+			}
+
+			if !found {
+				rctx.routeParams.Values = append(rctx.routeParams.Values, "")
 			}
 
 		default:
@@ -443,7 +467,7 @@ func (n *node) findRoute(rctx *Context, method methodTyp, path string) *node {
 		// did we find it yet?
 		if len(xsearch) == 0 {
 			if xn.isLeaf() {
-				h, _ := xn.endpoints[method]
+				h := xn.endpoints[method]
 				if h != nil && h.handler != nil {
 					rctx.routeParams.Keys = append(rctx.routeParams.Keys, h.paramKeys...)
 					return xn
@@ -514,7 +538,7 @@ func (n *node) isLeaf() bool {
 	return n.endpoints != nil
 }
 
-func (n *node) matchPattern(pattern string) bool {
+func (n *node) findPattern(pattern string) bool {
 	nn := n
 	for _, nds := range nn.children {
 		if len(nds) == 0 {
@@ -551,7 +575,7 @@ func (n *node) matchPattern(pattern string) bool {
 			return true
 		}
 
-		return n.matchPattern(xpattern)
+		return n.findPattern(xpattern)
 	}
 	return false
 }
@@ -565,7 +589,7 @@ func (n *node) routes() []Route {
 		}
 
 		// Group methodHandlers by unique patterns
-		pats := make(map[string]endpoints, 0)
+		pats := make(map[string]endpoints)
 
 		for mt, h := range eps {
 			if h.pattern == "" {
@@ -580,7 +604,7 @@ func (n *node) routes() []Route {
 		}
 
 		for p, mh := range pats {
-			hs := make(map[string]http.Handler, 0)
+			hs := make(map[string]http.Handler)
 			if mh[mALL] != nil && mh[mALL].handler != nil {
 				hs["*"] = mh[mALL].handler
 			}
@@ -643,8 +667,22 @@ func patNextSegment(pattern string) (nodeTyp, string, string, byte, int, int) {
 	if ps >= 0 {
 		// Param/Regexp pattern is next
 		nt := ntParam
-		pe := strings.Index(pattern, "}")
-		if pe < 0 {
+
+		// Read to closing } taking into account opens and closes in curl count (cc)
+		cc := 0
+		pe := ps
+		for i, c := range pattern[ps:] {
+			if c == '{' {
+				cc++
+			} else if c == '}' {
+				cc--
+				if cc == 0 {
+					pe = ps + i
+					break
+				}
+			}
+		}
+		if pe == ps {
 			panic("chi: route param closing delimiter '}' is missing")
 		}
 
@@ -662,11 +700,22 @@ func patNextSegment(pattern string) (nodeTyp, string, string, byte, int, int) {
 			key = key[:idx]
 		}
 
+		if len(rexpat) > 0 {
+			if rexpat[0] != '^' {
+				rexpat = "^" + rexpat
+			}
+			if rexpat[len(rexpat)-1] != '$' {
+				rexpat += "$"
+			}
+		}
+
 		return nt, key, rexpat, tail, ps, pe
 	}
 
 	// Wildcard pattern as finale
-	// TODO: should we panic if there is stuff after the * ???
+	if ws < len(pattern)-1 {
+		panic("chi: wildcard '*' must be the last value in a route. trim trailing text or use a '{param}' instead")
+	}
 	return ntCatchAll, "*", "", 0, ws, len(pattern)
 }
 
@@ -753,6 +802,7 @@ func (ns nodes) findEdge(label byte) *node {
 }
 
 // Route describes the details of a routing handler.
+// Handlers map key is an HTTP method
 type Route struct {
 	Pattern   string
 	Handlers  map[string]http.Handler

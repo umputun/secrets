@@ -1,22 +1,22 @@
-// Messager package using injected store.Engine to save and load messages.
+// Package messager package using injected store.Engine to save and load messages.
 // It does all encryption/decryption and hashing. Engine used as a dump storage only.
 // Passed (from user) pin used as a part of encryption key for data and delegated to crypt.Crypt.
 // Pin is not saved directly, but hashed with bcrypt.
-
 package messager
 
 import (
 	"fmt"
-	"log"
-	"math/rand"
 	"time"
 
-	"github.com/nu7hatch/gouuid"
+	log "github.com/go-pkgz/lgr"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/umputun/secrets/backend/app/crypt"
 	"github.com/umputun/secrets/backend/app/store"
 )
+
+//go:generate mockery -inpkg -name Crypter -case snake
 
 // Errors
 var (
@@ -28,10 +28,10 @@ var (
 	ErrDuration      = fmt.Errorf("bad duration")
 )
 
-// MessageProc creates and save messages and retrive per key
+// MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
-	crypt.Crypt
 	Params
+	crypt  Crypter
 	engine store.Engine
 }
 
@@ -41,11 +41,17 @@ type Params struct {
 	MaxPinAttempts int
 }
 
-// New makes MessageProc with engine and crypt
-func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
+// Crypter interface wraps crypt methods
+type Crypter interface {
+	Encrypt(req Request) (result string, err error)
+	Decrypt(req Request) (result string, err error)
+}
+
+// New makes MessageProc with the engine and crypt
+func New(engine store.Engine, crypter Crypter, params Params) *MessageProc {
 
 	if params.MaxDuration == 0 {
-		params.MaxDuration = time.Hour * 24 * 31 //31 days if nothing defined
+		params.MaxDuration = time.Hour * 24 * 31 // 31 days if nothing defined
 	}
 	if params.MaxPinAttempts == 0 {
 		params.MaxPinAttempts = 3
@@ -54,13 +60,13 @@ func New(engine store.Engine, crypt crypt.Crypt, params Params) *MessageProc {
 
 	return &MessageProc{
 		engine: engine,
-		Crypt:  crypt,
+		crypt:  crypter,
 		Params: params,
 	}
 }
 
 // MakeMessage from data, pin and duration, saves to store. Encrypts data part with pin.
-func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string) (result *store.Message, err error) {
+func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error) {
 
 	if pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")
@@ -78,20 +84,16 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 		return nil, ErrDuration
 	}
 
-	key, err := uuid.NewV4()
-	if err != nil {
-		log.Printf("[ERROR] can't make uuid, %v", err)
-		return nil, ErrInternal
-	}
+	key := uuid.New().String()
 
 	exp := time.Now().Add(duration)
 	result = &store.Message{
-		Key:     fmt.Sprintf("%d-%s", exp.Unix(), key.String()),
+		Key:     store.Key(exp, key),
 		Exp:     time.Now().Add(duration),
 		PinHash: pinHash,
 	}
 
-	result.Data, err = p.Encrypt(crypt.Request{Data: msg, Pin: pin})
+	result.Data, err = p.crypt.Encrypt(Request{Data: msg, Pin: pin})
 	if err != nil {
 		log.Printf("[ERROR] failed to encrypt, %v", err)
 		return nil, ErrCrypto
@@ -103,7 +105,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg string, pin string)
 // LoadMessage gets from store, verifies Message with pin and decrypts content.
 // It also removes accessed messages and invalidate them on multiple wrong pins.
 // Message decrypted by this function will be returned naked to consumer.
-func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, err error) {
+func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error) {
 
 	msg, err = p.engine.Load(key)
 	if err != nil {
@@ -117,16 +119,19 @@ func (p MessageProc) LoadMessage(key string, pin string) (msg *store.Message, er
 	}
 
 	if !p.checkHash(msg, pin) {
-		_, _ = p.engine.IncErr(key)
-		log.Printf("[WARN] wrong pin provided (%d times)", msg.Errors+1)
-		if msg.Errors > p.MaxPinAttempts {
+		count, e := p.engine.IncErr(key)
+		if e != nil {
+			return nil, ErrBadPin
+		}
+		log.Printf("[WARN] wrong pin provided (%d times)", count)
+		if count >= p.MaxPinAttempts {
 			_ = p.engine.Remove(key)
 			return nil, ErrBadPin
 		}
 		return msg, ErrBadPinAttempt
 	}
 
-	r, err := p.Decrypt(crypt.Request{Data: msg.Data, Pin: pin})
+	r, err := p.crypt.Decrypt(Request{Data: msg.Data, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
 		_ = p.engine.Remove(key)
@@ -150,11 +155,7 @@ func (p MessageProc) checkHash(msg *store.Message, pin string) bool {
 func (p MessageProc) makeHash(pin string) (result string, err error) {
 	hashedPin, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "can't make hashed pin")
 	}
 	return string(hashedPin), nil
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
