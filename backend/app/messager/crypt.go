@@ -1,13 +1,11 @@
 package messager
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io"
 
+	"github.com/kevinburke/nacl"
+	"github.com/kevinburke/nacl/secretbox"
 	"github.com/pkg/errors"
 )
 
@@ -24,65 +22,35 @@ type Request struct {
 	Data string
 }
 
-// Encrypt to hex with AES256
-func (c Crypt) Encrypt(req Request) (result string, err error) {
+// Encrypt to hex with secretbox
+func (c Crypt) Encrypt(req Request) (string, error) {
 
 	if len(c.Key)+len(req.Pin) != 32 {
 		return "", errors.New("key+pin should be 32 bytes")
 	}
-	key := []byte(fmt.Sprintf("%s%s", c.Key, req.Pin))
-
-	var block cipher.Block
-
-	if block, err = aes.NewCipher(key); err != nil {
-		return "", errors.Wrap(err, "failed to make aes cipher")
+	key, err := nacl.Load(hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin))))
+	if err != nil {
+		return "", errors.Wrap(err, "can't make encryption key")
 	}
-
-	ciphertext := make([]byte, aes.BlockSize+len(req.Data))
-
-	// iv =  initialization vector
-	iv := ciphertext[:aes.BlockSize]
-	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
-		return "", errors.Wrap(err, "failed to read enough randoms")
-	}
-
-	cfb := cipher.NewCFBEncrypter(block, iv)
-	cfb.XORKeyStream(ciphertext[aes.BlockSize:], []byte(req.Data))
-
-	hexRes := make([]byte, hex.EncodedLen(len(ciphertext)))
-	hex.Encode(hexRes, ciphertext)
-	return string(hexRes), nil
+	return string(secretbox.EasySeal([]byte(req.Data), key)), nil
 }
 
-// Decrypt from hex with AES256
-func (c Crypt) Decrypt(req Request) (result string, err error) {
+// Decrypt from hex with secretbox
+func (c Crypt) Decrypt(req Request) (string, error) {
 
 	if len(c.Key)+len(req.Pin) != 32 {
 		return "", errors.New("key+pin should be 32 bytes")
 	}
-	key := []byte(fmt.Sprintf("%s%s", c.Key, req.Pin))
-
-	var block cipher.Block
-
-	if block, err = aes.NewCipher(key); err != nil {
-		return
+	key, err := nacl.Load(hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin))))
+	if err != nil {
+		return "", errors.Wrap(err, "can't make decryption key")
 	}
 
-	data := make([]byte, hex.DecodedLen(len(req.Data)))
-	if _, err = hex.Decode(data, []byte(req.Data)); err != nil {
-		return "", errors.Wrap(err, "failed to decode hex")
+	decrypted, err := secretbox.EasyOpen([]byte(req.Data), key)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decrypt")
 	}
-	if len(data) < aes.BlockSize {
-		return "", errors.New("ciphertext too short")
-	}
-
-	iv := data[:aes.BlockSize]
-	ciphertext := data[aes.BlockSize:]
-
-	cfb := cipher.NewCFBDecrypter(block, iv)
-	cfb.XORKeyStream(ciphertext, ciphertext)
-
-	return string(ciphertext), nil
+	return string(decrypted), nil
 }
 
 // MakeSignKey creates 32-pin bytes signKey for AES256

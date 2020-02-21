@@ -48,7 +48,7 @@ func TestCrypt(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			t.Logf("%s", r1)
+			t.Logf("%x", r1)
 
 			r2, err := c.Decrypt(Request{Data: r1, Pin: tt.pin})
 			assert.NoError(t, err)

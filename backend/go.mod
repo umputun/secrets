@@ -11,6 +11,7 @@ require (
 	github.com/go-pkgz/lgr v0.7.0
 	github.com/go-pkgz/rest v1.4.1
 	github.com/google/uuid v1.1.1
+	github.com/kevinburke/nacl v0.0.0-20190829012316-f3ed23dbd7f8
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pkg/errors v0.8.0
 	github.com/pkg4go/rewrite v0.0.0-20171010025509-7a613570d084

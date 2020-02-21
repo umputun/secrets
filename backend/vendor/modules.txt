@@ -21,6 +21,12 @@ github.com/go-pkgz/rest
 github.com/go-pkgz/rest/logger
 # github.com/google/uuid v1.1.1
 github.com/google/uuid
+# github.com/kevinburke/nacl v0.0.0-20190829012316-f3ed23dbd7f8
+github.com/kevinburke/nacl
+github.com/kevinburke/nacl/internal/subtle
+github.com/kevinburke/nacl/onetimeauth
+github.com/kevinburke/nacl/randombytes
+github.com/kevinburke/nacl/secretbox
 # github.com/patrickmn/go-cache v2.1.0+incompatible
 github.com/patrickmn/go-cache
 # github.com/pkg/errors v0.8.0
@@ -40,7 +46,10 @@ github.com/umputun/go-flags
 # golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
+golang.org/x/crypto/poly1305
+golang.org/x/crypto/salsa20/salsa
 # golang.org/x/sys v0.0.0-20200217220822-9197077df867
+golang.org/x/sys/cpu
 golang.org/x/sys/unix
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate

@@ -84,22 +84,22 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 	t.Logf("%+v", respSave)
 
 	// load saved message
-	url := fmt.Sprintf("%s/api/v1/message/%s/xxxxxx", ts.URL, respSave.Key)
+	url := fmt.Sprintf("%s/api/v1/message/%s/00000", ts.URL, respSave.Key)
 	req, err = http.NewRequest("GET", url, nil)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode)
+	assert.Equal(t, 417, resp.StatusCode)
+
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, 400, resp.StatusCode)
 
-	resp, err = client.Do(req)
-	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode)
-
-	// try with valid pin will fail, too many attempt
+	// try with a valid pin will fail, too many attempt
 	url = fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
 	req, err = http.NewRequest("GET", url, nil)
 	require.NoError(t, err)
@@ -129,16 +129,16 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 	t.Logf("%+v", respSave)
 
 	// load saved message
-	url := fmt.Sprintf("%s/api/v1/message/%s/xxxxxx", ts.URL, respSave.Key)
+	url := fmt.Sprintf("%s/api/v1/message/%s/00000", ts.URL, respSave.Key)
 	req, err = http.NewRequest("GET", url, nil)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode)
+	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	assert.Equal(t, 400, resp.StatusCode)
+	assert.Equal(t, 417, resp.StatusCode)
 
 	// try with a valid pin will pass, not too many attempt
 	url = fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
