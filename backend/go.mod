@@ -13,12 +13,14 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/kevinburke/nacl v0.0.0-20190829012316-f3ed23dbd7f8
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	github.com/pkg/errors v0.8.0
+	github.com/pkg/errors v0.9.1
 	github.com/pkg4go/rewrite v0.0.0-20171010025509-7a613570d084
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/objx v0.2.0 // indirect
+	github.com/stretchr/testify v1.5.1
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2 // indirect
-	golang.org/x/sys v0.0.0-20200217220822-9197077df867 // indirect
+	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
+	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
