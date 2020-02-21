@@ -9,7 +9,7 @@ import (
 
 func TestSaveAndLoad(t *testing.T) {
 	s := NewInMemory(time.Second)
-	msg := Message{Key: "key123456", Exp: time.Now(), Data: "data string", PinHash: "123456"}
+	msg := Message{Key: "key123456", Exp: time.Now(), Data: []byte("data string"), PinHash: "123456"}
 	assert.Nil(t, s.Save(&msg), "saved fine")
 	savedMsg, err := s.Load("key123456")
 	assert.Nil(t, err, "key found")
@@ -20,7 +20,7 @@ func TestSaveAndLoad(t *testing.T) {
 
 func TestIncErr(t *testing.T) {
 	s := NewInMemory(time.Second)
-	msg := Message{Key: "key123456", Exp: time.Now(), Data: "data string", PinHash: "123456"}
+	msg := Message{Key: "key123456", Exp: time.Now(), Data: []byte("data string"), PinHash: "123456"}
 	assert.Nil(t, s.Save(&msg))
 
 	cnt, err := s.IncErr("key123456")
@@ -37,7 +37,7 @@ func TestIncErr(t *testing.T) {
 
 func TestCleaner(t *testing.T) {
 	s := NewInMemory(time.Millisecond * 50)
-	msg := Message{Key: "key123456", Exp: time.Now(), Data: "data string", PinHash: "123456"}
+	msg := Message{Key: "key123456", Exp: time.Now(), Data: []byte("data string"), PinHash: "123456"}
 	assert.Nil(t, s.Save(&msg), "saved fine")
 
 	_, err := s.Load("key123456")

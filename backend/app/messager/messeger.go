@@ -43,8 +43,8 @@ type Params struct {
 
 // Crypter interface wraps crypt methods
 type Crypter interface {
-	Encrypt(req Request) (result string, err error)
-	Decrypt(req Request) (result string, err error)
+	Encrypt(req Request) (result []byte, err error)
+	Decrypt(req Request) (result []byte, err error)
 }
 
 // New makes MessageProc with the engine and crypt
@@ -93,7 +93,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		PinHash: pinHash,
 	}
 
-	result.Data, err = p.crypt.Encrypt(Request{Data: msg, Pin: pin})
+	result.Data, err = p.crypt.Encrypt(Request{Data: []byte(msg), Pin: pin})
 	if err != nil {
 		log.Printf("[ERROR] failed to encrypt, %v", err)
 		return nil, ErrCrypto
@@ -131,7 +131,7 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		return msg, ErrBadPinAttempt
 	}
 
-	r, err := p.crypt.Decrypt(Request{Data: msg.Data, Pin: pin})
+	r, err := p.crypt.Decrypt(Request{Data: []byte(msg.Data), Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
 		_ = p.engine.Remove(key)

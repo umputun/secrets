@@ -18,7 +18,7 @@ var (
 type Message struct {
 	Key     string
 	Exp     time.Time
-	Data    string
+	Data    []byte
 	PinHash string
 	Errors  int
 }

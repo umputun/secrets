@@ -21,13 +21,13 @@ func TestMessageProc_MakeMessage(t *testing.T) {
 	c := &MockCrypter{}
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
 
-	c.On("Encrypt", mock.Anything).Return("encrypted blah", nil)
+	c.On("Encrypt", mock.Anything).Return([]byte("encrypted blah"), nil)
 	s.On("Save", mock.AnythingOfType("*store.Message")).Return(nil)
 
 	r, err := m.MakeMessage(time.Second*30, "message", "56789")
 	t.Logf("%+v", r)
 	require.NoError(t, err)
-	assert.Equal(t, "encrypted blah", r.Data)
+	assert.Equal(t, "encrypted blah", string(r.Data))
 	assert.Equal(t, 0, r.Errors)
 	assert.Contains(t, r.PinHash, "$2a$")
 
@@ -44,18 +44,18 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	s.On("Load", mock.AnythingOfType("string")).Return(&store.Message{
-		Data:    "data",
+		Data:    []byte("data"),
 		PinHash: pinHash,
 		Key:     "somekey",
 		Exp:     time.Now().Add(time.Minute),
 	}, nil)
 	s.On("Remove", "somekey").Return(nil)
-	c.On("Decrypt", mock.Anything).Return("decrypted blah", nil)
+	c.On("Decrypt", mock.Anything).Return([]byte("decrypted blah"), nil)
 
 	r, err := m.LoadMessage("somekey", "56789")
 	t.Logf("%+v", r)
 	require.NoError(t, err)
-	assert.Equal(t, "decrypted blah", r.Data)
+	assert.Equal(t, "decrypted blah", string(r.Data))
 	assert.Equal(t, 0, r.Errors)
 	assert.Contains(t, r.PinHash, "$2a$")
 
@@ -69,7 +69,7 @@ func TestMessageProc_BadPin(t *testing.T) {
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
 
 	s.On("Load", mock.AnythingOfType("string")).Return(&store.Message{
-		Data:    "data",
+		Data:    []byte("data"),
 		PinHash: "bad bad",
 		Key:     "somekey",
 		Exp:     time.Now().Add(time.Minute),

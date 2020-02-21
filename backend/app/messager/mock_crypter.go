@@ -10,14 +10,16 @@ type MockCrypter struct {
 }
 
 // Decrypt provides a mock function with given fields: req
-func (_m *MockCrypter) Decrypt(req Request) (string, error) {
+func (_m *MockCrypter) Decrypt(req Request) ([]byte, error) {
 	ret := _m.Called(req)
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func(Request) string); ok {
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func(Request) []byte); ok {
 		r0 = rf(req)
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
 	}
 
 	var r1 error
@@ -31,14 +33,16 @@ func (_m *MockCrypter) Decrypt(req Request) (string, error) {
 }
 
 // Encrypt provides a mock function with given fields: req
-func (_m *MockCrypter) Encrypt(req Request) (string, error) {
+func (_m *MockCrypter) Encrypt(req Request) ([]byte, error) {
 	ret := _m.Called(req)
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func(Request) string); ok {
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func(Request) []byte); ok {
 		r0 = rf(req)
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
 	}
 
 	var r1 error

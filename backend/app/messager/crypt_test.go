@@ -22,6 +22,10 @@ func TestCrypt(t *testing.T) {
 			pin:  "99999",
 		},
 		{
+			data: "abcdefg something 12345 ?? what?",
+			pin:  "00000",
+		},
+		{
 			data: "abcdefg",
 			pin:  "12345",
 		},
@@ -42,7 +46,7 @@ func TestCrypt(t *testing.T) {
 
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r1, err := c.Encrypt(Request{Data: tt.data, Pin: tt.pin})
+			r1, err := c.Encrypt(Request{Data: []byte(tt.data), Pin: tt.pin})
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return
@@ -52,7 +56,7 @@ func TestCrypt(t *testing.T) {
 
 			r2, err := c.Decrypt(Request{Data: r1, Pin: tt.pin})
 			assert.NoError(t, err)
-			assert.Equal(t, tt.data, r2)
+			assert.Equal(t, tt.data, string(r2))
 		})
 	}
 }

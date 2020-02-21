@@ -121,7 +121,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			}
 			return http.StatusBadRequest, JSON{"error": err.Error()}
 		}
-		return http.StatusOK, JSON{"key": msg.Key, "message": msg.Data}
+		return http.StatusOK, JSON{"key": msg.Key, "message": string(msg.Data)}
 	}
 
 	// make sure serveRequest works constant time on any branch

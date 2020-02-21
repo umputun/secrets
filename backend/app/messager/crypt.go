@@ -19,38 +19,38 @@ type Crypt struct {
 // Request for both Encrypt and Decrypt
 type Request struct {
 	Pin  string
-	Data string
+	Data []byte
 }
 
 // Encrypt to hex with secretbox
-func (c Crypt) Encrypt(req Request) (string, error) {
+func (c Crypt) Encrypt(req Request) ([]byte, error) {
 
 	if len(c.Key)+len(req.Pin) != 32 {
-		return "", errors.New("key+pin should be 32 bytes")
+		return nil, errors.New("key+pin should be 32 bytes")
 	}
 	key, err := nacl.Load(hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin))))
 	if err != nil {
-		return "", errors.Wrap(err, "can't make encryption key")
+		return nil, errors.Wrap(err, "can't make encryption key")
 	}
-	return string(secretbox.EasySeal([]byte(req.Data), key)), nil
+	return secretbox.EasySeal(req.Data, key), nil
 }
 
 // Decrypt from hex with secretbox
-func (c Crypt) Decrypt(req Request) (string, error) {
+func (c Crypt) Decrypt(req Request) ([]byte, error) {
 
 	if len(c.Key)+len(req.Pin) != 32 {
-		return "", errors.New("key+pin should be 32 bytes")
+		return nil, errors.New("key+pin should be 32 bytes")
 	}
 	key, err := nacl.Load(hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin))))
 	if err != nil {
-		return "", errors.Wrap(err, "can't make decryption key")
+		return nil, errors.Wrap(err, "can't make decryption key")
 	}
 
 	decrypted, err := secretbox.EasyOpen([]byte(req.Data), key)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to decrypt")
+		return nil, errors.Wrap(err, "failed to decrypt")
 	}
-	return string(decrypted), nil
+	return decrypted, nil
 }
 
 // MakeSignKey creates 32-pin bytes signKey for AES256
