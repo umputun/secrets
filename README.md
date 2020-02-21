@@ -1,5 +1,7 @@
 # Safe Secrets - safe(r) and easy way to transfer passwords
 
+[![Build Status](https://github.com/umputun/secrets/workflows/build/badge.svg)](https://github.com/umputun/secrets/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/umputun/secrets)](https://goreportcard.com/report/github.com/umputun/secrets) [![Coverage Status](https://coveralls.io/repos/github/umputun/secrets/badge.svg?branch=master)](https://coveralls.io/github/umputun/secrets?branch=master)
+
 The primary use-case is sharing sensitive data by making the information self-destructed, accessible only once and protected
 by easy-to-share PIN code. I just needed a simple and better alternative to the most popular way of passing passwords,
 which is why this project was created. Doing this by email always made me concerned about the usual "security" of sending user
