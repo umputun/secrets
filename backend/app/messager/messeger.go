@@ -131,7 +131,7 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		return msg, ErrBadPinAttempt
 	}
 
-	r, err := p.crypt.Decrypt(Request{Data: []byte(msg.Data), Pin: pin})
+	r, err := p.crypt.Decrypt(Request{Data: msg.Data, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
 		_ = p.engine.Remove(key)

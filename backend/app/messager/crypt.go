@@ -46,7 +46,7 @@ func (c Crypt) Decrypt(req Request) ([]byte, error) {
 		return nil, errors.Wrap(err, "can't make decryption key")
 	}
 
-	decrypted, err := secretbox.EasyOpen([]byte(req.Data), key)
+	decrypted, err := secretbox.EasyOpen(req.Data, key)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decrypt")
 	}
