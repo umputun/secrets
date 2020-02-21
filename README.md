@@ -21,7 +21,7 @@ Create a **safesecret** link to your message by entering 3 things:
  The PIN is (typically) numeric and easy to pass by a voice call or text message.
  Each link can be opened only **once** and the number of attempts to enter a wrong PIN is limited to 3 times by default.
 
-[![ScreenShot](https://raw.github.com/umputun/secrets/master/webapp/demo/demo.png)](https://www.youtube.com/watch?v=erT1QYiDD-Q)
+[![ScreenShot](https://raw.github.com/umputun/secrets/master/frontend/demo/demo.png)](https://www.youtube.com/watch?v=erT1QYiDD-Q)
 
 ## How safe is this thing
 
