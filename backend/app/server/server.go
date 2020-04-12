@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
 	"github.com/pkg/errors"
+
 	"github.com/umputun/secrets/backend/app/store"
 
 	log "github.com/go-pkgz/lgr"
