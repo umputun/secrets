@@ -18,14 +18,15 @@ jobs:
 
     - name: test
       run: |
-        export TZ="America/Chicago"
         go test -v -mod=vendor -timeout=60s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
         cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mock_" > $GITHUB_WORKSPACE/profile.cov
       working-directory: backend/app
+      env:
+        TZ: "America/Chicago"
 
     - name: install golangci-lint and goveralls
       run: |
-        curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $GITHUB_WORKSPACE v1.20.0
+        curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $GITHUB_WORKSPACE v1.23.8
         go get -u github.com/mattn/goveralls
 
     - name: run linters
