@@ -8,7 +8,7 @@ services:
         hostname: secrets
         restart: always
 
-        logging:
+        logging: &default_logging
           driver: json-file
           options:
               max-size: "10m"
@@ -18,42 +18,38 @@ services:
             - ./var:/data
 
         environment:
-           - SIGN_KEY=change-this-to-smth-random
-           - ENGINE=MEMORY
+           - SIGN_KEY=change-this-to-smth-random # important! change it
+           - ENGINE=MEMORY # change to BOLT to make it persistent
            - PIN_SIZE=5
            - BOLT_FILE=/data/secrets.bd
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
-        ports:
-          - "80:8080"
+        # uncomment to expose directly without nginx proxy
+        # ports:
+        #  - "80:8080"
 
-#    nginx:
-#        image: umputun/nginx-le
-#        hostname: nginx
-#        restart: always
-#        container_name: nginx
-#
-#        logging:
-#          driver: json-file
-#          options:
-#              max-size: "10m"
-#              max-file: "5"
-#
-#        depends_on:
-#            - secrets
-#
-#        volumes:
-#            - ./etc/ssl:/etc/nginx/ssl
-#            - ./secrets-nginx.conf:/etc/nginx/service.conf
-#        ports:
-#            - "80:80"
-#            - "443:443"
-#
-#        environment:
-#            - TZ=America/Chicago
-#            - LETSENCRYPT=false
-#            - LE_EMAIL=name@example.com
-#            - LE_FQDN=www.example.com
-#
-#            - SSL_CERT=secrets-crt.pem
-#            - SSL_KEY=secrets-key.pem
+    nginx:
+        image: umputun/nginx-le:latest
+        hostname: nginx
+        restart: always
+        container_name: nginx
+        logging: *default_logging
+
+        depends_on:
+            - secrets
+
+        volumes:
+            - ./etc/ssl:/etc/nginx/ssl
+            - ./secrets-nginx.conf:/etc/nginx/service.conf
+        ports:
+            - "80:80"
+            - "443:443"
+
+        environment:
+            - TZ=America/Chicago
+            - LETSENCRYPT=false  # set to true for SSL and define proper LE_EMAIL and LE_FQDN
+            - LE_EMAIL=name@example.com
+            - LE_FQDN=www.example.com
+            # uncomment to provide existing certificates
+            #- SSL_CERT=secrets-crt.pem
+            #- SSL_KEY=secrets-key.pem
