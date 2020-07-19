@@ -45,8 +45,7 @@ jobs:
 
     - name: build pr image
       if: github.event_name == 'pull_request'
-        run: |
-          docker build -t umputun/secrets:master .
+      run: docker build -t umputun/secrets:master .
 
     - name: build and push master image
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
