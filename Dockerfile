@@ -28,14 +28,15 @@ RUN \
 
 
 FROM node:10.19.0-alpine3.11 as build-frontend
+WORKDIR /srv/frontend/
 
-ADD frontend /srv/frontend
 RUN apk add --no-cache --update git python make g++
-RUN \
-    cd /srv/frontend && \
-    npm i gulp && \
-    npm i --production && npm run build
+COPY ./frontend/package.json ./frontend/package-lock.json ./
+RUN npm install
 
+COPY ./frontend /srv/frontend
+RUN npm run build
+RUN npm prune --production
 
 FROM umputun/baseimage:app-latest
 
