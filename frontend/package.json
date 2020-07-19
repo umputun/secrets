@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "autoprefixer": "7.1.4",
-    "browser-sync": "2.26.7",
+    "browser-sync": "^2.26.10",
     "connect-modrewrite": "0.10.2",
     "del": "2.2.1",
     "fibers": "4.0.2",
@@ -24,16 +24,17 @@
     "gulp-bemjson2html": "1.0.2",
     "gulp-cached": "1.1.0",
     "gulp-combine-mq": "0.4.0",
-    "gulp-concat": "2.6.0",
-    "gulp-csso": "3.0.0",
-    "gulp-debug": "2.1.2",
+    "gulp-concat": "^2.6.1",
+    "gulp-csso": "^4.0.1",
+    "gulp-debug": "^4.0.0",
     "gulp-notify": "3.2.0",
     "gulp-order": "1.2.0",
-    "gulp-plumber": "1.1.0",
-    "gulp-postcss": "7.0.0",
+    "gulp-plumber": "^1.2.1",
+    "gulp-postcss": "^8.0.0",
     "gulp-rename": "1.2.2",
     "gulp-sass": "4.0.2",
     "gulp-uglify": "3.0.0",
+    "minimist": "^0.2.1",
     "sass": "1.25.0"
   }
 }
