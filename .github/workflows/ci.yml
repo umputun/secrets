@@ -43,6 +43,11 @@ jobs:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       working-directory: backend
 
+    - name: build pr image
+      if: github.event_name == 'pull_request'
+        run: |
+          docker build -t umputun/secrets:master .
+
     - name: build and push master image
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       run: |
