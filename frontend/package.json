@@ -34,7 +34,7 @@
     "gulp-rename": "1.2.2",
     "gulp-sass": "4.0.2",
     "gulp-uglify": "3.0.0",
-    "minimist": "^0.2.1",
+    "minimist": "^1.2.5",
     "sass": "1.25.0"
   }
 }
