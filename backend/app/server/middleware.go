@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,44 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	log "github.com/go-pkgz/lgr"
-	"github.com/pkg4go/rewrite"
 )
 
 // JSON is a map alias, just for convenience
 type JSON map[string]interface{}
-
-type contextKey string
-
-// Rewrite middleware with from->to rule. Supports regex (like nginx) and prevents multiple rewrites
-func Rewrite(from, to string) func(http.Handler) http.Handler {
-	rule, err := rewrite.NewRule(from, to)
-	if err != nil {
-		log.Printf("[WARN] can't parse rewrite rule %s - > %s, %s", from, to, err)
-	}
-
-	f := func(h http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-
-			ctx := r.Context()
-			// prevent double rewrites
-			if ctx != nil {
-				if _, ok := ctx.Value(contextKey("rewrite")).(bool); ok {
-					h.ServeHTTP(w, r)
-					return
-				}
-			}
-
-			if err == nil {
-				rule.Rewrite(r)
-				ctx = context.WithValue(ctx, contextKey("rewrite"), true)
-				r = r.WithContext(ctx)
-			}
-			h.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
-	}
-	return f
-}
 
 // LoggerFlag type
 type LoggerFlag int

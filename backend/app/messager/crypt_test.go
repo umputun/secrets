@@ -40,7 +40,7 @@ func TestCrypt(t *testing.T) {
 		{
 			data: "dfasdfasd asdfasdfa asdfasdf asdfasdfasdf asdfasdf",
 			pin:  "abcd",
-			err:  fmt.Errorf("key+pin should be 32 bytes"),
+			err:  fmt.Errorf("key+pin should be 32 bytes, got 31"),
 		},
 	}
 

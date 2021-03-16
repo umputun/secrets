@@ -1,12 +1,13 @@
 package messager
 
 import (
-	"encoding/hex"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"io"
 
-	"github.com/kevinburke/nacl"
-	"github.com/kevinburke/nacl/secretbox"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/nacl/secretbox"
 )
 
 // Crypt data with a global key + pin
@@ -25,33 +26,47 @@ type Request struct {
 // Encrypt to hex with secretbox
 func (c Crypt) Encrypt(req Request) ([]byte, error) {
 
-	if len(c.Key)+len(req.Pin) != 32 {
-		return nil, errors.New("key+pin should be 32 bytes")
+	keyWithPin := fmt.Sprintf("%s%s", c.Key, req.Pin)
+	if len(keyWithPin) != 32 {
+		return nil, errors.Errorf("key+pin should be 32 bytes, got %d", len(keyWithPin))
 	}
-	hexKey := hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin)))
-	key, err := nacl.Load(hexKey)
-	if err != nil {
-		return nil, errors.Wrap(err, "can't make encryption key")
+
+	naclKey := new([32]byte)
+	copy(naclKey[:], keyWithPin[:32])
+	nonce := new([24]byte)
+	if _, err := io.ReadFull(rand.Reader, nonce[:]); err != nil {
+		return nil, errors.Wrap(err, "could not read from random")
 	}
-	return secretbox.EasySeal(req.Data, key), nil
+	out := make([]byte, 24)
+	copy(out, nonce[:])
+	sealed := secretbox.Seal(out, req.Data, nonce, naclKey)
+	return []byte(base64.StdEncoding.EncodeToString(sealed)), nil
 }
 
 // Decrypt from hex with secretbox
 func (c Crypt) Decrypt(req Request) ([]byte, error) {
-
-	if len(c.Key)+len(req.Pin) != 32 {
+	keyWithPin := fmt.Sprintf("%s%s", c.Key, req.Pin)
+	if len(keyWithPin) != 32 {
 		return nil, errors.New("key+pin should be 32 bytes")
 	}
-	key, err := nacl.Load(hex.EncodeToString([]byte(fmt.Sprintf("%s%s", c.Key, req.Pin))))
+
+	naclKey := new([32]byte)
+	copy(naclKey[:], keyWithPin[:32])
+
+	sealed, err := base64.StdEncoding.DecodeString(string(req.Data))
 	if err != nil {
-		return nil, errors.Wrap(err, "can't make decryption key")
+		return nil, errors.Wrap(err, "failed to decode")
 	}
 
-	decrypted, err := secretbox.EasyOpen(req.Data, key)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to decrypt")
+	nonce := new([24]byte)
+	copy(nonce[:], sealed[:24])
+
+	decrypted, ok := secretbox.Open(nil, sealed[24:], nonce, naclKey)
+	if !ok {
+		return nil, errors.New("failed to decrypt")
 	}
 	return decrypted, nil
+
 }
 
 // MakeSignKey creates 32-pin bytes signKey for AES256

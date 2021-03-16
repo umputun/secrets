@@ -44,17 +44,3 @@ func TestLoggerMasking(t *testing.T) {
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "INFO  REST GET - /api/v1/message/5e4e1633-24b01ef6/***** ")
 }
-
-func TestRewrite(t *testing.T) {
-
-	rr := httptest.NewRecorder()
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("%v", r)
-		assert.Equal(t, "/xyzzz/v1/params", r.URL.String())
-	})
-
-	handler := Rewrite("/api/(.*)", "/xyzzz/$1")(testHandler)
-	req, err := http.NewRequest("GET", "/api/v1/params", nil)
-	require.NoError(t, err)
-	handler.ServeHTTP(rr, req)
-}

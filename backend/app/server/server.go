@@ -3,7 +3,6 @@ package server
 
 import (
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,6 +26,7 @@ type Server struct {
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
+	WebRoot        string
 	Version        string
 }
 
@@ -50,9 +50,8 @@ func (s Server) routes() chi.Router {
 
 	router.Use(middleware.RequestID, middleware.RealIP, um.Recoverer(log.Default()))
 	router.Use(middleware.Throttle(1000), middleware.Timeout(60*time.Second))
-	router.Use(um.AppInfo("secrets", "Umputun", s.Version), um.Ping)
+	router.Use(um.AppInfo("secrets", "Umputun", s.Version), um.Ping, um.SizeLimit(64*1024))
 	router.Use(tollbooth_chi.LimitHandler(tollbooth.NewLimiter(10, nil)))
-	router.Use(Rewrite("/show/(.*)", "/show/?$1"))
 
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Use(Logger(log.Default()))
@@ -65,7 +64,7 @@ func (s Server) routes() chi.Router {
 		render.PlainText(w, r, "User-agent: *\nDisallow: /api/\nDisallow: /show/\n")
 	})
 
-	s.fileServer(router, "/", http.Dir(filepath.Join(".", "docroot")))
+	s.fileServer(router, "/", http.Dir(s.WebRoot))
 	return router
 }
 
@@ -146,7 +145,7 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, params)
 }
 
-// serves static files from ./docroot
+// serves static files
 func (s Server) fileServer(r chi.Router, path string, root http.FileSystem) {
 	log.Printf("[INFO] run file server for %s", root)
 	fs := http.StripPrefix(path, http.FileServer(root))
@@ -156,8 +155,7 @@ func (s Server) fileServer(r chi.Router, path string, root http.FileSystem) {
 	}
 	path += "*"
 
-	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
-		// don't show dirs, just serve files
+	r.With(um.Rewrite("/show/(.*)", "/show/?$1")).Get(path, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/") && len(r.URL.Path) > 1 && r.URL.Path != "/show/" {
 			http.NotFound(w, r)
 			return

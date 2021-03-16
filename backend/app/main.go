@@ -20,6 +20,7 @@ var opts struct {
 	MaxExpire      time.Duration `long:"expire" env:"MAX_EXPIRE" default:"24h" description:"max lifetime"`
 	MaxPinAttempts int           `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
 	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
+	WebRoot        string        `long:"web" env:"WEB" default:"/srv/docroot" description:"web ui location"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 }
 
@@ -42,6 +43,7 @@ func main() {
 		PinSize:        opts.PinSize,
 		MaxExpire:      opts.MaxExpire,
 		MaxPinAttempts: opts.MaxPinAttempts,
+		WebRoot:        opts.WebRoot,
 		Version:        revision,
 	}
 	if err := srv.Run(); err != nil {
@@ -49,7 +51,7 @@ func main() {
 	}
 }
 
-func getEngine(engineType, boltFile string) store.Engine {
+func getEngine(engineType, boltFile string) messager.Engine {
 	switch engineType {
 	case "MEMORY":
 		return store.NewInMemory(time.Minute * 5)

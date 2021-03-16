@@ -1,0 +1,25 @@
+version: '2'
+services:
+
+    secrets:
+        build: .
+        image: umputun/secrets:dev
+        container_name: secrets
+        hostname: secrets
+        restart: always
+
+        logging:
+          driver: json-file
+          options:
+              max-size: "10m"
+              max-file: "5"
+
+        environment:
+           - SIGN_KEY=change-this-to-smth-random
+           - ENGINE=MEMORY
+           - PIN_SIZE=5
+           - BOLT_FILE=/data/secrets.bd
+           - PIN_ATTEMPTS=3
+           - MAX_EXPIRE=24h
+        ports:
+          - "8080:8080"

@@ -20,3 +20,4 @@ debug.test
 /web/public/
 *.prof
 *.test
+/var

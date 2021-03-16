@@ -1,5 +1,5 @@
-// Package messager package using injected store.Engine to save and load messages.
-// It does all encryption/decryption and hashing. Engine used as a dump storage only.
+// Package messager package using injected engine.Store to save and load messages.
+// It does all encryption/decryption and hashing. Store used as a dump storage only.
 // Passed (from user) pin used as a part of encryption key for data and delegated to crypt.Crypt.
 // Pins not saved directly, but hashed with bcrypt.
 package messager
@@ -16,7 +16,8 @@ import (
 	"github.com/umputun/secrets/backend/app/store"
 )
 
-//go:generate mockery -inpkg -name Crypter -case snake
+//go:generate moq -out crypt_mock.go -fmt goimports . Crypter
+//go:generate moq -out engine_mock.go -fmt goimports . Engine
 
 // Errors
 var (
@@ -32,7 +33,7 @@ var (
 type MessageProc struct {
 	Params
 	crypt  Crypter
-	engine store.Engine
+	engine Engine
 }
 
 // Params to customize limits
@@ -47,8 +48,16 @@ type Crypter interface {
 	Decrypt(req Request) (result []byte, err error)
 }
 
+// Engine defines interface to save, load, remove and inc errors count for messages
+type Engine interface {
+	Save(msg *store.Message) (err error)
+	Load(key string) (result *store.Message, err error)
+	IncErr(key string) (count int, err error)
+	Remove(key string) (err error)
+}
+
 // New makes MessageProc with the engine and crypt
-func New(engine store.Engine, crypter Crypter, params Params) *MessageProc {
+func New(engine Engine, crypter Crypter, params Params) *MessageProc {
 
 	if params.MaxDuration == 0 {
 		params.MaxDuration = time.Hour * 24 * 31 // 31 days if nothing defined
@@ -65,7 +74,7 @@ func New(engine store.Engine, crypter Crypter, params Params) *MessageProc {
 	}
 }
 
-// MakeMessage from data, pin and duration, saves to store. Encrypts data part with pin.
+// MakeMessage from data, pin and duration, saves to engine. Encrypts data part with pin.
 func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error) {
 
 	if pin == "" {
@@ -102,7 +111,7 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 	return result, err
 }
 
-// LoadMessage gets from store, verifies Message with pin and decrypts content.
+// LoadMessage gets from engine, verifies Message with pin and decrypts content.
 // It also removes accessed messages and invalidate them on multiple wrong pins.
 // Message decrypted by this function will be returned naked to consumer.
 func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error) {
