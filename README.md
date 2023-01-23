@@ -90,7 +90,7 @@ in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB
 
 ### Load message
 
-`GET /api/v1/message/:key/:pin`
+- `GET /api/v1/message/:key/:pin`
 
     ```
         $ http GET https://safesecret.info/api/v1/message/6ceab760-3059-4a52-5670-649509b128fc/12345
@@ -105,7 +105,7 @@ in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB
 
 ### ping
 
-`GET /api/v1/ping`
+- `GET /api/v1/ping`
 
     ```
     $ http https://safesecret.info/api/v1/ping
@@ -117,7 +117,7 @@ in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB
 
 ### Get params
 
-`GET /api/v1/params`
+- `GET /api/v1/params`
 
     ```
     $ http https://safesecret.info/api/v1/params
