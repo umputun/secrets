@@ -15,7 +15,7 @@
     "devOnline": "SET NODE_ENV=dev& gulp devOnline"
   },
   "devDependencies": {
-    "autoprefixer": "7.1.4",
+    "autoprefixer": "10.4.13",
     "browser-sync": "^2.26.10",
     "connect-modrewrite": "0.10.2",
     "del": "2.2.1",
