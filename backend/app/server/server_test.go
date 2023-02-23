@@ -3,7 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -28,6 +28,7 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -40,10 +41,11 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 
 	// load saved message
 	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 200, resp.StatusCode)
 
 	respLoad := struct {
@@ -61,6 +63,7 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 	// second load should fail
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 400, resp.StatusCode)
 }
 
@@ -90,6 +93,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -102,10 +106,11 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 
 	// load saved message
 	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 200, resp.StatusCode)
 
 	respLoad := struct {
@@ -123,6 +128,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 	// second load should fail
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 400, resp.StatusCode)
 }
 
@@ -136,6 +142,7 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -148,26 +155,30 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 
 	// load saved message
 	url := fmt.Sprintf("%s/api/v1/message/%s/00000", ts.URL, respSave.Key)
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 400, resp.StatusCode)
 
 	// try with a valid pin will fail, too many attempt
 	url = fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 400, resp.StatusCode)
 }
 
@@ -181,6 +192,7 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -193,22 +205,25 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 
 	// load saved message
 	url := fmt.Sprintf("%s/api/v1/message/%s/00000", ts.URL, respSave.Key)
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 417, resp.StatusCode)
 
 	// try with a valid pin will pass, not too many attempt
 	url = fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
-	req, err = http.NewRequest("GET", url, nil)
+	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 200, resp.StatusCode)
 }
 
@@ -218,12 +233,13 @@ func TestServer_getParams(t *testing.T) {
 
 	client := http.Client{Timeout: time.Second}
 	url := fmt.Sprintf("%s/api/v1/params", ts.URL)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close() // nolint
 	assert.Equal(t, 200, resp.StatusCode)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000}`+"\n", string(body))
 }

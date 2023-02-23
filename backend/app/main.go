@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -46,7 +47,7 @@ func main() {
 		WebRoot:        opts.WebRoot,
 		Version:        revision,
 	}
-	if err := srv.Run(); err != nil {
+	if err := srv.Run(context.Background()); err != nil {
 		log.Printf("[ERROR] failed, %+v", err)
 	}
 }

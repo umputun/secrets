@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"strings"
 )
 
 // Rewrite middleware with from->to rule. Supports regex (like nginx) and prevents multiple rewrites
@@ -31,8 +32,12 @@ func Rewrite(from, to string) func(http.Handler) http.Handler {
 				return
 			}
 
-			rwr := path.Clean(reFrom.ReplaceAllString(r.URL.Path, to))
-			u, e := url.Parse(rwr)
+			ru := reFrom.ReplaceAllString(r.URL.Path, to)
+			cru := path.Clean(ru)
+			if strings.HasSuffix(ru, "/") { // don't drop trailing slash
+				cru += "/"
+			}
+			u, e := url.Parse(cru)
 			if e != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return

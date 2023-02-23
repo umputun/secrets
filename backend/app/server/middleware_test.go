@@ -12,7 +12,7 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	req, err := http.NewRequest("GET", "/api/v1/params", nil)
+	req, err := http.NewRequest("GET", "/api/v1/params", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -29,7 +29,8 @@ func TestLogger(t *testing.T) {
 }
 
 func TestLoggerMasking(t *testing.T) {
-	req, err := http.NewRequest("GET", "/api/v1/message/5e4e1633-24b01ef6-49d6-4c8a-acf9-9dac0aa0eff9/1234567890", nil)
+	req, err := http.NewRequest("GET",
+		"/api/v1/message/5e4e1633-24b01ef6-49d6-4c8a-acf9-9dac0aa0eff9/1234567890", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()

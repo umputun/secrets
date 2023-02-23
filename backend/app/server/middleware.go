@@ -3,7 +3,7 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -48,9 +48,9 @@ func Logger(l log.L, flags ...LoggerFlag) func(http.Handler) http.Handler {
 
 			body := func() (result string) {
 				if inFlags(LogBody) {
-					if content, err := ioutil.ReadAll(r.Body); err == nil {
+					if content, err := io.ReadAll(r.Body); err == nil {
 						result = string(content)
-						r.Body = ioutil.NopCloser(bytes.NewReader(content))
+						r.Body = io.NopCloser(bytes.NewReader(content))
 
 						if len(result) > 0 {
 							result = strings.Replace(result, "\n", " ", -1)

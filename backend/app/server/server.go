@@ -2,11 +2,12 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/didip/tollbooth/v6"
+	"github.com/didip/tollbooth/v7"
 	"github.com/didip/tollbooth_chi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -37,9 +38,30 @@ type Messager interface {
 }
 
 // Run the lister and request's router, activate rest server
-func (s Server) Run() error {
+func (s Server) Run(ctx context.Context) error {
 	log.Printf("[INFO] activate rest server")
-	if err := http.ListenAndServe(":8080", s.routes()); err != http.ErrServerClosed {
+
+	httpServer := &http.Server{
+		Addr:              ":8080",
+		Handler:           s.routes(),
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+
+	go func() {
+		<-ctx.Done()
+		if httpServer != nil {
+			if clsErr := httpServer.Close(); clsErr != nil {
+				log.Printf("[ERROR] failed to close proxy http server, %v", clsErr)
+			}
+		}
+	}()
+
+	err := httpServer.ListenAndServe()
+	log.Printf("[WARN] http server terminated, %s", err)
+
+	if err != http.ErrServerClosed {
 		return errors.Wrap(err, "server failed")
 	}
 	return nil

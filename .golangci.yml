@@ -29,25 +29,22 @@ linters-settings:
 linters:
   disable-all: true
   enable:
+    - bodyclose
     - megacheck
-    - golint
+    - revive
     - govet
     - unconvert
     - megacheck
-    - structcheck
+    - unused
     - gas
-    - gocyclo
     - misspell
     - unparam
-    - varcheck
-    - deadcode
     - typecheck
     - ineffassign
-    - varcheck
     - stylecheck
     - gochecknoinits
+    - exportloopref
     - gocritic
-    - golint
     - nakedret
     - gosimple
     - prealloc
@@ -58,8 +55,6 @@ run:
   modules-download-mode: vendor
   skip-dirs:
     - vendor
-    - app/extractor/go-readabilty
-    - app/sanitize
   concurrency: 4
 
 issues:
@@ -67,7 +62,7 @@ issues:
     - text: "weak cryptographic primitive"
       linters:
         - gosec
+    - text: "package-comments: should have a package comment"
+      linters:
+        - revive
   exclude-use-default: false
-
-service:
-  golangci-lint-version: 1.20.x
