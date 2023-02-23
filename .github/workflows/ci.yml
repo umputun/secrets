@@ -31,7 +31,7 @@ jobs:
         working-directory: backend
 
     - name: install goveralls
-      run: GO111MODULE=off go get -u -v github.com/mattn/goveralls go get -u github.com/mattn/goveralls
+      run: go install github.com/mattn/goveralls@latest
       working-directory: backend
 
     - name: build
