@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "autoprefixer": "7.1.4",
-    "browser-sync": "^2.26.10",
+    "browser-sync": "^2.27.11",
     "connect-modrewrite": "0.10.2",
     "del": "2.2.1",
     "fibers": "4.0.2",
