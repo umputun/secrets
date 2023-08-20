@@ -1,0 +1,39 @@
+{{define "title"}}Your message{{end}}
+
+{{define "main"}}
+
+<div id="show-msg" class="show-msg">
+    <form hx-post="/load-message" hx-swap="outerHTML" hx-target="#show-msg" id="load-msg-form" class="load-msg-form">
+        <input type="hidden" name="key" id="key" value={{.Form.Key}} />
+
+        <div class="pin-container">
+            <label for="pin-0">Enter PIN to see content</label>
+            <div>
+                {{range $i := until .PinSize}}
+                <input type="password"
+                       name="pin"
+                       id="pin-{{$i}}"
+                       required
+                       minlength=1
+                       maxlength=1
+                       inputmode="numeric"
+                       pattern="[0-9]+"
+                       title="PIN must be a digit"
+                       aria-label="PIN must be a digit"
+                       {{if $.Form.FieldErrors.pin }}class="error-input" {{end}} />
+                {{end}}
+            </div>
+
+            {{with .Form.FieldErrors.pin}}
+            <label class='error'>{{.}}</label>
+            {{end}}
+        </div>
+        <button class="main-btn decode-btn"
+                type="submit"
+                role="button">Decode message
+        </button>
+    </form>
+    <br/>
+
+</div>
+{{end}}

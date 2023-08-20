@@ -1,0 +1,51 @@
+{{define "base"}}
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>{{template "title" .}} - SafeSecret.Info</title>
+        <link rel='stylesheet' href='/static/css/bootstrap-grid.css'>
+        <link rel='stylesheet' href='/static/css/main.css'>
+        <link rel='shortcut icon' href='/static/img/favicon.ico' type='image/x-icon'>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Stick+No+Bills:wght@400;500;600&display=swap" rel="stylesheet">
+    </head>
+    <body>
+    <div class="wrapper">
+        <header>
+            <div class="logo">
+                <h1><a href='/'>
+                    <img src='/static/img/logo.svg' alt='SafeSecret.Info' />
+                </a></h1>
+            </div>
+        </header>
+
+        <main class="container">
+            {{template "main" .}}
+        </main>
+
+        {{template "footer" .}}
+    </div>
+
+    <div id="popup" class="popup">
+        <div class="popup-content">
+            <div class="popup-header">
+                <div></div>
+                <button id="close-popup" class="close-popup" data-close-popup>
+                    <img src="/static/img/close.svg" alt="close" />
+                </button>
+            </div>
+            <div class="popup-text">
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/htmx.org@1.9.4" integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV" crossorigin="anonymous"></script>
+    <script src='/static/js/main.js'></script>
+    <script src="/static/js/pin.js"></script>
+    </body>
+    </html>
+{{end}}
