@@ -1,0 +1,23 @@
+{{define "decoded-message"}}
+<div id="msg" data-copy>
+    <div class="col-12">
+        <label for="msg-text">Message</label>
+    </div>
+    <div class="msg-link-text col-12">
+        <textarea name="msg-text" id="msg-text" cols="30" rows="10" data-copy-text>{{.}}</textarea>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="main-btn-container col col-md-6">
+            <button type="button"
+                    class="main-btn"
+                    role="button"
+                    data-copy-btn>Copy message
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script src='/static/js/copy-text.js'></script>
+{{end}}

@@ -3,7 +3,9 @@ package server
 
 import (
 	"context"
+	"html/template"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,6 +31,8 @@ type Server struct {
 	MaxExpire      time.Duration
 	WebRoot        string
 	Version        string
+	Domain         string
+	TemplateCache  map[string]*template.Template
 }
 
 // Messager interface making and loading messages
@@ -61,7 +65,7 @@ func (s Server) Run(ctx context.Context) error {
 	err := httpServer.ListenAndServe()
 	log.Printf("[WARN] http server terminated, %s", err)
 
-	if err != http.ErrServerClosed {
+	if !errors.Is(err, http.ErrServerClosed) {
 		return errors.Wrap(err, "server failed")
 	}
 	return nil
@@ -86,7 +90,24 @@ func (s Server) routes() chi.Router {
 		render.PlainText(w, r, "User-agent: *\nDisallow: /api/\nDisallow: /show/\n")
 	})
 
-	s.fileServer(router, "/", http.Dir(s.WebRoot))
+	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1") {
+			render.Status(r, http.StatusNotFound)
+			render.JSON(w, r, JSON{"error": "not found"})
+			return
+		}
+
+		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, "not found")
+	})
+
+	router.Get("/", s.indexCtrl)
+	router.Post("/generate-link", s.generateLink)
+	router.Get("/message/{key}", s.showMessageView)
+	router.Post("/load-message", s.loadMessage)
+	router.Get("/about", s.aboutView)
+
+	s.fileServer(router, "/", truncatedFileSystem{http.Dir(s.WebRoot)})
+
 	return router
 }
 
@@ -171,17 +192,45 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) fileServer(r chi.Router, path string, root http.FileSystem) {
 	log.Printf("[INFO] run file server for %s", root)
 	fs := http.StripPrefix(path, http.FileServer(root))
-	if path != "/" && path[len(path)-1] != '/' {
-		r.Get(path, http.RedirectHandler(path+"/", http.StatusMovedPermanently).ServeHTTP)
-		path += "/"
-	}
+
 	path += "*"
 
-	r.With(um.Rewrite("/show/(.*)", "/show/?$1")).Get(path, func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/") && len(r.URL.Path) > 1 && r.URL.Path != "/show/" {
-			http.NotFound(w, r)
-			return
+	r.Handle(path, http.StripPrefix("/static", fs))
+}
+
+// truncatedFileSystem is a wrapper for http.FileSystem  to disable directory listings.
+// It serves index.html for directories if present and return 404 for others
+type truncatedFileSystem struct {
+	fs http.FileSystem
+}
+
+// Open returns file or index.html for directories
+func (nfs truncatedFileSystem) Open(path string) (http.File, error) {
+	f, err := nfs.fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := f.Stat()
+	if err != nil {
+		closeErr := f.Close()
+		if closeErr != nil {
+			return nil, closeErr
 		}
-		fs.ServeHTTP(w, r)
-	})
+
+		return nil, err
+	}
+	if s.IsDir() {
+		index := filepath.Join(path, "index.html")
+		if _, err := nfs.fs.Open(index); err != nil {
+			closeErr := f.Close()
+			if closeErr != nil {
+				return nil, closeErr
+			}
+
+			return nil, err
+		}
+	}
+
+	return f, nil
 }

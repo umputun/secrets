@@ -1,0 +1,105 @@
+{{define "title"}}Home{{end}}
+
+{{define "main"}}
+
+<form hx-post="/generate-link" hx-swap="outerHTML" hx-target="this" hx-boost="true">
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <label for="message">Enter text for sharing</label>
+                <textarea name="message" id="message" class="col-md-12 {{if .Form.FieldErrors.message}}error-input{{end}}"
+                          cols="30" rows="10"
+                          required
+                          autofocus {{if .Form.FieldErrors.message}}class="error-input" {{end}}>{{.Form.Message}}</textarea>
+                {{with .Form.FieldErrors.message}}
+                <label class='error'>{{.}}</label>
+                {{end}}
+            </div>
+
+
+            <div class="expire-pin-container form-row">
+                <div class="pin-container col-sm-12 col-md-6">
+                    <div>
+                        <label for="pin-0">Create PIN</label>
+                    </div>
+
+                    <div>
+                        {{range $i := until .PinSize}}
+                        <input type="password"
+                               name="pin"
+                               id="pin-{{$i}}"
+                               required
+                               minlength=1
+                               maxlength=1
+                               inputmode="numeric"
+                               pattern="[0-9]+"
+                               title="PIN must be a digit"
+                               aria-label="PIN must be a digit"
+                               {{if $.Form.FieldErrors.pin }}class="error-input" {{end}} />
+                        {{end}}
+                    </div>
+                    <div>
+                        {{with .Form.FieldErrors.pin}}
+                        <label class='error'>{{.}}</label>
+                        {{end}}
+                    </div>
+
+                </div>
+
+                <div class="expire-container col-sm-12 col-md-6">
+                    <div>
+                        <label for="exp">Expire in
+                            <span class="tooltip">
+                           <img src="/static/img/info.png" alt="tooltip">
+                        <span class="tooltip-text">Expiration must be less than {{.Form.MaxExp}} </span>
+                      </span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="expire-amount col-4">
+                            <input type="number" name="exp"
+                                   id="exp"
+                                   required
+                                   value={{.Form.Exp}}
+                                   {{if .Form.FieldErrors.exp}}class="error-input" {{end}} />
+
+                        </div>
+
+                        <div class="col">
+                            <div class="select-container">
+                                <select name="expUnit" {{if .Form.FieldErrors.expUnit}}class="error-input" {{end}}>
+                                    <option value="m" {{if eq .Form.ExpUnit
+                                    "s"}}selected{{end}}>minutes</option>
+                                    <option value="h" {{if eq .Form.ExpUnit
+                                    "h"}}selected{{end}}>hours</option>
+                                    <option value="d" {{if eq .Form.ExpUnit
+                                    "d"}}selected{{end}}>days</option>
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="exp-errors">
+                        {{with .Form.FieldErrors.exp}}
+                        <label class='error col-12'>{{.}}</label>
+                        {{end}}
+                        {{with .Form.FieldErrors.expUnit}}
+                        <label class='error col-12'>{{.}}</label>
+                        {{end}}
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="main-btn-container col col-md-6">
+                <input type="submit" class="main-btn" role="button"
+                       value="Generate Secure Link"/>
+            </div>
+        </div>
+    </div>
+
+
+</form>
+
+{{end}}
