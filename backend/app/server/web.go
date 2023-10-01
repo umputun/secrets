@@ -50,6 +50,7 @@ type templateData struct {
 	PinSize int
 }
 
+// render renders a template
 func (s Server) render(w http.ResponseWriter, status int, page, tmplName string, data any) {
 	ts, ok := s.TemplateCache[page]
 	if !ok {
@@ -81,6 +82,7 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 }
 
 // renders the home page
+// GET /
 func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 	data := templateData{
 		Form: createMsgForm{
@@ -94,7 +96,12 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 }
 
 // renders the generate link page
-func (s Server) generateLink(w http.ResponseWriter, r *http.Request) {
+// POST /generate-link
+// Request Body: This function expects a POST request body containing the following fields:
+//   - "message" (string): The message content to be associated with the secure link.
+//   - "expUnit" (string): The unit of expiration time (e.g., "m" for minutes, "h" for hours, "d" for days).
+//   - "pin" (slice of strings): An array of PIN values.
+func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
@@ -156,7 +163,10 @@ func (s Server) generateLink(w http.ResponseWriter, r *http.Request) {
 }
 
 // renders the show decoded message page
-func (s Server) showMessageView(w http.ResponseWriter, r *http.Request) {
+// GET /message/{key}
+// URL Parameters:
+//   - "key" (string): A path parameter representing the unique key of the message to be displayed.
+func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, keyKey)
 
 	data := templateData{
@@ -172,11 +182,17 @@ func (s Server) showMessageView(w http.ResponseWriter, r *http.Request) {
 }
 
 // renders the about page
-func (s Server) aboutView(w http.ResponseWriter, r *http.Request) { // nolint
+// GET /about
+func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, nil)
 }
 
-func (s Server) loadMessage(w http.ResponseWriter, r *http.Request) {
+// renders the decoded message page
+// POST /load-message
+// Request Body: This function expects a POST request body containing the following fields:
+//   - "key" (string): A path parameter representing the unique key of the message to be displayed.
+//   - "pin" (slice of strings): An array of PIN values.
+func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
@@ -232,6 +248,7 @@ func (s Server) loadMessage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
 }
 
+// duration converts a number and unit into a time.Duration
 func duration(n int, unit string) time.Duration {
 	switch unit {
 	case "m":
@@ -245,6 +262,7 @@ func duration(n int, unit string) time.Duration {
 	}
 }
 
+// humanDuration converts a time.Duration into a human readable string like "5 minutes"
 func humanDuration(d time.Duration) string {
 	switch {
 	case d < time.Minute:

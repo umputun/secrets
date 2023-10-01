@@ -5,7 +5,6 @@ import (
 	"context"
 	"html/template"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -100,18 +99,26 @@ func (s Server) routes() chi.Router {
 		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, "not found")
 	})
 
-	router.Get("/", s.indexCtrl)
-	router.Post("/generate-link", s.generateLink)
-	router.Get("/message/{key}", s.showMessageView)
-	router.Post("/load-message", s.loadMessage)
-	router.Get("/about", s.aboutView)
+	router.Group(func(r chi.Router) {
+		r.Use(Logger(log.Default()))
+		r.Use(middleware.StripSlashes)
+		r.Post("/generate-link", s.generateLinkCtrl)
+		r.Get("/message/{key}", s.showMessageViewCtrl)
+		r.Post("/load-message", s.loadMessageCtrl)
+		r.Get("/about", s.aboutViewCtrl)
+		r.Get("/", s.indexCtrl)
+	})
 
-	s.fileServer(router, "/", truncatedFileSystem{http.Dir(s.WebRoot)})
+	fs, err := um.NewFileServer("/static", s.WebRoot)
+	if err != nil {
+		log.Fatalf("[ERROR] can't create file server %v", err)
+	}
+
+	router.Handle("/static/*", fs)
 
 	return router
 }
 
-// POST /v1/message
 func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	request := struct {
 		Message string
@@ -186,51 +193,4 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
 		MaxExpSecs:     int(s.MaxExpire.Seconds()),
 	}
 	render.JSON(w, r, params)
-}
-
-// serves static files
-func (s Server) fileServer(r chi.Router, path string, root http.FileSystem) {
-	log.Printf("[INFO] run file server for %s", root)
-	fs := http.StripPrefix(path, http.FileServer(root))
-
-	path += "*"
-
-	r.Handle(path, http.StripPrefix("/static", fs))
-}
-
-// truncatedFileSystem is a wrapper for http.FileSystem  to disable directory listings.
-// It serves index.html for directories if present and return 404 for others
-type truncatedFileSystem struct {
-	fs http.FileSystem
-}
-
-// Open returns file or index.html for directories
-func (nfs truncatedFileSystem) Open(path string) (http.File, error) {
-	f, err := nfs.fs.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	s, err := f.Stat()
-	if err != nil {
-		closeErr := f.Close()
-		if closeErr != nil {
-			return nil, closeErr
-		}
-
-		return nil, err
-	}
-	if s.IsDir() {
-		index := filepath.Join(path, "index.html")
-		if _, err := nfs.fs.Open(index); err != nil {
-			closeErr := f.Close()
-			if closeErr != nil {
-				return nil, closeErr
-			}
-
-			return nil, err
-		}
-	}
-
-	return f, nil
 }
