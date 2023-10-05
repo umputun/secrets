@@ -9,6 +9,7 @@ ARG SKIP_TEST
 ENV GOFLAGS="-mod=vendor"
 
 ADD backend /build/secrets
+ADD backend/ui/static /build/secrets/ui/static
 ADD .git /build/secrets/.git
 WORKDIR /build/secrets
 
@@ -27,21 +28,10 @@ RUN \
     go build -o secrets -ldflags "-X main.revision=${version} -s -w" ./app
 
 
-FROM node:10.19.0-alpine3.11 as build-frontend
-WORKDIR /srv/frontend/
-
-RUN apk add --no-cache --update git python make g++
-COPY ./frontend/package.json ./frontend/package-lock.json ./
-RUN npm install
-
-COPY ./frontend /srv/frontend
-RUN npm run build
-RUN npm prune --production
-
 FROM umputun/baseimage:app-latest
 
 COPY --from=build-backend /build/secrets/secrets /srv/secrets
-COPY --from=build-frontend /srv/frontend/public/ /srv/docroot
+COPY --from=build-backend /build/secrets/ui/static /srv/ui/static/
 
 WORKDIR /srv
 EXPOSE 8080
