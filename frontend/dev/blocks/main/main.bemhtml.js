@@ -1,3 +1,0 @@
-block('main')(
-	tag()('main')
-);
