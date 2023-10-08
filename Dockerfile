@@ -5,6 +5,7 @@ FROM umputun/baseimage:buildgo-latest as build-backend
 ARG CI
 ARG GIT_BRANCH
 ARG SKIP_TEST
+ARG GITHUB_SHA
 
 ENV GOFLAGS="-mod=vendor"
 
@@ -20,15 +21,15 @@ RUN \
 
 RUN \
     if [ -z "$CI" ] ; then \
-    echo "runs outside of CI" && version=$(/script/git-rev.sh); \
+    echo "runs outside of CI" && version=$(git rev-parse --abbrev-ref HEAD)-$(git log -1 --format=%h)-$(date +%Y%m%dT%H:%M:%S); \
     else version=${GIT_BRANCH}-${GITHUB_SHA:0:7}-$(date +%Y%m%dT%H:%M:%S); fi && \
     echo "version=$version" && \
-    go build -o secrets -ldflags "-X main.revision=${version} -s -w" ./app
+    cd app && go build -o /build/secrets.bin -ldflags "-X main.revision=${version} -s -w"
 
 
 FROM umputun/baseimage:app-latest
 
-COPY --from=build-backend /build/secrets/secrets /srv/secrets
+COPY --from=build-backend /build/secrets.bin /srv/secrets
 COPY --from=build-backend /build/secrets/ui/static /srv/ui/static/
 
 WORKDIR /srv
