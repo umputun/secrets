@@ -8,9 +8,7 @@ ARG SKIP_TEST
 
 ENV GOFLAGS="-mod=vendor"
 
-ADD backend /build/secrets
-ADD backend/ui/static /build/secrets/ui/static
-ADD .git /build/secrets/.git
+ADD . /build/secrets
 WORKDIR /build/secrets
 
 # run tests and linters

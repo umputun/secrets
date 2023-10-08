@@ -28,7 +28,6 @@ jobs:
       uses: golangci/golangci-lint-action@v3
       with:
         version: latest
-        working-directory: backend
 
     - name: install goveralls
       run: go install github.com/mattn/goveralls@latest
@@ -36,13 +35,12 @@ jobs:
 
     - name: build
       run: go build -v -mod=vendor
-      working-directory: backend/app
+      working-directory: app
 
     - name: submit coverage
       run: $(go env GOPATH)/bin/goveralls -service="github" -coverprofile=$GITHUB_WORKSPACE/profile.cov
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      working-directory: backend
 
     - name: build pr image
       if: github.event_name == 'pull_request'
