@@ -29,7 +29,6 @@ var opts struct {
 var revision string
 
 func main() {
-
 	if _, err := flags.Parse(&opts); err != nil {
 		os.Exit(1)
 	}

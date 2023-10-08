@@ -16,8 +16,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/umputun/secrets/app/messager"
+	"github.com/umputun/secrets/app/server/validator"
 	"github.com/umputun/secrets/app/store"
-	"github.com/umputun/secrets/app/validator"
 	"github.com/umputun/secrets/ui"
 )
 
