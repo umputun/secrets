@@ -70,6 +70,7 @@ in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB
 ## Integrations
 
 * [Raycast Extension](https://www.raycast.com/melonamin/safe-secret) - quickly share any text with Safesecret from Raycast
+* [Shortcut](https://www.icloud.com/shortcuts/1d0a8d22c3884c8d80341ccffb502931) - a shortcut for [Shortcuts](https://support.apple.com/guide/shortcuts/welcome/ios) app on Apple platforms. Adds integration with Safesecret to Share menu on iOS and to Share menu and Services menu on macOS
 
 ## API
 
