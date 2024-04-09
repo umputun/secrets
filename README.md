@@ -67,6 +67,10 @@ _See [docker-compose.yml](https://github.com/umputun/secrets/blob/master/docker-
 Application container is fully functional without nginx proxy and can be used in stand-alone mode. You may want such setup
 in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB and so on.
 
+## Integrations
+
+* [Raycast Extension](https://www.raycast.com/melonamin/safe-secret) - quickly share any text with Safesecret from Raycast
+
 ## API
 
 **Safesecret** provides trivial REST to save and load messages.
