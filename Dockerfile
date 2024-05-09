@@ -7,8 +7,6 @@ ARG GIT_BRANCH
 ARG SKIP_TEST
 ARG GITHUB_SHA
 
-ENV GOFLAGS="-mod=vendor"
-
 ADD . /build/secrets
 WORKDIR /build/secrets
 
@@ -28,6 +26,9 @@ RUN \
 
 
 FROM umputun/baseimage:app-latest
+
+# enables automatic changelog generation by tools like Dependabot
+LABEL org.opencontainers.image.source="https://github.com/umputun/secrets"
 
 COPY --from=build-backend /build/secrets.bin /srv/secrets
 COPY --from=build-backend /build/secrets/ui/static /srv/ui/static/
