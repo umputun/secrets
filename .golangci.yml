@@ -1,12 +1,9 @@
 linters-settings:
   govet:
-    check-shadowing: true
-  golint:
-    min-confidence: 0.8
+    enable:
+      - shadow
   gocyclo:
     min-complexity: 15
-  maligned:
-    suggest-new: true
   dupl:
     threshold: 100
   goconst:
@@ -30,13 +27,12 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - megacheck
     - revive
     - govet
     - unconvert
-    - megacheck
+    - staticcheck
     - unused
-    - gas
+    - gosec
     - misspell
     - unparam
     - typecheck
@@ -52,12 +48,11 @@ linters:
   fast: false
 
 run:
-  modules-download-mode: vendor
-  skip-dirs:
-    - vendor
   concurrency: 4
 
 issues:
+  exclude-dirs:
+    - vendor
   exclude-rules:
     - text: "weak cryptographic primitive"
       linters:
@@ -65,4 +60,10 @@ issues:
     - text: "package-comments: should have a package comment"
       linters:
         - revive
+    - linters:
+        - unparam
+        - unused
+        - revive
+      path: _test\.go$
+      text: "unused-parameter"
   exclude-use-default: false

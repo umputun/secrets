@@ -52,7 +52,7 @@ func Logger(l log.L, flags ...LoggerFlag) func(http.Handler) http.Handler {
 						result = string(content)
 						r.Body = io.NopCloser(bytes.NewReader(content))
 
-						if len(result) > 0 {
+						if result != "" {
 							result = strings.Replace(result, "\n", " ", -1)
 							result = reMultWhtsp.ReplaceAllString(result, " ")
 						}
