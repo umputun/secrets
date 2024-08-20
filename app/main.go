@@ -24,6 +24,7 @@ var opts struct {
 	WebRoot        string        `long:"web" env:"WEB" default:"./ui/static/" description:"web ui location"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         string        `short:"d" long:"domain" env:"DOMAIN" description:"site domain" required:"true"`
+	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
 }
 
 var revision string
@@ -42,6 +43,7 @@ func main() {
 
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
+		Protocol:       opts.Protocol,
 		PinSize:        opts.PinSize,
 		MaxPinAttempts: opts.MaxPinAttempts,
 		MaxExpire:      opts.MaxExpire,
