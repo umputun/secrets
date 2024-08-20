@@ -36,26 +36,23 @@ func main() {
 
 	setupLog(opts.Dbg)
 
-	templateCache, err := server.NewTemplateCache()
-	if err != nil {
-		log.Printf("[ERROR] can't create template cache, %+v", err)
-		os.Exit(1)
-	}
-
 	dataStore := getEngine(opts.Engine, opts.BoltDB)
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts}
-	srv := server.Server{
-		Messager:       messager.New(dataStore, crypter, params),
-		PinSize:        opts.PinSize,
-		MaxExpire:      opts.MaxExpire,
-		MaxPinAttempts: opts.MaxPinAttempts,
-		WebRoot:        opts.WebRoot,
-		Version:        revision,
+
+	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
-		TemplateCache:  templateCache,
+		PinSize:        opts.PinSize,
+		MaxPinAttempts: opts.MaxPinAttempts,
+		MaxExpire:      opts.MaxExpire,
+		WebRoot:        opts.WebRoot,
+	})
+
+	if err != nil {
+		log.Fatalf("[ERROR] can't create server, %v", err)
 	}
-	if err := srv.Run(context.Background()); err != nil {
+
+	if err = srv.Run(context.Background()); err != nil {
 		log.Printf("[ERROR] failed, %+v", err)
 	}
 }

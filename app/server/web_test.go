@@ -87,7 +87,7 @@ func TestTemplates_HumanDuration(t *testing.T) {
 }
 
 func TestTemplates_NewTemplateCache(t *testing.T) {
-	cache, err := NewTemplateCache()
+	cache, err := newTemplateCache()
 
 	assert.NoError(t, err)
 
