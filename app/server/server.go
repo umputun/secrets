@@ -22,16 +22,36 @@ import (
 	"github.com/umputun/secrets/app/store"
 )
 
-// Server is a rest with store
-type Server struct {
-	Messager       Messager
+// Config is a configuration for the server
+type Config struct {
+	Domain  string
+	WebRoot string
+	// Validation parameters
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
-	WebRoot        string
-	Version        string
-	Domain         string
-	TemplateCache  map[string]*template.Template
+}
+
+// Server is a rest with store
+type Server struct {
+	messager      Messager
+	cfg           Config
+	version       string
+	templateCache map[string]*template.Template
+}
+
+// New creates a new server with template cache
+func New(m Messager, version string, cfg Config) (Server, error) {
+	cache, err := newTemplateCache()
+	if err != nil {
+		return Server{}, errors.Wrap(err, "can't create template cache")
+	}
+	return Server{
+		messager:      m,
+		cfg:           cfg,
+		version:       version,
+		templateCache: cache,
+	}, nil
 }
 
 // Messager interface making and loading messages
@@ -75,7 +95,7 @@ func (s Server) routes() chi.Router {
 
 	router.Use(middleware.RequestID, middleware.RealIP, um.Recoverer(log.Default()))
 	router.Use(middleware.Throttle(1000), middleware.Timeout(60*time.Second))
-	router.Use(um.AppInfo("secrets", "Umputun", s.Version), um.Ping, um.SizeLimit(64*1024))
+	router.Use(um.AppInfo("secrets", "Umputun", s.version), um.Ping, um.SizeLimit(64*1024))
 	router.Use(tollbooth_chi.LimitHandler(tollbooth.NewLimiter(10, nil)))
 
 	router.Route("/api/v1", func(r chi.Router) {
@@ -109,7 +129,7 @@ func (s Server) routes() chi.Router {
 		r.Get("/", s.indexCtrl)
 	})
 
-	fs, err := um.NewFileServer("/static", s.WebRoot)
+	fs, err := um.NewFileServer("/static", s.cfg.WebRoot)
 	if err != nil {
 		log.Fatalf("[ERROR] can't create file server %v", err)
 	}
@@ -133,14 +153,14 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(request.Pin) != s.PinSize {
+	if len(request.Pin) != s.cfg.PinSize {
 		log.Printf("[WARN] incorrect pin size %d", len(request.Pin))
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, JSON{"error": "Incorrect pin size"})
 		return
 	}
 
-	msg, err := s.Messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+	msg, err := s.messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, JSON{"error": err.Error()})
@@ -154,7 +174,7 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	key, pin := chi.URLParam(r, "key"), chi.URLParam(r, "pin")
-	if key == "" || pin == "" || len(pin) != s.PinSize {
+	if key == "" || pin == "" || len(pin) != s.cfg.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")
 		render.Status(r, http.StatusBadRequest)
 		render.JSON(w, r, JSON{"error": "no key or pin passed"})
@@ -162,7 +182,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	serveRequest := func() (status int, res JSON) {
-		msg, err := s.Messager.LoadMessage(key, pin)
+		msg, err := s.messager.LoadMessage(key, pin)
 		if err != nil {
 			log.Printf("[WARN] failed to load key %v", key)
 			if err == messager.ErrBadPinAttempt {
@@ -188,9 +208,9 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
 		MaxPinAttempts int `json:"max_pin_attempts"`
 		MaxExpSecs     int `json:"max_exp_sec"`
 	}{
-		PinSize:        s.PinSize,
-		MaxPinAttempts: s.MaxPinAttempts,
-		MaxExpSecs:     int(s.MaxExpire.Seconds()),
+		PinSize:        s.cfg.PinSize,
+		MaxPinAttempts: s.cfg.MaxPinAttempts,
+		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 	}
 	render.JSON(w, r, params)
 }

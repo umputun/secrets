@@ -19,7 +19,7 @@ import (
 )
 
 func TestServer_saveAndLoadMemory(t *testing.T) {
-	ts, teardown := prepTestServer()
+	ts, teardown := prepTestServer(t)
 	defer teardown()
 
 	// save message
@@ -74,16 +74,20 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 		require.NoError(t, os.Remove("/tmp/secrets-test.bdb"))
 	}()
 	signKey := messager.MakeSignKey("stew-pub-barcan-scatty-daimio-wicker-yakona", 5)
-	srv := Server{
-		Messager: messager.New(eng, messager.Crypt{Key: signKey}, messager.Params{
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: signKey}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
 		}),
-		PinSize:        5,
-		MaxPinAttempts: 3,
-		MaxExpire:      10 * time.Hour,
-		Version:        "1",
-	}
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+		})
+
+	assert.NoError(t, err)
+
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
 
@@ -133,7 +137,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 }
 
 func TestServer_saveAndManyPinAttempt(t *testing.T) {
-	ts, teardown := prepTestServer()
+	ts, teardown := prepTestServer(t)
 	defer teardown()
 
 	// save message
@@ -183,7 +187,7 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 }
 
 func TestServer_saveAndGoodPinAttempt(t *testing.T) {
-	ts, teardown := prepTestServer()
+	ts, teardown := prepTestServer(t)
 	defer teardown()
 
 	// save message
@@ -228,7 +232,7 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 }
 
 func TestServer_getParams(t *testing.T) {
-	ts, teardown := prepTestServer()
+	ts, teardown := prepTestServer(t)
 	defer teardown()
 
 	client := http.Client{Timeout: time.Second}
@@ -244,18 +248,23 @@ func TestServer_getParams(t *testing.T) {
 	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000}`+"\n", string(body))
 }
 
-func prepTestServer() (ts *httptest.Server, teardown func()) {
+func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 	eng := store.NewInMemory(time.Second)
-	srv := Server{
-		Messager: messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
 		}),
-		PinSize:        5,
-		MaxPinAttempts: 3,
-		MaxExpire:      10 * time.Hour,
-		Version:        "1",
-	}
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+		})
+
+	assert.NoError(t, err)
+
 	ts = httptest.NewServer(srv.routes())
 	return ts, ts.Close
 }

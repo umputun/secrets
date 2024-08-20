@@ -1,6 +1,6 @@
 ARG TZ=America/Chicago
 
-FROM umputun/baseimage:buildgo-latest as build-backend
+FROM umputun/baseimage:buildgo-latest AS build-backend
 
 ARG CI
 ARG GIT_BRANCH

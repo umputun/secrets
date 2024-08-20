@@ -54,7 +54,7 @@ type templateData struct {
 
 // render renders a template
 func (s Server) render(w http.ResponseWriter, status int, page, tmplName string, data any) {
-	ts, ok := s.TemplateCache[page]
+	ts, ok := s.templateCache[page]
 	if !ok {
 		err := fmt.Errorf("the template %s does not exist", page)
 		log.Printf("[ERROR] %v", err)
@@ -89,9 +89,9 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 	data := templateData{
 		Form: createMsgForm{
 			Exp:    15,
-			MaxExp: humanDuration(s.MaxExpire),
+			MaxExp: humanDuration(s.cfg.MaxExpire),
 		},
-		PinSize: s.PinSize,
+		PinSize: s.cfg.PinSize,
 	}
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
@@ -113,13 +113,13 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	form := createMsgForm{
 		Message: r.PostForm.Get(msgKey),
 		ExpUnit: r.PostForm.Get(expUnitKey),
-		MaxExp:  humanDuration(s.MaxExpire),
+		MaxExp:  humanDuration(s.cfg.MaxExpire),
 	}
 
 	pinValues := r.Form["pin"]
 	for _, p := range pinValues {
 		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.PinSize))
+			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
 			break
 		}
 	}
@@ -138,12 +138,12 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	form.Exp = expInt
 	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
 
-	form.CheckField(validator.MaxDuration(expDuration, s.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.MaxExpire)))
+	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
 
 	if !form.Valid() {
 		data := templateData{
 			Form:    form,
-			PinSize: s.PinSize,
+			PinSize: s.cfg.PinSize,
 		}
 
 		// attach event listeners to pin inputs
@@ -153,13 +153,13 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.Messager.MakeMessage(expDuration, form.Message, strings.Join(pinValues, ""))
+	msg, err := s.messager.MakeMessage(expDuration, form.Message, strings.Join(pinValues, ""))
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
 		return
 	}
 
-	msgURL := fmt.Sprintf("http://%s/message/%s", s.Domain, msg.Key)
+	msgURL := fmt.Sprintf("http://%s/message/%s", s.cfg.Domain, msg.Key)
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", msgURL)
 }
@@ -175,7 +175,7 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 		Form: showMsgForm{
 			Key: key,
 		},
-		PinSize: s.PinSize,
+		PinSize: s.cfg.PinSize,
 	}
 
 	w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
@@ -208,7 +208,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	pinValues := r.Form["pin"]
 	for _, p := range pinValues {
 		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.PinSize))
+			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
 			break
 		}
 	}
@@ -216,7 +216,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	if !form.Valid() {
 		data := templateData{
 			Form:    form,
-			PinSize: s.PinSize,
+			PinSize: s.cfg.PinSize,
 		}
 
 		// attach event listeners to pin inputs
@@ -226,7 +226,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.Messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
+	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
 	if err != nil {
 		if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
 			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
@@ -237,7 +237,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 		data := templateData{
 			Form:    form,
-			PinSize: s.PinSize,
+			PinSize: s.cfg.PinSize,
 		}
 		// attach event listeners to pin inputs
 		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
@@ -278,8 +278,8 @@ func humanDuration(d time.Duration) string {
 	}
 }
 
-// NewTemplateCache creates a template cache as a map
-func NewTemplateCache() (map[string]*template.Template, error) {
+// newTemplateCache creates a template cache as a map
+func newTemplateCache() (map[string]*template.Template, error) {
 	cache := map[string]*template.Template{}
 
 	pages, err := fs.Glob(ui.Files, "html/*/*.tmpl.html")
