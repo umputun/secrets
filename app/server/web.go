@@ -159,7 +159,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgURL := fmt.Sprintf("http://%s/message/%s", s.cfg.Domain, msg.Key)
+	msgURL := fmt.Sprintf("%s://%s/message/%s", s.cfg.Protocol, s.cfg.Domain, msg.Key)
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", msgURL)
 }

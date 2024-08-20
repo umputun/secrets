@@ -44,6 +44,7 @@ _Feel free to suggest any other ways to make the process safer._
     - MAX_EXPIRE - maximum lifetime period, default 24h
     - PIN_SIZE - size (in characters) of the pin, default 5
     - PIN_ATTEMPTS - maximum number of failed attempts to enter pin, default 3
+    - PROTOCOL - http or https
 1. Setup SSL:
     - The system can make valid certificates for you automatically with integrated [nginx-le](https://github.com/umputun/nginx-le). Just set:
         - LETSENCRYPT=true

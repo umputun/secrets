@@ -26,6 +26,7 @@ import (
 type Config struct {
 	Domain  string
 	WebRoot string
+	Protocol       string
 	// Validation parameters
 	PinSize        int
 	MaxPinAttempts int
