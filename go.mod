@@ -1,6 +1,6 @@
 module github.com/umputun/secrets
 
-go 1.23
+go 1.22
 
 require (
 	github.com/didip/tollbooth/v7 v7.0.2
