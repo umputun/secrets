@@ -7,10 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: set up go 1.20
+    - name: set up go 1.23
       uses: actions/setup-go@v5
       with:
-        go-version: "1.20"
+        go-version: "1.23"
       id: go
 
     - name: checkout
@@ -27,7 +27,7 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
-        version: v1.58
+        version: v1.61
 
     - name: install goveralls
       run: go install github.com/mattn/goveralls@latest
