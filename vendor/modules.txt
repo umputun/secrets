@@ -14,7 +14,7 @@ github.com/didip/tollbooth/v7/limiter
 # github.com/didip/tollbooth_chi v0.0.0-20220719025231-d662a7f6928f
 ## explicit; go 1.14
 github.com/didip/tollbooth_chi
-# github.com/go-chi/chi/v5 v5.1.0
+# github.com/go-chi/chi/v5 v5.2.0
 ## explicit; go 1.14
 github.com/go-chi/chi/v5
 github.com/go-chi/chi/v5/middleware
@@ -27,7 +27,7 @@ github.com/go-pkgz/expirable-cache/v3
 # github.com/go-pkgz/lgr v0.11.1
 ## explicit; go 1.20
 github.com/go-pkgz/lgr
-# github.com/go-pkgz/rest v1.19.0
+# github.com/go-pkgz/rest v1.20.2
 ## explicit; go 1.21
 github.com/go-pkgz/rest
 github.com/go-pkgz/rest/logger
@@ -56,7 +56,9 @@ github.com/umputun/go-flags
 go.etcd.io/bbolt
 # golang.org/x/crypto v0.31.0
 ## explicit; go 1.20
+golang.org/x/crypto/argon2
 golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blake2b
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
