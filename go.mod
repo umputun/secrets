@@ -1,7 +1,7 @@
 module github.com/umputun/secrets
 
 go 1.22
-toolchain go1.23.6
+toolchain go1.24.1
 
 require (
 	github.com/didip/tollbooth/v7 v7.0.2
@@ -9,7 +9,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/render v1.0.3
 	github.com/go-pkgz/lgr v0.11.1
-	github.com/go-pkgz/rest v1.20.2
+	github.com/go-pkgz/rest v1.20.3
 	github.com/google/uuid v1.6.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
