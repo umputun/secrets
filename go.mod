@@ -1,6 +1,7 @@
 module github.com/umputun/secrets
 
-go 1.22
+go 1.23.0
+
 toolchain go1.24.1
 
 require (
@@ -8,7 +9,7 @@ require (
 	github.com/didip/tollbooth_chi v0.0.0-20220719025231-d662a7f6928f
 	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/render v1.0.3
-	github.com/go-pkgz/lgr v0.12.0
+	github.com/go-pkgz/lgr v0.12.1
 	github.com/go-pkgz/rest v1.20.2
 	github.com/google/uuid v1.6.0
 	github.com/pkg/errors v0.9.1
