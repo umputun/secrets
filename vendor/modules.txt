@@ -51,7 +51,7 @@ github.com/stretchr/testify/require
 # github.com/umputun/go-flags v1.5.1
 ## explicit; go 1.12
 github.com/umputun/go-flags
-# go.etcd.io/bbolt v1.4.0
+# go.etcd.io/bbolt v1.4.1
 ## explicit; go 1.23
 go.etcd.io/bbolt
 go.etcd.io/bbolt/errors

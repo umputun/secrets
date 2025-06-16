@@ -1,6 +1,7 @@
 module github.com/umputun/secrets
 
-go 1.22
+go 1.23.0
+
 toolchain go1.24.1
 
 require (
@@ -14,7 +15,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/umputun/go-flags v1.5.1
-	go.etcd.io/bbolt v1.4.0
+	go.etcd.io/bbolt v1.4.1
 	golang.org/x/crypto v0.35.0
 )
 
