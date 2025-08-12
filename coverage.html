@@ -1,0 +1,739 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>server: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/umputun/secrets/app/server/middleware.go (69.7%)</option>
+				
+				<option value="file1">github.com/umputun/secrets/app/server/server.go (59.3%)</option>
+				
+				<option value="file2">github.com/umputun/secrets/app/server/web.go (17.9%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package server
+
+import (
+        "bytes"
+        "fmt"
+        "io"
+        "net/http"
+        "net/url"
+        "regexp"
+        "strings"
+        "time"
+
+        "github.com/go-chi/chi/v5/middleware"
+        log "github.com/go-pkgz/lgr"
+)
+
+// JSON is a map alias, just for convenience
+type JSON map[string]interface{}
+
+// LoggerFlag type
+type LoggerFlag int
+
+// logger flags enum
+const (
+        LogAll LoggerFlag = iota
+        LogBody
+)
+const maxBody = 1024
+
+var reMultWhtsp = regexp.MustCompile(`[\s\p{Zs}]{2,}`)
+
+// Logger middleware prints http log. Customized by set of LoggerFlag
+func Logger(l log.L, flags ...LoggerFlag) func(http.Handler) http.Handler <span class="cov8" title="1">{
+
+        inFlags := func(f LoggerFlag) bool </span><span class="cov8" title="1">{
+                for _, flg := range flags </span><span class="cov0" title="0">{
+                        if flg == LogAll || flg == f </span><span class="cov0" title="0">{
+                                return true
+                        }</span>
+                }
+                <span class="cov8" title="1">return false</span>
+        }
+
+        <span class="cov8" title="1">f := func(h http.Handler) http.Handler </span><span class="cov8" title="1">{
+
+                fn := func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                        ww := middleware.NewWrapResponseWriter(w, 1)
+
+                        body := func() (result string) </span><span class="cov8" title="1">{
+                                if inFlags(LogBody) </span><span class="cov0" title="0">{
+                                        if content, err := io.ReadAll(r.Body); err == nil </span><span class="cov0" title="0">{
+                                                result = string(content)
+                                                r.Body = io.NopCloser(bytes.NewReader(content))
+
+                                                if result != "" </span><span class="cov0" title="0">{
+                                                        result = strings.ReplaceAll(result, "\n", " ")
+                                                        result = reMultWhtsp.ReplaceAllString(result, " ")
+                                                }</span>
+
+                                                <span class="cov0" title="0">if len(result) &gt; maxBody </span><span class="cov0" title="0">{
+                                                        result = result[:maxBody] + "..."
+                                                }</span>
+                                        }
+                                }
+                                <span class="cov8" title="1">return result</span>
+                        }()
+
+                        <span class="cov8" title="1">t1 := time.Now()
+                        defer func() </span><span class="cov8" title="1">{
+                                t2 := time.Now()
+
+                                q := r.URL.String()
+                                if qun, err := url.QueryUnescape(q); err == nil </span><span class="cov8" title="1">{
+                                        q = qun
+                                }</span>
+                                // hide id and pin
+                                <span class="cov8" title="1">if strings.Contains(q, "/api/v1/message/") </span><span class="cov8" title="1">{
+                                        elems := strings.Split(q, "/")
+                                        if len(elems) &gt;= 5 &amp;&amp; len(elems[4]) &gt;= 18 </span><span class="cov8" title="1">{
+                                                q = fmt.Sprintf("/api/v1/message/%s/*****", elems[4][:17])
+                                        }</span>
+                                }
+                                <span class="cov8" title="1">l.Logf("[INFO] REST %s - %s - %s - %d (%d) - %v %s",
+                                        r.Method, q, strings.Split(r.RemoteAddr, ":")[0],
+                                        ww.Status(), ww.BytesWritten(), t2.Sub(t1), body)</span>
+                        }()
+
+                        <span class="cov8" title="1">h.ServeHTTP(ww, r)</span>
+                }
+                <span class="cov8" title="1">return http.HandlerFunc(fn)</span>
+        }
+
+        <span class="cov8" title="1">return f</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Package server provides rest-like api and serves static assets as well
+package server
+
+import (
+        "context"
+        "html/template"
+        "net/http"
+        "strings"
+        "time"
+
+        "github.com/didip/tollbooth/v7"
+        "github.com/didip/tollbooth_chi"
+        "github.com/go-chi/chi/v5"
+        "github.com/go-chi/chi/v5/middleware"
+        "github.com/go-chi/render"
+        "github.com/pkg/errors"
+
+        log "github.com/go-pkgz/lgr"
+        um "github.com/go-pkgz/rest"
+
+        "github.com/umputun/secrets/app/messager"
+        "github.com/umputun/secrets/app/store"
+)
+
+// Config is a configuration for the server
+type Config struct {
+        Domain  string
+        WebRoot string
+        Protocol       string
+        // Validation parameters
+        PinSize        int
+        MaxPinAttempts int
+        MaxExpire      time.Duration
+}
+
+// Server is a rest with store
+type Server struct {
+        messager      Messager
+        cfg           Config
+        version       string
+        templateCache map[string]*template.Template
+}
+
+// New creates a new server with template cache
+func New(m Messager, version string, cfg Config) (Server, error) <span class="cov8" title="1">{
+        cache, err := newTemplateCache()
+        if err != nil </span><span class="cov0" title="0">{
+                return Server{}, errors.Wrap(err, "can't create template cache")
+        }</span>
+        <span class="cov8" title="1">return Server{
+                messager:      m,
+                cfg:           cfg,
+                version:       version,
+                templateCache: cache,
+        }, nil</span>
+}
+
+// Messager interface making and loading messages
+type Messager interface {
+        MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
+        LoadMessage(key, pin string) (msg *store.Message, err error)
+}
+
+// Run the lister and request's router, activate rest server
+func (s Server) Run(ctx context.Context) error <span class="cov0" title="0">{
+        log.Printf("[INFO] activate rest server")
+
+        httpServer := &amp;http.Server{
+                Addr:              ":8080",
+                Handler:           s.routes(),
+                ReadHeaderTimeout: 5 * time.Second,
+                WriteTimeout:      30 * time.Second,
+                IdleTimeout:       30 * time.Second,
+        }
+
+        go func() </span><span class="cov0" title="0">{
+                &lt;-ctx.Done()
+                if httpServer != nil </span><span class="cov0" title="0">{
+                        if clsErr := httpServer.Close(); clsErr != nil </span><span class="cov0" title="0">{
+                                log.Printf("[ERROR] failed to close proxy http server, %v", clsErr)
+                        }</span>
+                }
+        }()
+
+        <span class="cov0" title="0">err := httpServer.ListenAndServe()
+        log.Printf("[WARN] http server terminated, %s", err)
+
+        if !errors.Is(err, http.ErrServerClosed) </span><span class="cov0" title="0">{
+                return errors.Wrap(err, "server failed")
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (s Server) routes() chi.Router <span class="cov8" title="1">{
+        router := chi.NewRouter()
+
+        router.Use(middleware.RequestID, middleware.RealIP, um.Recoverer(log.Default()))
+        router.Use(middleware.Throttle(1000), middleware.Timeout(60*time.Second))
+        router.Use(um.AppInfo("secrets", "Umputun", s.version), um.Ping, um.SizeLimit(64*1024))
+        router.Use(tollbooth_chi.LimitHandler(tollbooth.NewLimiter(10, nil)))
+
+        router.Route("/api/v1", func(r chi.Router) </span><span class="cov8" title="1">{
+                r.Use(Logger(log.Default()))
+                r.Post("/message", s.saveMessageCtrl)
+                r.Get("/message/{key}/{pin}", s.getMessageCtrl)
+                r.Get("/params", s.getParamsCtrl)
+        }</span>)
+
+        <span class="cov8" title="1">router.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                render.PlainText(w, r, "User-agent: *\nDisallow: /api/\nDisallow: /show/\n")
+        }</span>)
+
+        <span class="cov8" title="1">router.NotFound(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                if strings.HasPrefix(r.URL.Path, "/api/v1") </span><span class="cov0" title="0">{
+                        render.Status(r, http.StatusNotFound)
+                        render.JSON(w, r, JSON{"error": "not found"})
+                        return
+                }</span>
+
+                <span class="cov0" title="0">s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, "not found")</span>
+        })
+
+        <span class="cov8" title="1">router.Group(func(r chi.Router) </span><span class="cov8" title="1">{
+                r.Use(Logger(log.Default()))
+                r.Use(middleware.StripSlashes)
+                r.Post("/generate-link", s.generateLinkCtrl)
+                r.Get("/message/{key}", s.showMessageViewCtrl)
+                r.Post("/load-message", s.loadMessageCtrl)
+                r.Get("/about", s.aboutViewCtrl)
+                r.Get("/", s.indexCtrl)
+        }</span>)
+
+        <span class="cov8" title="1">fs, err := um.NewFileServer("/static", s.cfg.WebRoot)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("[ERROR] can't create file server %v", err)
+        }</span>
+
+        <span class="cov8" title="1">router.Handle("/static/*", fs)
+
+        return router</span>
+}
+
+func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        request := struct {
+                Message string
+                Exp     int
+                Pin     string
+        }{}
+
+        if err := render.DecodeJSON(r.Body, &amp;request); err != nil </span><span class="cov0" title="0">{
+                log.Printf("[WARN] can't bind request %v", request)
+                render.Status(r, http.StatusBadRequest)
+                render.JSON(w, r, JSON{"error": err.Error()})
+                return
+        }</span>
+
+        <span class="cov8" title="1">if len(request.Pin) != s.cfg.PinSize </span><span class="cov0" title="0">{
+                log.Printf("[WARN] incorrect pin size %d", len(request.Pin))
+                render.Status(r, http.StatusBadRequest)
+                render.JSON(w, r, JSON{"error": "Incorrect pin size"})
+                return
+        }</span>
+
+        <span class="cov8" title="1">msg, err := s.messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+        if err != nil </span><span class="cov0" title="0">{
+                render.Status(r, http.StatusBadRequest)
+                render.JSON(w, r, JSON{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">render.Status(r, http.StatusCreated)
+        render.JSON(w, r, JSON{"key": msg.Key, "exp": msg.Exp})</span>
+}
+
+// GET /v1/message/{key}/{pin}
+func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+
+        key, pin := chi.URLParam(r, "key"), chi.URLParam(r, "pin")
+        if key == "" || pin == "" || len(pin) != s.cfg.PinSize </span><span class="cov0" title="0">{
+                log.Print("[WARN] no valid key or pin in get request")
+                render.Status(r, http.StatusBadRequest)
+                render.JSON(w, r, JSON{"error": "no key or pin passed"})
+                return
+        }</span>
+
+        <span class="cov8" title="1">serveRequest := func() (status int, res JSON) </span><span class="cov8" title="1">{
+                msg, err := s.messager.LoadMessage(key, pin)
+                if err != nil </span><span class="cov8" title="1">{
+                        log.Printf("[WARN] failed to load key %v", key)
+                        if err == messager.ErrBadPinAttempt </span><span class="cov8" title="1">{
+                                return http.StatusExpectationFailed, JSON{"error": err.Error()}
+                        }</span>
+                        <span class="cov8" title="1">return http.StatusBadRequest, JSON{"error": err.Error()}</span>
+                }
+                <span class="cov8" title="1">return http.StatusOK, JSON{"key": msg.Key, "message": string(msg.Data)}</span>
+        }
+
+        // make sure serveRequest works constant time on any branch
+        <span class="cov8" title="1">st := time.Now()
+        status, res := serveRequest()
+        time.Sleep(time.Millisecond*100 - time.Since(st))
+        render.Status(r, status)
+        render.JSON(w, r, res)</span>
+}
+
+// GET /params
+func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        params := struct {
+                PinSize        int `json:"pin_size"`
+                MaxPinAttempts int `json:"max_pin_attempts"`
+                MaxExpSecs     int `json:"max_exp_sec"`
+        }{
+                PinSize:        s.cfg.PinSize,
+                MaxPinAttempts: s.cfg.MaxPinAttempts,
+                MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
+        }
+        render.JSON(w, r, params)
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package server
+
+import (
+        "bytes"
+        "fmt"
+        "html/template"
+        "io/fs"
+        "net/http"
+        "path/filepath"
+        "strconv"
+        "strings"
+        "time"
+
+        "github.com/go-chi/chi/v5"
+        log "github.com/go-pkgz/lgr"
+        "github.com/pkg/errors"
+
+        "github.com/umputun/secrets/app/messager"
+        "github.com/umputun/secrets/app/server/validator"
+        "github.com/umputun/secrets/app/store"
+        "github.com/umputun/secrets/ui"
+)
+
+const (
+        baseTmpl  = "base"
+        mainTmpl  = "main"
+        errorTmpl = "error"
+
+        msgKey     = "message"
+        pinKey     = "pin"
+        expKey     = "exp"
+        expUnitKey = "expUnit"
+        keyKey     = "key"
+)
+
+type createMsgForm struct {
+        Message string
+        Exp     int
+        MaxExp  string
+        ExpUnit string
+        validator.Validator
+}
+
+type showMsgForm struct {
+        Key     string
+        Message string
+        validator.Validator
+}
+
+type templateData struct {
+        Form    any
+        PinSize int
+}
+
+// render renders a template
+func (s Server) render(w http.ResponseWriter, status int, page, tmplName string, data any) <span class="cov0" title="0">{
+        ts, ok := s.templateCache[page]
+        if !ok </span><span class="cov0" title="0">{
+                err := fmt.Errorf("the template %s does not exist", page)
+                log.Printf("[ERROR] %v", err)
+                http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">buf := new(bytes.Buffer)
+
+        if tmplName == "" </span><span class="cov0" title="0">{
+                tmplName = baseTmpl
+        }</span>
+        <span class="cov0" title="0">err := ts.ExecuteTemplate(buf, tmplName, data)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("[ERROR] %v", err)
+                http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.WriteHeader(status)
+        _, err = buf.WriteTo(w)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("[ERROR] %v", err)
+                http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+                return
+        }</span>
+}
+
+// renders the home page
+// GET /
+func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{ // nolint
+        data := templateData{
+                Form: createMsgForm{
+                        Exp:    15,
+                        MaxExp: humanDuration(s.cfg.MaxExpire),
+                },
+                PinSize: s.cfg.PinSize,
+        }
+
+        s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
+}</span>
+
+// renders the generate link page
+// POST /generate-link
+// Request Body: This function expects a POST request body containing the following fields:
+//   - "message" (string): The message content to be associated with the secure link.
+//   - "expUnit" (string): The unit of expiration time (e.g., "m" for minutes, "h" for hours, "d" for days).
+//   - "pin" (slice of strings): An array of PIN values.
+func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        err := r.ParseForm()
+        if err != nil </span><span class="cov0" title="0">{
+                s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">form := createMsgForm{
+                Message: r.PostForm.Get(msgKey),
+                ExpUnit: r.PostForm.Get(expUnitKey),
+                MaxExp:  humanDuration(s.cfg.MaxExpire),
+        }
+
+        pinValues := r.Form["pin"]
+        for _, p := range pinValues </span><span class="cov0" title="0">{
+                if validator.Blank(p) || !validator.IsNumber(p) </span><span class="cov0" title="0">{
+                        form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">form.CheckField(validator.NotBlank(form.Message), msgKey, "Message can't be empty")
+
+        exp := r.PostFormValue(expKey)
+        form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")
+        form.CheckField(validator.IsNumber(exp), expKey, "Expire must be a number")
+        form.CheckField(validator.PermittedValue(form.ExpUnit, "m", "h", "d"), expUnitKey, "Only Minutes, Hours and Days are allowed")
+
+        expInt, err := strconv.Atoi(exp)
+        if err != nil </span><span class="cov0" title="0">{
+                form.AddFieldError(expKey, "Expire must be a number")
+        }</span>
+        <span class="cov0" title="0">form.Exp = expInt
+        expDuration := duration(expInt, r.PostFormValue(expUnitKey))
+
+        form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
+
+        if !form.Valid() </span><span class="cov0" title="0">{
+                data := templateData{
+                        Form:    form,
+                        PinSize: s.cfg.PinSize,
+                }
+
+                // attach event listeners to pin inputs
+                w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
+
+                s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+                return
+        }</span>
+
+        <span class="cov0" title="0">msg, err := s.messager.MakeMessage(expDuration, form.Message, strings.Join(pinValues, ""))
+        if err != nil </span><span class="cov0" title="0">{
+                s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">msgURL := fmt.Sprintf("%s://%s/message/%s", s.cfg.Protocol, s.cfg.Domain, msg.Key)
+
+        s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", msgURL)</span>
+}
+
+// renders the show decoded message page
+// GET /message/{key}
+// URL Parameters:
+//   - "key" (string): A path parameter representing the unique key of the message to be displayed.
+func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        key := chi.URLParam(r, keyKey)
+
+        data := templateData{
+                Form: showMsgForm{
+                        Key: key,
+                },
+                PinSize: s.cfg.PinSize,
+        }
+
+        w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
+
+        s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
+}</span>
+
+// renders the about page
+// GET /about
+func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{ // nolint
+        s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, nil)
+}</span>
+
+// renders the decoded message page
+// POST /load-message
+// Request Body: This function expects a POST request body containing the following fields:
+//   - "key" (string): A path parameter representing the unique key of the message to be displayed.
+//   - "pin" (slice of strings): An array of PIN values.
+func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        err := r.ParseForm()
+        if err != nil </span><span class="cov0" title="0">{
+                s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">form := showMsgForm{
+                Key: r.PostForm.Get("key"),
+        }
+
+        pinValues := r.Form["pin"]
+        for _, p := range pinValues </span><span class="cov0" title="0">{
+                if validator.Blank(p) || !validator.IsNumber(p) </span><span class="cov0" title="0">{
+                        form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+                        break</span>
+                }
+        }
+
+        <span class="cov0" title="0">if !form.Valid() </span><span class="cov0" title="0">{
+                data := templateData{
+                        Form:    form,
+                        PinSize: s.cfg.PinSize,
+                }
+
+                // attach event listeners to pin inputs
+                w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
+
+                s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
+                return
+        }</span>
+
+        <span class="cov0" title="0">msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
+        if err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) </span><span class="cov0" title="0">{
+                        s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+                        return
+                }</span>
+                <span class="cov0" title="0">log.Printf("[WARN] can't load message %v", err)
+                form.AddFieldError("pin", err.Error())
+
+                data := templateData{
+                        Form:    form,
+                        PinSize: s.cfg.PinSize,
+                }
+                // attach event listeners to pin inputs
+                w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
+
+                s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
+
+                return</span>
+        }
+
+        <span class="cov0" title="0">s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))</span>
+}
+
+// duration converts a number and unit into a time.Duration
+func duration(n int, unit string) time.Duration <span class="cov8" title="1">{
+        switch unit </span>{
+        case "m":<span class="cov8" title="1">
+                return time.Duration(n) * time.Minute</span>
+        case "h":<span class="cov8" title="1">
+                return time.Duration(n) * time.Hour</span>
+        case "d":<span class="cov8" title="1">
+                return time.Duration(n*24) * time.Hour</span>
+        default:<span class="cov8" title="1">
+                return time.Duration(0)</span>
+        }
+}
+
+// humanDuration converts a time.Duration into a human readable string like "5 minutes"
+func humanDuration(d time.Duration) string <span class="cov8" title="1">{
+        switch </span>{
+        case d &lt; time.Minute:<span class="cov8" title="1">
+                return fmt.Sprintf("%d seconds", d/time.Second)</span>
+        case d &lt; time.Hour:<span class="cov8" title="1">
+                return fmt.Sprintf("%d minutes", d/time.Minute)</span>
+        case d &lt; time.Hour*24:<span class="cov8" title="1">
+                return fmt.Sprintf("%d hours", d/time.Hour)</span>
+        default:<span class="cov8" title="1">
+                return fmt.Sprintf("%d days", d/(time.Hour*24))</span>
+        }
+}
+
+// newTemplateCache creates a template cache as a map
+func newTemplateCache() (map[string]*template.Template, error) <span class="cov8" title="1">{
+        cache := map[string]*template.Template{}
+
+        pages, err := fs.Glob(ui.Files, "html/*/*.tmpl.html")
+
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">for _, page := range pages </span><span class="cov8" title="1">{
+                name := filepath.Base(page)
+
+                patterns := []string{
+                        "html/index.tmpl.html",
+                        "html/partials/*.tmpl.html",
+                        page,
+                }
+
+                ts, err := template.New(name).Funcs(template.FuncMap{"until": until}).ParseFS(ui.Files, patterns...)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov8" title="1">cache[name] = ts</span>
+        }
+
+        <span class="cov8" title="1">return cache, nil</span>
+}
+
+// until is a helper function for templates to generate a slice of numbers
+func until(n int) []int <span class="cov0" title="0">{
+        result := make([]int, n)
+        for i := range result </span><span class="cov0" title="0">{
+                result[i] = i
+        }</span>
+        <span class="cov0" title="0">return result</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
