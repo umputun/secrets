@@ -13,8 +13,8 @@ import (
 
 func TestMessageProc_NewDefault(t *testing.T) {
 	m := New(nil, Crypt{}, Params{})
-	assert.Equal(t, time.Hour*24*31, m.Params.MaxDuration)
-	assert.Equal(t, 3, m.Params.MaxPinAttempts)
+	assert.Equal(t, time.Hour*24*31, m.MaxDuration)
+	assert.Equal(t, 3, m.MaxPinAttempts)
 }
 
 func TestMessageProc_MakeMessage(t *testing.T) {
