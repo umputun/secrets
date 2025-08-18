@@ -203,7 +203,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				// form validation error will be shown in the form, look for the error class/input
-				assert.Contains(t, body, "value=15") // verify it returns the form
+				assert.Contains(t, body, "value=\"15\"") // verify it returns the form
 			},
 		},
 		{
@@ -397,7 +397,6 @@ func TestServer_render(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 		assert.Contains(t, rr.Body.String(), "Internal Server Error")
 	})
-
 
 	t.Run("empty template name defaults to base", func(t *testing.T) {
 		rr := httptest.NewRecorder()
