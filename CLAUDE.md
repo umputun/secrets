@@ -132,3 +132,29 @@ Core libraries used:
 - `golang.org/x/crypto` - Encryption and bcrypt hashing
 - `github.com/stretchr/testify` - Testing assertions
 - `github.com/didip/tollbooth` - Rate limiting
+
+## Frontend Architecture
+
+### Template System
+- Go html/template with modular structure: base template (`index.tmpl.html`) + named blocks
+- Partials in `ui/html/partials/` for reusable components (`decoded-message.tmpl.html`, `secure-link.tmpl.html`)
+- HTMX integration for dynamic updates without page reloads
+- Template inheritance pattern with `{{define "base"}}` and `{{template "main" .}}`
+
+### Design System
+- CSS custom properties-based design system with comprehensive theming
+- 8px grid spacing system: `--spacing-xs` (4px) through `--spacing-5xl` (96px)
+- Typography scale with Inter (UI) and Poppins (branding) fonts
+- Light/dark theme support via CSS custom properties and `[data-theme]` selectors
+- SVG icon system with `currentColor` for automatic theme adaptation
+
+### Static Assets Organization
+- CSS: Design system approach with modular sections (variables, typography, components)
+- JavaScript: Feature-specific modules (copy-text.js, theme.js, pin.js)
+- Icons: Inline SVG for consistency and theming
+- Fonts: Google Fonts integration with preconnect optimization
+
+### Local Development Configuration
+- Server requires explicit local config: `--domain=localhost:8080 --protocol=http`
+- Default protocol is HTTPS, must override for local development
+- Link generation uses configured domain/protocol for absolute URLs

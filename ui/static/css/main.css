@@ -413,6 +413,17 @@ button[type="submit"]:disabled {
     color: var(--color-text-secondary);
 }
 
+.card-title-with-icon {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.title-icon {
+    color: var(--color-success);
+    flex-shrink: 0;
+}
+
 /* ==================== Form Groups ==================== */
 .form-group {
     margin-bottom: var(--spacing-2xl);
