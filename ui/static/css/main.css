@@ -1,26 +1,29 @@
 @import "reset.css";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ==================== Design System Variables ==================== */
 :root {
-    /* colors - light theme (default) */
-    --color-primary: #0066cc;
-    --color-primary-hover: #0052a3;
-    --color-primary-light: #e6f2ff;
+    /* colors - light theme (modern palette) */
+    --color-primary: #6366f1;
+    --color-primary-hover: #4f46e5;
+    --color-primary-light: #eef2ff;
     --color-success: #10b981;
     --color-error: #ef4444;
     --color-warning: #f59e0b;
-    --color-background: #f8fafc;
+    --color-background: #fafbfc;
     --color-surface: #ffffff;
-    --color-text-primary: #1e293b;
-    --color-text-secondary: #64748b;
-    --color-text-muted: #94a3b8;
-    --color-border: #e2e8f0;
-    --color-border-hover: #cbd5e1;
-    --color-input-bg: #f1f5f9;
-    --color-input-border: #e2e8f0;
-    --color-input-focus: #0066cc;
+    --color-text-primary: #374151;
+    --color-text-secondary: #6b7280;
+    --color-text-muted: #9ca3af;
+    --color-border: #e5e7eb;
+    --color-border-hover: #d1d5db;
+    --color-input-bg: #f9fafb;
+    --color-input-border: #e5e7eb;
+    --color-input-focus: #6366f1;
+    --color-tooltip-bg: #2d3748;
+    --color-tooltip-text: #ffffff;
     
-    /* spacing */
+    /* spacing - 8px grid system */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 16px;
@@ -28,10 +31,30 @@
     --spacing-xl: 32px;
     --spacing-2xl: 48px;
     --spacing-3xl: 64px;
+    --spacing-4xl: 80px;
+    --spacing-5xl: 96px;
     
-    /* typography */
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    /* typography - Inter font with proper scale */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-brand: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+    
+    /* font sizes - proper type scale */
+    --text-xs: 0.75rem;    /* 12px */
+    --text-sm: 0.875rem;   /* 14px */
+    --text-base: 1rem;     /* 16px */
+    --text-lg: 1.125rem;   /* 18px */
+    --text-xl: 1.25rem;    /* 20px */
+    --text-2xl: 1.5rem;    /* 24px */
+    --text-3xl: 1.875rem;  /* 30px */
+    --text-4xl: 2.25rem;   /* 36px */
+    
+    /* font weights */
+    --font-light: 300;
+    --font-normal: 400;
+    --font-medium: 500;
+    --font-semibold: 600;
+    --font-bold: 700;
     
     /* shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -56,27 +79,42 @@ body {
     background: var(--color-background);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
-    font-size: 18px;
+    font-size: var(--text-base);
+    font-weight: var(--font-normal);
     line-height: 1.6;
     min-width: 320px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
 }
 
 /* ==================== Typography ==================== */
 h1, h2, h3, h4, h5, h6 {
-    font-weight: 600;
+    font-weight: var(--font-semibold);
     line-height: 1.2;
     margin: 0;
+    letter-spacing: -0.025em;
+    color: var(--color-text-primary);
 }
 
 h1 {
-    font-size: 2.5rem;
-    letter-spacing: -0.025em;
+    font-size: var(--text-4xl);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.03em;
+}
+
+h2 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-semibold);
+}
+
+h3 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-medium);
 }
 
 p {
-    font-size: 1.1rem;
+    font-size: var(--text-base);
     line-height: 1.6;
     color: var(--color-text-secondary);
     margin: 0 0 var(--spacing-md) 0;
@@ -93,11 +131,19 @@ a:hover {
 }
 
 label {
-    display: block;
-    font-size: 1rem;
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
     color: var(--color-text-primary);
-    margin-bottom: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+    letter-spacing: -0.01em;
+}
+
+.input-icon {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
 }
 
 /* ==================== Form Controls ==================== */
@@ -107,15 +153,17 @@ input[type=number],
 input[type=password],
 select {
     width: 100%;
-    padding: 14px 18px;
-    font-size: 1.1rem;
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--text-base);
     font-family: var(--font-sans);
+    font-weight: var(--font-normal);
     background: var(--color-input-bg);
     color: var(--color-text-primary);
-    border: 2px solid var(--color-input-border);
+    border: 1px solid var(--color-input-border);
     border-radius: var(--radius-md);
     transition: all var(--transition-fast);
     outline: none;
+    letter-spacing: -0.01em;
 }
 
 textarea {
@@ -129,7 +177,7 @@ textarea:focus,
 select:focus {
     background: var(--color-surface);
     border-color: var(--color-input-focus);
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
     outline: none;
 }
 
@@ -141,12 +189,12 @@ textarea::placeholder {
 /* pin input - single field */
 input.pin-input {
     font-family: var(--font-mono);
-    font-size: 1.1rem;
-    letter-spacing: 0.3em;
+    font-size: var(--text-lg);
+    font-weight: var(--font-medium);
+    letter-spacing: 0.2em;
     text-align: center;
-    font-weight: 600;
-    max-width: 200px;
-    padding: 14px 18px;
+    max-width: 220px;
+    padding: 13px var(--spacing-lg);
 }
 
 /* number input */
@@ -179,24 +227,31 @@ button[type="submit"] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 16px 24px;
-    font-size: 1.1rem;
-    font-weight: 500;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg) var(--spacing-2xl);
+    font-size: var(--text-base);
+    font-weight: var(--font-medium);
     color: white;
     background: var(--color-primary);
     border: none;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     cursor: pointer;
     transition: all var(--transition-fast);
-    min-height: 52px;
+    min-height: 56px;
     width: 100%;
+    letter-spacing: -0.01em;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.btn-icon {
+    flex-shrink: 0;
 }
 
 .main-btn:hover,
 button[type="submit"]:hover {
     background: var(--color-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px 0 rgba(99, 102, 241, 0.25), 0 2px 4px 0 rgba(0, 0, 0, 0.05);
 }
 
 .main-btn:active,
@@ -215,17 +270,19 @@ button[type="submit"]:disabled {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 12px 24px;
-    font-size: 1rem;
-    font-weight: 500;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
     color: var(--color-primary);
     background: var(--color-surface);
-    border: 2px solid var(--color-primary);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-lg);
     cursor: pointer;
     transition: all var(--transition-fast);
     min-height: 48px;
     width: 100%;
+    text-decoration: none;
 }
 
 .second-btn:hover {
@@ -299,12 +356,25 @@ button[type="submit"]:disabled {
 }
 
 .app-name {
-    font-size: 1.8rem;
-    font-weight: 700;
+    font-family: var(--font-brand);
+    font-size: 2rem;
+    font-weight: var(--font-bold);
     letter-spacing: -0.01em;
-    color: var(--color-text-primary);
+    color: var(--color-primary);
     position: relative;
     display: inline-block;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Fallback for browsers that don't support background-clip */
+@supports not (-webkit-background-clip: text) {
+    .app-name {
+        color: var(--color-primary);
+        background: none;
+    }
 }
 
 .main-content {
@@ -314,10 +384,17 @@ button[type="submit"]:disabled {
 /* ==================== Cards ==================== */
 .card {
     background: var(--color-surface);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
-    padding: var(--spacing-xl);
-    margin-bottom: var(--spacing-lg);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--color-border);
+    padding: var(--spacing-2xl);
+    margin-bottom: var(--spacing-xl);
+    transition: all var(--transition-base);
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.1), 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+    border-color: var(--color-border-hover);
 }
 
 .card-header {
@@ -338,14 +415,13 @@ button[type="submit"]:disabled {
 
 /* ==================== Form Groups ==================== */
 .form-group {
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-2xl);
 }
-
 
 .form-row {
     display: grid;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-lg);
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-2xl);
 }
 
 @media (min-width: 640px) {
@@ -371,6 +447,7 @@ button[type="submit"]:disabled {
 
 /* ==================== Messages & Alerts ==================== */
 .error {
+    font-family: var(--font-sans);
     color: var(--color-error);
     font-size: 1.4rem;
     font-weight: 600;
@@ -378,6 +455,7 @@ button[type="submit"]:disabled {
     animation: fadeIn 0.3s ease;
     text-align: center;
     display: block;
+    letter-spacing: -0.01em;
 }
 
 .error-block {
@@ -433,14 +511,17 @@ button[type="submit"]:disabled {
     bottom: 125%;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--color-text-primary);
-    color: white;
+    background: var(--color-tooltip-bg);
+    color: var(--color-tooltip-text);
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: var(--radius-md);
     font-size: 0.875rem;
+    font-family: var(--font-sans);
+    font-weight: var(--font-medium);
     white-space: nowrap;
     box-shadow: var(--shadow-lg);
     transition: all var(--transition-fast);
+    letter-spacing: -0.01em;
 }
 
 .tooltip-text::after {
@@ -451,7 +532,7 @@ button[type="submit"]:disabled {
     transform: translateX(-50%);
     border-width: 5px;
     border-style: solid;
-    border-color: var(--color-text-primary) transparent transparent transparent;
+    border-color: var(--color-tooltip-bg) transparent transparent transparent;
 }
 
 .tooltip:hover .tooltip-text {
@@ -720,12 +801,14 @@ button[type="submit"]:disabled {
 }
 
 .error-message {
+    font-family: var(--font-sans);
     font-size: 1.4rem;
     color: var(--color-error);
     margin-bottom: var(--spacing-3xl);
     line-height: 1.5;
     font-weight: 600;
     text-align: center;
+    letter-spacing: -0.01em;
 }
 
 /* ==================== Responsive ==================== */
@@ -828,82 +911,88 @@ button[type="submit"]:disabled {
 /* ==================== Dark Theme ==================== */
 @media (prefers-color-scheme: dark) {
     :root {
-        --color-primary: #3b82f6;
-        --color-primary-hover: #2563eb;
-        --color-primary-light: #1e3a8a;
-        --color-success: #10b981;
-        --color-error: #ef4444;
-        --color-warning: #f59e0b;
-        --color-background: #0f172a;
-        --color-surface: #1e293b;
-        --color-text-primary: #f1f5f9;
-        --color-text-secondary: #cbd5e1;
-        --color-text-muted: #64748b;
-        --color-border: #334155;
-        --color-border-hover: #475569;
-        --color-input-bg: #334155;
-        --color-input-border: #475569;
-        --color-input-focus: #3b82f6;
+        --color-primary: #818cf8;
+        --color-primary-hover: #6366f1;
+        --color-primary-light: #312e81;
+        --color-success: #34d399;
+        --color-error: #f87171;
+        --color-warning: #fbbf24;
+        --color-background: #111827;
+        --color-surface: #1f2937;
+        --color-text-primary: #f9fafb;
+        --color-text-secondary: #d1d5db;
+        --color-text-muted: #9ca3af;
+        --color-border: #374151;
+        --color-border-hover: #4b5563;
+        --color-input-bg: #1f2937;
+        --color-input-border: #374151;
+        --color-input-focus: #818cf8;
+        --color-tooltip-bg: #374151;
+        --color-tooltip-text: #ffffff;
     }
     
     .error-block {
-        background: #431c1c;
-        border-color: #991b1b;
+        background: #451a1a;
+        border-color: #b91c1c;
     }
     
     .success-message {
-        background: #14532d;
-        border-color: #166534;
+        background: #064e3b;
+        border-color: #047857;
     }
 }
 
 /* manual theme overrides */
 [data-theme="light"] {
-    --color-primary: #0066cc;
-    --color-primary-hover: #0052a3;
-    --color-primary-light: #e6f2ff;
+    --color-primary: #6366f1;
+    --color-primary-hover: #4f46e5;
+    --color-primary-light: #eef2ff;
     --color-success: #10b981;
     --color-error: #ef4444;
     --color-warning: #f59e0b;
-    --color-background: #f8fafc;
+    --color-background: #fafbfc;
     --color-surface: #ffffff;
-    --color-text-primary: #1e293b;
-    --color-text-secondary: #64748b;
-    --color-text-muted: #94a3b8;
-    --color-border: #e2e8f0;
-    --color-border-hover: #cbd5e1;
-    --color-input-bg: #f1f5f9;
-    --color-input-border: #e2e8f0;
-    --color-input-focus: #0066cc;
+    --color-text-primary: #374151;
+    --color-text-secondary: #6b7280;
+    --color-text-muted: #9ca3af;
+    --color-border: #e5e7eb;
+    --color-border-hover: #d1d5db;
+    --color-input-bg: #f9fafb;
+    --color-input-border: #e5e7eb;
+    --color-input-focus: #6366f1;
+    --color-tooltip-bg: #2d3748;
+    --color-tooltip-text: #ffffff;
 }
 
 [data-theme="dark"] {
-    --color-primary: #3b82f6;
-    --color-primary-hover: #2563eb;
-    --color-primary-light: #1e3a8a;
-    --color-success: #10b981;
-    --color-error: #ef4444;
-    --color-warning: #f59e0b;
-    --color-background: #0f172a;
-    --color-surface: #1e293b;
-    --color-text-primary: #f1f5f9;
-    --color-text-secondary: #cbd5e1;
-    --color-text-muted: #64748b;
-    --color-border: #334155;
-    --color-border-hover: #475569;
-    --color-input-bg: #334155;
-    --color-input-border: #475569;
-    --color-input-focus: #3b82f6;
+    --color-primary: #818cf8;
+    --color-primary-hover: #6366f1;
+    --color-primary-light: #312e81;
+    --color-success: #34d399;
+    --color-error: #f87171;
+    --color-warning: #fbbf24;
+    --color-background: #111827;
+    --color-surface: #1f2937;
+    --color-text-primary: #f9fafb;
+    --color-text-secondary: #d1d5db;
+    --color-text-muted: #9ca3af;
+    --color-border: #374151;
+    --color-border-hover: #4b5563;
+    --color-input-bg: #1f2937;
+    --color-input-border: #374151;
+    --color-input-focus: #818cf8;
+    --color-tooltip-bg: #374151;
+    --color-tooltip-text: #ffffff;
 }
 
 [data-theme="dark"] .error-block {
-    background: #431c1c;
-    border-color: #991b1b;
+    background: #451a1a;
+    border-color: #b91c1c;
 }
 
 [data-theme="dark"] .success-message {
-    background: #14532d;
-    border-color: #166534;
+    background: #064e3b;
+    border-color: #047857;
 }
 
 /* ==================== Theme Toggle ==================== */
@@ -962,6 +1051,7 @@ button[type="submit"]:disabled {
 *:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
 /* reduced motion */

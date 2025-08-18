@@ -10,7 +10,16 @@
     
     <form hx-post="/generate-link" hx-swap="outerHTML" hx-target=".card" hx-boost="true">
         <div class="form-group">
-            <label for="message">Enter text for sharing</label>
+            <label for="message">
+                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+                    <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+                    <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
+                    <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
+                    <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                Enter text for sharing
+            </label>
             <textarea name="message" id="message" 
                       placeholder="Type or paste your confidential message here..."
                       required
@@ -23,7 +32,14 @@
 
         <div class="form-row two-cols">
             <div class="form-group">
-                <label for="pin">Create 5-digit PIN</label>
+                <label for="pin">
+                    <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    Create 5-digit PIN
+                </label>
                 <input type="text" 
                        name="pin"
                        id="pin"
@@ -49,7 +65,7 @@
                             <path d="M9.09 9C9.3251 8.33167 9.78915 7.76811 10.4 7.40913C11.0108 7.05016 11.7289 6.91894 12.4272 7.03871C13.1255 7.15849 13.7588 7.52152 14.2151 8.06353C14.6713 8.60553 14.9211 9.29152 14.92 10C14.92 12 11.92 13 11.92 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <path d="M12 17H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        <span class="tooltip-text">Maximum: {{.Form.MaxExp}}</span>
+                        <span class="tooltip-text">{{if .Form.MaxExp}}Maximum: {{.Form.MaxExp}}{{else}}Set expiration time for automatic deletion{{end}}</span>
                     </span>
                 </label>
                 <div class="expire-container">
@@ -77,6 +93,10 @@
         </div>
 
         <button type="submit" class="main-btn">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2"/>
+            </svg>
             Generate Secure Link
         </button>
     </form>
