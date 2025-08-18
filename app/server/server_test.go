@@ -381,7 +381,7 @@ func TestServer_Run(t *testing.T) {
 
 	// test that server can start and stop cleanly
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- srv.Run(ctx)
@@ -392,7 +392,7 @@ func TestServer_Run(t *testing.T) {
 
 	// cancel context to stop server
 	cancel()
-	
+
 	// wait for server to stop
 	select {
 	case err := <-errCh:

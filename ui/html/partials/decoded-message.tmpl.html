@@ -1,22 +1,23 @@
 {{define "decoded-message"}}
-<div id="msg" data-copy>
-    <div class="col-12">
-        <label for="msg-text">Message</label>
+<div id="msg" class="card" data-copy>
+    <div class="card-header">
+        <h2 class="card-title">🔓 Message Decrypted</h2>
+        <p class="card-description">This message will self-destruct immediately. Copy it now if needed.</p>
     </div>
-    <div class="msg-link-text col-12">
-        <textarea name="msg-text" id="msg-text" cols="30" rows="10" data-copy-text>{{.}}</textarea>
-    </div>
-
-    <div class="row justify-content-center">
-        <div class="main-btn-container col col-md-6">
-            <button type="button"
-                    class="main-btn"
-                    role="button"
-                    data-copy-btn>Copy message
-            </button>
-        </div>
+    
+    <div class="form-group">
+        <label for="msg-text">Your Secret Message</label>
+        <textarea name="msg-text" 
+                  id="msg-text" 
+                  readonly 
+                  data-copy-text>{{.}}</textarea>
     </div>
 
+    <button type="button"
+            class="main-btn"
+            data-copy-btn>
+        Copy Message
+    </button>
 </div>
 
 <script src='/static/js/copy-text.js'></script>

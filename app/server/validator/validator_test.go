@@ -1,9 +1,10 @@
 package validator
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestValidator_Valid(t *testing.T) {

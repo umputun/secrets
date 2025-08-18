@@ -5,15 +5,14 @@
 <div id="show-msg" class="show-msg">
     <div class="card load-msg-form">
         <div class="card-header">
-            <h2 class="card-title">Secure Message</h2>
-            <p class="card-description">Enter your PIN to decrypt and view the message</p>
+            <h2 class="card-title">Access Message</h2>
+            <p class="card-description">Enter your 5-digit PIN to decrypt and view the message</p>
         </div>
         
         <form hx-post="/load-message" hx-swap="outerHTML" hx-target=".card" id="load-msg-form">
             <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
 
             <div class="form-group">
-                <label for="pin">Enter 5-digit PIN</label>
                 <input type="text"
                        name="pin"
                        id="pin"
@@ -22,7 +21,7 @@
                        maxlength="5"
                        inputmode="numeric"
                        pattern="[0-9]{5}"
-                       placeholder="•••••"
+                       placeholder="12345"
                        title="PIN must be exactly 5 digits"
                        aria-label="5-digit PIN"
                        autofocus />

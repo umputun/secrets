@@ -1,10 +1,8 @@
 {{define "error"}}
-<div class="row justify-content-center">
-    <div class="error-block col-12">
-        <label class='error'>{{.}}</label>
+<div class="error-page">
+    <div class="error-card">
+        <div class="error-message">{{.}}</div>
+        <a class="main-btn-link" href="/">Back to the main page</a>
     </div>
-
-    <a class="second-btn col-md-6" href="/">Back to the main page</a>
 </div>
-
 {{end}}

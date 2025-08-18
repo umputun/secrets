@@ -56,7 +56,7 @@ body {
     background: var(--color-background);
     color: var(--color-text-primary);
     font-family: var(--font-sans);
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.6;
     min-width: 320px;
     -webkit-font-smoothing: antialiased;
@@ -71,12 +71,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
     letter-spacing: -0.025em;
 }
 
 p {
-    font-size: 1rem;
+    font-size: 1.1rem;
     line-height: 1.6;
     color: var(--color-text-secondary);
     margin: 0 0 var(--spacing-md) 0;
@@ -94,7 +94,7 @@ a:hover {
 
 label {
     display: block;
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--color-text-primary);
     margin-bottom: var(--spacing-xs);
@@ -107,8 +107,8 @@ input[type=number],
 input[type=password],
 select {
     width: 100%;
-    padding: 12px 16px;
-    font-size: 1rem;
+    padding: 14px 18px;
+    font-size: 1.1rem;
     font-family: var(--font-sans);
     background: var(--color-input-bg);
     color: var(--color-text-primary);
@@ -130,6 +130,7 @@ select:focus {
     background: var(--color-surface);
     border-color: var(--color-input-focus);
     box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    outline: none;
 }
 
 input::placeholder,
@@ -140,11 +141,12 @@ textarea::placeholder {
 /* pin input - single field */
 input.pin-input {
     font-family: var(--font-mono);
-    font-size: 1.5rem;
-    letter-spacing: 0.5em;
+    font-size: 1.1rem;
+    letter-spacing: 0.3em;
     text-align: center;
     font-weight: 600;
     max-width: 200px;
+    padding: 14px 18px;
 }
 
 /* number input */
@@ -177,8 +179,8 @@ button[type="submit"] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 12px 24px;
-    font-size: 1rem;
+    padding: 16px 24px;
+    font-size: 1.1rem;
     font-weight: 500;
     color: white;
     background: var(--color-primary);
@@ -186,7 +188,7 @@ button[type="submit"] {
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast);
-    min-height: 48px;
+    min-height: 52px;
     width: 100%;
 }
 
@@ -254,45 +256,59 @@ button[type="submit"]:disabled {
     box-shadow: var(--shadow-md);
 }
 
-/* ==================== Layout ==================== */
-.wrapper {
+/* ==================== App Layout ==================== */
+.app {
     min-height: 100vh;
     display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: var(--spacing-xl) var(--spacing-lg) var(--spacing-lg);
+}
+
+.app-container {
+    width: 100%;
+    max-width: 580px;
+    display: flex;
     flex-direction: column;
-    align-items: center;
+    gap: var(--spacing-xl);
 }
 
-header {
-    width: 100%;
-    padding: var(--spacing-2xl) 0 var(--spacing-xl);
-    background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
-    box-shadow: var(--shadow-sm);
-    position: relative;
-}
-
-.logo {
+.logo-title {
     text-align: center;
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md) 0;
 }
 
-.logo img {
-    height: 60px;
-    transition: transform var(--transition-base);
+.logo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    text-decoration: none;
+    color: var(--color-text-primary);
+    transition: opacity var(--transition-fast);
 }
 
-.logo img:hover {
-    transform: scale(1.05);
+.logo-link:hover {
+    opacity: 0.8;
+    color: var(--color-text-primary);
 }
 
-main {
+.logo-icon {
+    height: 28px;
+    width: auto;
+}
+
+.app-name {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+    position: relative;
+    display: inline-block;
+}
+
+.main-content {
     flex: 1;
-    width: 100%;
-    padding: var(--spacing-2xl) var(--spacing-lg);
-}
-
-.container {
-    max-width: 720px;
-    margin: 0 auto;
 }
 
 /* ==================== Cards ==================== */
@@ -309,14 +325,14 @@ main {
 }
 
 .card-title {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 600;
     color: var(--color-text-primary);
     margin-bottom: var(--spacing-xs);
 }
 
 .card-description {
-    font-size: 0.875rem;
+    font-size: 1rem;
     color: var(--color-text-secondary);
 }
 
@@ -324,6 +340,7 @@ main {
 .form-group {
     margin-bottom: var(--spacing-lg);
 }
+
 
 .form-row {
     display: grid;
@@ -355,9 +372,12 @@ main {
 /* ==================== Messages & Alerts ==================== */
 .error {
     color: var(--color-error);
-    font-size: 0.875rem;
+    font-size: 1.4rem;
+    font-weight: 600;
     margin-top: var(--spacing-xs);
     animation: fadeIn 0.3s ease;
+    text-align: center;
+    display: block;
 }
 
 .error-block {
@@ -393,15 +413,16 @@ main {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
-    background: var(--color-text-muted);
-    color: white;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: 600;
+    width: 16px;
+    height: 16px;
+    color: var(--color-text-muted);
     cursor: help;
     margin-left: var(--spacing-xs);
+    transition: color var(--transition-fast);
+}
+
+.tooltip:hover .tooltip-icon {
+    color: var(--color-primary);
 }
 
 .tooltip-text {
@@ -496,24 +517,34 @@ main {
     color: var(--color-text-secondary);
 }
 
-/* ==================== Footer ==================== */
-footer {
-    width: 100%;
-    padding: var(--spacing-xl) var(--spacing-lg);
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
+/* ==================== App Footer ==================== */
+.app-footer {
     text-align: center;
-    margin-top: auto;
+    padding-top: var(--spacing-lg);
+    margin-top: var(--spacing-xl);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
 }
 
-.footer-text {
-    font-size: 0.875rem;
-    color: var(--color-text-secondary);
+.footer-link {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+    font-weight: 400;
 }
 
-.footer-text a {
+.footer-link:hover {
     color: var(--color-primary);
-    font-weight: 500;
+}
+
+.separator {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    font-size: 0.8rem;
 }
 
 /* ==================== Popup/Modal ==================== */
@@ -523,8 +554,8 @@ footer {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
     z-index: 9999;
     display: flex;
     justify-content: center;
@@ -542,14 +573,16 @@ footer {
 .popup-content {
     background: var(--color-surface);
     border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
+    padding: var(--spacing-2xl);
     width: 90%;
-    max-width: 500px;
+    max-width: 420px;
     max-height: 80vh;
     overflow: auto;
     box-shadow: var(--shadow-xl);
-    transform: scale(0.9);
+    transform: scale(0.95);
     transition: transform var(--transition-base);
+    position: relative;
+    text-align: center;
 }
 
 .popup.active .popup-content {
@@ -558,32 +591,52 @@ footer {
 
 .popup-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-lg);
+    justify-content: flex-end;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-md);
+    position: absolute;
+    top: var(--spacing-lg);
+    right: var(--spacing-lg);
 }
 
 .popup-text {
-    font-size: 1rem;
-    line-height: 1.6;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    margin-top: var(--spacing-md);
+}
+
+.popup-text strong {
+    display: block;
+    font-size: 1.2rem;
+    margin-bottom: var(--spacing-sm);
     color: var(--color-text-primary);
 }
 
 .close-popup {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    background: var(--color-input-bg);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
+    opacity: 0.7;
 }
 
 .close-popup:hover {
-    background: var(--color-border);
+    background: var(--color-text-primary);
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.close-popup img {
+    width: 16px;
+    height: 16px;
+    filter: invert(1);
 }
 
 /* ==================== Specific Pages ==================== */
@@ -591,11 +644,51 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    min-height: 60vh;
 }
 
 .load-msg-form {
     width: 100%;
-    max-width: 400px;
+    max-width: 380px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.load-msg-form .card-header {
+    margin-bottom: var(--spacing-xl);
+    text-align: center;
+}
+
+.load-msg-form .card-title {
+    font-size: 1.8rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.load-msg-form .card-description {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.load-msg-form .form-group {
+    margin-bottom: var(--spacing-xl);
+}
+
+.load-msg-form .form-group label {
+    text-align: center;
+    margin-bottom: var(--spacing-md);
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.load-msg-form .pin-input {
+    margin: 0 auto;
+    display: block;
+    max-width: 240px;
+    text-align: center;
+    font-size: 1.2rem;
+    padding: 16px 20px;
+    letter-spacing: 0.2em;
 }
 
 .msg-link-text {
@@ -603,20 +696,50 @@ footer {
 }
 
 .decode-btn {
-    margin-top: var(--spacing-xl);
+    margin-top: var(--spacing-md);
+}
+
+.error-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding: var(--spacing-xl);
+}
+
+.error-card {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    text-align: center;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--spacing-3xl) var(--spacing-xl);
+}
+
+.error-message {
+    font-size: 1.4rem;
+    color: var(--color-error);
+    margin-bottom: var(--spacing-3xl);
+    line-height: 1.5;
+    font-weight: 600;
+    text-align: center;
 }
 
 /* ==================== Responsive ==================== */
 @media (max-width: 768px) {
-    :root {
-        --spacing-lg: 20px;
-        --spacing-xl: 28px;
-        --spacing-2xl: 40px;
-        --spacing-3xl: 48px;
+    .app {
+        padding: var(--spacing-lg) var(--spacing-md) var(--spacing-md);
     }
     
-    main {
-        padding: var(--spacing-lg) var(--spacing-md);
+    .app-container {
+        gap: var(--spacing-lg);
+    }
+    
+    body {
+        font-size: 17px;
     }
     
     .card {
@@ -631,16 +754,33 @@ footer {
         padding: var(--spacing-md);
     }
     
-    h1 {
-        font-size: 1.5rem;
+    .app-name {
+        font-size: 1.2rem;
+    }
+    
+    .card-title {
+        font-size: 1.3rem;
+    }
+    
+    .theme-toggle {
+        top: var(--spacing-md);
+        right: var(--spacing-md);
+        width: 38px;
+        height: 38px;
+        font-size: 1.1rem;
+    }
+    
+    .app-footer {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+    
+    .separator {
+        display: none;
     }
 }
 
 @media (max-width: 480px) {
-    .logo img {
-        height: 48px;
-    }
-    
     .popup-content {
         width: 95%;
         padding: var(--spacing-lg);
@@ -649,6 +789,14 @@ footer {
     input.pin-input {
         max-width: 160px;
         font-size: 1.25rem;
+    }
+    
+    .logo-icon {
+        height: 24px;
+    }
+    
+    .app-name {
+        font-size: 1.1rem;
     }
 }
 
@@ -765,24 +913,32 @@ footer {
     right: var(--spacing-lg);
     width: 48px;
     height: 48px;
-    border-radius: 50%;
+    border-radius: var(--radius-lg);
     background: var(--color-surface);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    color: var(--color-text-primary);
     transition: all var(--transition-fast);
     box-shadow: var(--shadow-md);
     z-index: 1000;
+    backdrop-filter: blur(10px);
+    padding: 0;
+}
+
+.theme-toggle svg {
+    display: block;
+    margin: auto;
 }
 
 .theme-toggle:hover {
     background: var(--color-primary);
     border-color: var(--color-primary);
     color: white;
-    transform: scale(1.1);
+    transform: scale(1.05);
+    box-shadow: var(--shadow-lg);
 }
 
 .theme-toggle:active {

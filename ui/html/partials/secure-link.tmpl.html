@@ -2,29 +2,29 @@
 
 {{define "secure-link"}}
 
-<div id="msg-link" class="container" data-copy>
-   <div class="row">
-       <div class="col-12">
-           <label for="msg-text">Copy this link to access your secret content</label>
-       </div>
+<div id="msg-link" class="card" data-copy>
+    <div class="card-header">
+        <h2 class="card-title">✓ Secure Link Generated</h2>
+        <p class="card-description">Your secret message has been encrypted. Share this link and PIN separately.</p>
+    </div>
+    
+    <div class="form-group">
+        <label for="msg-text">Copy this link to access your secret content</label>
+        <textarea name="msg-link-text" 
+                  id="msg-text" 
+                  readonly 
+                  data-copy-text>{{.}}</textarea>
+    </div>
 
-       <div class="msg-link-text col-12">
-           <textarea name="msg-link-text" id="msg-text" cols="30" rows="3" readonly data-copy-text>{{.}}</textarea>
-       </div>
-
-       <div class="col-12 col-md-6">
-           <button type="button"
-                   class="main-btn"
-                   id="copy-link-btn"
-                   data-copy-btn
-                   role="button">Copy Link
-           </button>
-       </div>
-       <div class="col-12 col-md-6">
-           <a class="second-btn" href="/">Create more secret content</a>
-       </div>
-   </div>
-
+    <div class="form-row two-cols">
+        <button type="button"
+                class="main-btn"
+                id="copy-link-btn"
+                data-copy-btn>
+            Copy Link
+        </button>
+        <a class="second-btn" href="/">Create Another</a>
+    </div>
 </div>
 
 <script src='/static/js/copy-text.js'></script>

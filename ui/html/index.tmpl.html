@@ -14,24 +14,30 @@
         <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Stick+No+Bills:wght@400;500;600&display=swap" rel="stylesheet">
     </head>
     <body>
-    <div class="wrapper">
+    <div class="app">
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-            <span id="theme-icon">🌙</span>
+            <svg id="theme-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 12.79C20.25 13.5 19.2 14 18 14C15.79 14 14 12.21 14 10C14 8.8 14.5 7.75 15.21 7C15.14 7 15.07 7 15 7C11.69 7 9 9.69 9 13S11.69 19 15 19S21 16.31 21 13C21 12.93 21 12.86 21 12.79Z" fill="currentColor"/>
+            </svg>
         </button>
         
-        <header>
-            <div class="logo">
-                <h1><a href='/'>
-                    <img src='/static/img/logo.svg' alt='SafeSecret.Info' />
-                </a></h1>
+        <div class="app-container">
+            <div class="logo-title">
+                <a href='/' class="logo-link">
+                    <span class="app-name">SafeSecret</span>
+                </a>
             </div>
-        </header>
 
-        <main class="container">
-            {{template "main" .}}
-        </main>
+            <main class="main-content">
+                {{template "main" .}}
+            </main>
 
-        {{template "footer" .}}
+            <div class="app-footer">
+                <a href="/about" class="footer-link">How it works</a>
+                <span class="separator">•</span>
+                <a href="https://github.com/umputun/secrets" class="footer-link">Source code</a>
+            </div>
+        </div>
     </div>
 
     <div id="popup" class="popup">

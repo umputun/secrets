@@ -66,14 +66,13 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, 8, len(cache))
+	assert.Equal(t, 7, len(cache))
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
 	assert.NotNil(t, cache["show-message.tmpl.html"])
 	assert.NotNil(t, cache["decoded-message.tmpl.html"])
 	assert.NotNil(t, cache["error.tmpl.html"])
-	assert.NotNil(t, cache["footer.tmpl.html"])
 	assert.NotNil(t, cache["secure-link.tmpl.html"])
 }
 
