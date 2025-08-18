@@ -3,37 +3,39 @@
 {{define "main"}}
 
 <div id="show-msg" class="show-msg">
-    <form hx-post="/load-message" hx-swap="outerHTML" hx-target="#show-msg" id="load-msg-form" class="load-msg-form">
-        <input type="hidden" name="key" id="key" value={{.Form.Key}} />
+    <div class="card load-msg-form">
+        <div class="card-header">
+            <h2 class="card-title">Secure Message</h2>
+            <p class="card-description">Enter your PIN to decrypt and view the message</p>
+        </div>
+        
+        <form hx-post="/load-message" hx-swap="outerHTML" hx-target=".card" id="load-msg-form">
+            <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
 
-        <div class="pin-container">
-            <label for="pin-0">Enter PIN to see content</label>
-            <div>
-                {{range $i := until .PinSize}}
-                <input type="password"
+            <div class="form-group">
+                <label for="pin">Enter 5-digit PIN</label>
+                <input type="text"
                        name="pin"
-                       id="pin-{{$i}}"
+                       id="pin"
+                       class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
                        required
-                       minlength=1
-                       maxlength=1
+                       maxlength="5"
                        inputmode="numeric"
-                       pattern="[0-9]+"
-                       title="PIN must be a digit"
-                       aria-label="PIN must be a digit"
-                       {{if $.Form.FieldErrors.pin }}class="error-input" {{end}} />
+                       pattern="[0-9]{5}"
+                       placeholder="•••••"
+                       title="PIN must be exactly 5 digits"
+                       aria-label="5-digit PIN"
+                       autofocus />
+                {{with .Form.FieldErrors.pin}}
+                <span class='error'>{{.}}</span>
                 {{end}}
             </div>
-
-            {{with .Form.FieldErrors.pin}}
-            <label class='error'>{{.}}</label>
-            {{end}}
-        </div>
-        <button class="main-btn decode-btn"
-                type="submit"
-                role="button">Decode message
-        </button>
-    </form>
-    <br/>
-
+            
+            <button class="main-btn"
+                    type="submit">
+                Decode Message
+            </button>
+        </form>
+    </div>
 </div>
 {{end}}

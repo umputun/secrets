@@ -24,10 +24,10 @@ import (
 
 // Config is a configuration for the server
 type Config struct {
-	Domain  string
-	WebRoot string
-	Protocol       string
-	// Validation parameters
+	Domain   string
+	WebRoot  string
+	Protocol string
+	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
