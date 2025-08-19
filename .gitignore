@@ -26,3 +26,4 @@ debug.test
 /app/secrets
 secrets
 coverage.out
+coverage.html
