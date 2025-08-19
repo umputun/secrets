@@ -66,7 +66,7 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, 7, len(cache))
+	assert.Equal(t, 9, len(cache))
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
@@ -74,6 +74,8 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 	assert.NotNil(t, cache["decoded-message.tmpl.html"])
 	assert.NotNil(t, cache["error.tmpl.html"])
 	assert.NotNil(t, cache["secure-link.tmpl.html"])
+	assert.NotNil(t, cache["popup.tmpl.html"])
+	assert.NotNil(t, cache["copy-button.tmpl.html"])
 }
 
 func TestServer_indexCtrl(t *testing.T) {
@@ -298,7 +300,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 			"expUnit": {"m"},
 			"pin":     {"12345"},
 		}
-		
+
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true") // HTMX request
@@ -306,9 +308,9 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 
 		srv.generateLinkCtrl(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code) // Should return 400 for HTMX
+		assert.Equal(t, http.StatusBadRequest, rr.Code)                 // Should return 400 for HTMX
 		assert.Contains(t, rr.Body.String(), "Create a Secure Message") // returns the form
-		assert.Contains(t, rr.Body.String(), "value=\"15\"") // with preserved values
+		assert.Contains(t, rr.Body.String(), "value=\"15\"")            // with preserved values
 	})
 
 	t.Run("regular request with validation error returns 200", func(t *testing.T) {
@@ -318,7 +320,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 			"expUnit": {"m"},
 			"pin":     {"12345"},
 		}
-		
+
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		// No HX-Request header
@@ -326,9 +328,9 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 
 		srv.generateLinkCtrl(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code) // Should return 200 for regular request
+		assert.Equal(t, http.StatusOK, rr.Code)                         // Should return 200 for regular request
 		assert.Contains(t, rr.Body.String(), "Create a Secure Message") // returns the form
-		assert.Contains(t, rr.Body.String(), "value=\"15\"") // with preserved values
+		assert.Contains(t, rr.Body.String(), "value=\"15\"")            // with preserved values
 	})
 
 	t.Run("htmx request with valid data returns partial", func(t *testing.T) {
@@ -338,7 +340,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 			"expUnit": {"m"},
 			"pin":     {"12345"},
 		}
-		
+
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("HX-Request", "true")
@@ -506,4 +508,3 @@ func TestServer_until(t *testing.T) {
 		})
 	}
 }
-

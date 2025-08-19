@@ -31,7 +31,44 @@
     <button type="button"
             class="main-btn"
             id="copy-msg-btn"
-            onclick="copyToClipboard('decoded-msg-text', 'copy-msg-btn', 'Message')">
+            hx-post="/copy-feedback"
+            hx-vals='{"type": "Message"}'
+            hx-target="#popup"
+            hx-swap="outerHTML"
+            hx-trigger="click"
+            hx-on::before-request="
+                const textarea = document.getElementById('decoded-msg-text');
+                navigator.clipboard.writeText(textarea.value).then(() => {
+                    this.innerHTML = `
+                        <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                            <polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/>
+                        </svg>
+                        <span class='btn-text'>Copied!</span>
+                    `;
+                    this.style.background = 'var(--color-success)';
+                }).catch(() => {
+                    this.innerHTML = `
+                        <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                            <line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/>
+                            <line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/>
+                        </svg>
+                        <span class='btn-text'>Error!</span>
+                    `;
+                    this.style.background = 'var(--color-error)';
+                });
+            "
+            hx-on::after-settle="
+                setTimeout(() => {
+                    this.innerHTML = `
+                        <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                            <rect x='9' y='9' width='13' height='13' rx='2' ry='2' stroke='currentColor' stroke-width='2'/>
+                            <path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' stroke='currentColor' stroke-width='2'/>
+                        </svg>
+                        Copy Message
+                    `;
+                    this.style.background = '';
+                }, 2000);
+            ">
         <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/>
@@ -39,55 +76,4 @@
         Copy Message
     </button>
 </div>
-
-<script>
-// reuse the copyToClipboard function if not already defined
-if (typeof copyToClipboard === 'undefined') {
-    function copyToClipboard(textId, btnId, type) {
-        const textarea = document.getElementById(textId);
-        const button = document.getElementById(btnId);
-        const originalHTML = button.innerHTML;
-        
-        navigator.clipboard.writeText(textarea.value).then(() => {
-            // success feedback
-            button.innerHTML = `
-                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <polyline points="20,6 9,17 4,12" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                <span class="btn-text">Copied!</span>
-            `;
-            button.style.background = 'var(--color-success)';
-            
-            // show notification
-            const popup = document.getElementById("popup");
-            const popupText = popup.querySelector(".popup-text");
-            popup.style.opacity = 1;
-            popup.style.visibility = "visible";
-            popupText.innerHTML = `<strong>${type} copied!</strong>`;
-            
-            // reset after 2 seconds
-            setTimeout(() => {
-                button.innerHTML = originalHTML;
-                button.style.background = '';
-                window.closePopup();
-            }, 2000);
-        }).catch(err => {
-            // error feedback
-            button.innerHTML = `
-                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2"/>
-                    <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                <span class="btn-text">Error!</span>
-            `;
-            button.style.background = 'var(--color-error)';
-            
-            setTimeout(() => {
-                button.innerHTML = originalHTML;
-                button.style.background = '';
-            }, 2000);
-        });
-    }
-}
-</script>
 {{end}}

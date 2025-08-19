@@ -130,6 +130,8 @@ func (s Server) routes() chi.Router {
 		r.Get("/message/{key}", s.showMessageViewCtrl)
 		r.Post("/load-message", s.loadMessageCtrl)
 		r.Post("/theme", s.themeToggleCtrl)
+		r.Post("/copy-feedback", s.copyFeedbackCtrl)
+		r.Get("/close-popup", s.closePopupCtrl)
 		r.Get("/about", s.aboutViewCtrl)
 		r.Get("/", s.indexCtrl)
 	})

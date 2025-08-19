@@ -57,22 +57,24 @@
         </div>
     </div>
 
-    <div id="popup" class="popup">
-        <div class="popup-content">
-            <div class="popup-header">
-                <div></div>
-                <button id="close-popup" class="close-popup" data-close-popup>
-                    <img src="/static/img/close.svg" alt="close" />
-                </button>
-            </div>
-            <div class="popup-text">
-            </div>
-        </div>
-    </div>
+    <div id="popup" class="popup"></div>
 
     <script src="https://unpkg.com/htmx.org@2.0.3" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/htmx-ext-response-targets@2.0.1/response-targets.js"></script>
-    <script src='/static/js/main.js'></script>
+    <script>
+        // handle popup events  
+        document.body.addEventListener('closePopup', function(evt) {
+            htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
+        });
+        
+        // handle backdrop clicks on popup
+        document.body.addEventListener('click', function(evt) {
+            const popup = evt.target.closest('#popup');
+            if (popup && evt.target === popup) {
+                htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
+            }
+        });
+    </script>
     </body>
     </html>
 {{end}}

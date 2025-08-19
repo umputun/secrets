@@ -1,0 +1,22 @@
+{{define "popup"}}
+<div id="popup" class="popup active">
+    <div class="popup-content">
+        <div class="popup-header">
+            <div></div>
+            <button hx-get="/close-popup" 
+                    hx-target="#popup" 
+                    hx-swap="outerHTML"
+                    class="close-popup">
+                <img src="/static/img/close.svg" alt="close" />
+            </button>
+        </div>
+        <div class="popup-text">
+            {{.}}
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "popup-closed"}}
+<div id="popup" class="popup"></div>
+{{end}}

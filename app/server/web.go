@@ -69,7 +69,7 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 	if tmplName == "" {
 		tmplName = baseTmpl
 	}
-	
+
 	err := ts.ExecuteTemplate(buf, tmplName, data)
 	if err != nil {
 		log.Printf("[ERROR] %v", err)
@@ -320,7 +320,7 @@ func getTheme(r *http.Request) string {
 // POST /theme
 func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 	currentTheme := getTheme(r)
-	
+
 	// cycle through themes: light -> dark -> auto -> light
 	nextTheme := "light"
 	switch currentTheme {
@@ -331,22 +331,55 @@ func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 	case "auto":
 		nextTheme = "light"
 	}
-	
+
 	// set cookie (client-side storage)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "theme",
 		Value:    nextTheme,
 		Path:     "/",
 		MaxAge:   365 * 24 * 60 * 60, // 1 year
-		HttpOnly: false, // allow JS access for immediate UI update if needed
+		HttpOnly: false,              // allow JS access for immediate UI update if needed
 		SameSite: http.SameSiteLaxMode,
 	})
-	
+
 	// trigger full page refresh to apply new theme
 	w.Header().Set("HX-Refresh", "true")
 	w.WriteHeader(http.StatusOK)
 }
 
+// copyFeedbackCtrl shows copy feedback popup
+// POST /copy-feedback
+func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		s.render(w, http.StatusOK, "popup-closed", "popup-closed", nil)
+		return
+	}
+
+	copyType := r.PostForm.Get("type")
+	// sanitize copyType to prevent XSS
+	if copyType != "Link" && copyType != "Message" {
+		copyType = "Content"
+	}
+
+	message := fmt.Sprintf("<strong>%s copied!</strong>", copyType)
+	if copyType == "Link" {
+		message += "<br/>Share this link to access your secret content"
+	}
+
+	// render popup with message and auto-close after 2 seconds
+	// template.HTML is safe here as we control and sanitize the content
+	s.render(w, http.StatusOK, "popup.tmpl.html", "popup", template.HTML(message)) //nolint:gosec // content is sanitized
+
+	// trigger auto-close after 2 seconds using HX-Trigger header
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "2s"}`)
+}
+
+// closePopupCtrl closes the popup
+// GET /close-popup
+func (s Server) closePopupCtrl(w http.ResponseWriter, _ *http.Request) {
+	s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
+}
 
 // newTemplateCache creates a template cache as a map
 func newTemplateCache() (map[string]*template.Template, error) {
