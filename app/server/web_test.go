@@ -66,15 +66,16 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, 8, len(cache))
+	assert.Equal(t, 9, len(cache))
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
 	assert.NotNil(t, cache["show-message.tmpl.html"])
 	assert.NotNil(t, cache["decoded-message.tmpl.html"])
 	assert.NotNil(t, cache["error.tmpl.html"])
-	assert.NotNil(t, cache["footer.tmpl.html"])
 	assert.NotNil(t, cache["secure-link.tmpl.html"])
+	assert.NotNil(t, cache["popup.tmpl.html"])
+	assert.NotNil(t, cache["copy-button.tmpl.html"])
 }
 
 func TestServer_indexCtrl(t *testing.T) {
@@ -98,7 +99,7 @@ func TestServer_indexCtrl(t *testing.T) {
 	srv.indexCtrl(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "SafeSecret")
+	assert.Contains(t, rr.Body.String(), "Safe Secrets")
 	assert.Contains(t, rr.Body.String(), "Generate Secure Link")
 }
 
@@ -152,7 +153,6 @@ func TestServer_showMessageViewCtrl(t *testing.T) {
 	srv.showMessageViewCtrl(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Header().Get("HX-Trigger-After-Swap"), "setUpPinInputListeners")
 	assert.Contains(t, rr.Body.String(), "testkey123")
 }
 
@@ -203,7 +203,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				// form validation error will be shown in the form, look for the error class/input
-				assert.Contains(t, body, "value=15") // verify it returns the form
+				assert.Contains(t, body, "value=\"15\"") // verify it returns the form
 			},
 		},
 		{
@@ -274,6 +274,85 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Protocol:       "https",
+			Domain:         "example.com",
+		})
+	require.NoError(t, err)
+
+	t.Run("htmx request with validation error returns 400", func(t *testing.T) {
+		formData := url.Values{
+			"message": {""},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"12345"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true") // HTMX request
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)                 // Should return 400 for HTMX
+		assert.Contains(t, rr.Body.String(), "Create a Secure Message") // returns the form
+		assert.Contains(t, rr.Body.String(), "value=\"15\"")            // with preserved values
+	})
+
+	t.Run("regular request with validation error returns 200", func(t *testing.T) {
+		formData := url.Values{
+			"message": {""},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"12345"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		// No HX-Request header
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)                         // Should return 200 for regular request
+		assert.Contains(t, rr.Body.String(), "Create a Secure Message") // returns the form
+		assert.Contains(t, rr.Body.String(), "value=\"15\"")            // with preserved values
+	})
+
+	t.Run("htmx request with valid data returns partial", func(t *testing.T) {
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"12345"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Secure Link Generated")
+		assert.Contains(t, rr.Body.String(), "https://example.com/message/")
+		assert.Contains(t, rr.Body.String(), "id=\"msg-link\"") // verify it's the partial template
+	})
 }
 
 func TestServer_loadMessageCtrl(t *testing.T) {
@@ -387,7 +466,7 @@ func TestServer_render(t *testing.T) {
 		srv.render(rr, http.StatusOK, "home.tmpl.html", baseTmpl, data)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "SafeSecret")
+		assert.Contains(t, rr.Body.String(), "Safe Secrets")
 	})
 
 	t.Run("non-existing template", func(t *testing.T) {
@@ -398,7 +477,6 @@ func TestServer_render(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "Internal Server Error")
 	})
 
-
 	t.Run("empty template name defaults to base", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		data := templateData{
@@ -408,7 +486,7 @@ func TestServer_render(t *testing.T) {
 		srv.render(rr, http.StatusOK, "home.tmpl.html", "", data)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "SafeSecret")
+		assert.Contains(t, rr.Body.String(), "Safe Secrets")
 	})
 }
 

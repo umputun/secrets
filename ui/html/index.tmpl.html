@@ -1,51 +1,79 @@
 {{define "base"}}
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" {{if ne .Theme "auto"}}data-theme="{{.Theme}}"{{end}}>
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <title>{{template "title" .}} - SafeSecret.Info</title>
-        <link rel='stylesheet' href='/static/css/bootstrap-grid.css'>
+        <title>{{template "title" .}} - Safe Secrets</title>
         <link rel='stylesheet' href='/static/css/main.css'>
         <link rel='shortcut icon' href='/static/img/favicon.ico' type='image/x-icon'>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Stick+No+Bills:wght@400;500;600&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     </head>
-    <body>
-    <div class="wrapper">
-        <header>
-            <div class="logo">
-                <h1><a href='/'>
-                    <img src='/static/img/logo.svg' alt='SafeSecret.Info' />
-                </a></h1>
+    <body hx-boost="true" hx-ext="response-targets">
+    <div id="notifications" class="toast-container"></div>
+    <div class="app">
+        <button hx-post="/theme" 
+                hx-trigger="click"
+                id="theme-toggle" 
+                class="theme-toggle" 
+                aria-label="Toggle theme">
+            <svg id="theme-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {{if eq .Theme "auto"}}
+                <!-- auto mode icon -->
+                <rect x="5" y="6" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                <path d="M9 19h6M12 16v3" stroke="currentColor" stroke-width="2"/>
+                {{else if eq .Theme "dark"}}
+                <!-- sun icon (shown in dark mode, click to go light) -->
+                <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M17.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                {{else}}
+                <!-- moon icon (shown in light mode, click to go dark) -->
+                <path d="M20 11.5C19.25 12.3 18.2 12.9 17 12.9C14.5 12.9 12.5 10.9 12.5 8.4C12.5 7.2 13 6.15 13.8 5.4C13.7 5.4 13.6 5.4 13.5 5.4C9.9 5.4 7 8.3 7 11.9S9.9 18.4 13.5 18.4S20 15.5 20 11.9C20 11.8 20 11.65 20 11.5Z" fill="currentColor" transform="translate(-1, 0)"/>
+                {{end}}
+            </svg>
+        </button>
+        
+        <div class="app-container">
+            <div class="logo-title">
+                <a href='/' class="logo-link">
+                    <span class="app-name">Safe Secrets</span>
+                </a>
             </div>
-        </header>
 
-        <main class="container">
-            {{template "main" .}}
-        </main>
+            <main class="main-content">
+                {{template "main" .}}
+            </main>
 
-        {{template "footer" .}}
-    </div>
-
-    <div id="popup" class="popup">
-        <div class="popup-content">
-            <div class="popup-header">
-                <div></div>
-                <button id="close-popup" class="close-popup" data-close-popup>
-                    <img src="/static/img/close.svg" alt="close" />
-                </button>
-            </div>
-            <div class="popup-text">
+            <div class="app-footer">
+                <a href="/about" class="footer-link">How it works</a>
+                <span class="separator">•</span>
+                <a href="https://github.com/umputun/secrets" class="footer-link">Source code</a>
+                <span class="separator">•</span>
+                <span class="copyright">© Umputun, {{.CurrentYear}}</span>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/htmx.org@1.9.4" integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV" crossorigin="anonymous"></script>
-    <script src='/static/js/main.js'></script>
-    <script src="/static/js/pin.js"></script>
+    <div id="popup" class="popup"></div>
+
+    <script src="https://unpkg.com/htmx.org@2.0.3" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx-ext-response-targets@2.0.1/response-targets.js"></script>
+    <script>
+        // handle popup events  
+        document.body.addEventListener('closePopup', function(evt) {
+            htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
+        });
+        
+        // handle backdrop clicks on popup
+        document.body.addEventListener('click', function(evt) {
+            const popup = evt.target.closest('#popup');
+            if (popup && evt.target === popup) {
+                htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
+            }
+        });
+    </script>
     </body>
     </html>
 {{end}}

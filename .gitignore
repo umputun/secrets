@@ -21,3 +21,9 @@ debug.test
 *.prof
 *.test
 /var
+
+# Build artifacts
+/app/secrets
+secrets
+coverage.out
+coverage.html

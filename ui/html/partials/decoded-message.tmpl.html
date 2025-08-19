@@ -1,23 +1,79 @@
 {{define "decoded-message"}}
-<div id="msg" data-copy>
-    <div class="col-12">
-        <label for="msg-text">Message</label>
+<div id="msg" class="card">
+    <div class="card-header">
+        <h2 class="card-title card-title-with-icon">
+            <svg class="title-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="11" width="18" height="10" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            Message Decrypted
+        </h2>
+        <p class="card-description">This message will self-destruct immediately. Copy it now if needed.</p>
     </div>
-    <div class="msg-link-text col-12">
-        <textarea name="msg-text" id="msg-text" cols="30" rows="10" data-copy-text>{{.}}</textarea>
+    
+    <div class="form-group">
+        <label for="decoded-msg-text">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+                <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
+                <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
+                <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            Your Secret Message
+        </label>
+        <textarea name="msg-text" 
+                  id="decoded-msg-text" 
+                  readonly>{{.}}</textarea>
     </div>
 
-    <div class="row justify-content-center">
-        <div class="main-btn-container col col-md-6">
-            <button type="button"
-                    class="main-btn"
-                    role="button"
-                    data-copy-btn>Copy message
-            </button>
-        </div>
-    </div>
-
+    <button type="button"
+            class="main-btn"
+            id="copy-msg-btn"
+            hx-post="/copy-feedback"
+            hx-vals='{"type": "Message"}'
+            hx-target="#popup"
+            hx-swap="outerHTML"
+            hx-trigger="click"
+            hx-on::before-request="
+                const textarea = document.getElementById('decoded-msg-text');
+                navigator.clipboard.writeText(textarea.value).then(() => {
+                    this.innerHTML = `
+                        <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                            <polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/>
+                        </svg>
+                        <span class='btn-text'>Copied!</span>
+                    `;
+                    this.style.background = 'var(--color-success)';
+                }).catch(() => {
+                    this.innerHTML = `
+                        <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                            <line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/>
+                            <line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/>
+                        </svg>
+                        <span class='btn-text'>Error!</span>
+                    `;
+                    this.style.background = 'var(--color-error)';
+                });
+            "
+            hx-on::after-settle="
+                setTimeout(() => {
+                    this.innerHTML = `
+                        <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                            <rect x='9' y='9' width='13' height='13' rx='2' ry='2' stroke='currentColor' stroke-width='2'/>
+                            <path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' stroke='currentColor' stroke-width='2'/>
+                        </svg>
+                        Copy Message
+                    `;
+                    this.style.background = '';
+                }, 2000);
+            ">
+        <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Copy Message
+    </button>
 </div>
-
-<script src='/static/js/copy-text.js'></script>
 {{end}}

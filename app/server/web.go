@@ -48,8 +48,10 @@ type showMsgForm struct {
 }
 
 type templateData struct {
-	Form    any
-	PinSize int
+	Form        any
+	PinSize     int
+	CurrentYear int
+	Theme       string
 }
 
 // render renders a template
@@ -67,6 +69,7 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 	if tmplName == "" {
 		tmplName = baseTmpl
 	}
+
 	err := ts.ExecuteTemplate(buf, tmplName, data)
 	if err != nil {
 		log.Printf("[ERROR] %v", err)
@@ -91,7 +94,9 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 			Exp:    15,
 			MaxExp: humanDuration(s.cfg.MaxExpire),
 		},
-		PinSize: s.cfg.PinSize,
+		PinSize:     s.cfg.PinSize,
+		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
 	}
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
@@ -142,14 +147,18 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if !form.Valid() {
 		data := templateData{
-			Form:    form,
-			PinSize: s.cfg.PinSize,
+			Form:        form,
+			PinSize:     s.cfg.PinSize,
+			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
 		}
 
-		// attach event listeners to pin inputs
-		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
-
-		s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		// return 400 for htmx to handle with hx-target-400
+		if r.Header.Get("HX-Request") == "true" {
+			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+		} else {
+			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		}
 		return
 	}
 
@@ -175,10 +184,10 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 		Form: showMsgForm{
 			Key: key,
 		},
-		PinSize: s.cfg.PinSize,
+		PinSize:     s.cfg.PinSize,
+		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
 	}
-
-	w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
@@ -186,7 +195,11 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 // renders the about page
 // GET /about
 func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
-	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, nil)
+	data := templateData{
+		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
+	}
+	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
 
 // renders the decoded message page
@@ -215,12 +228,11 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if !form.Valid() {
 		data := templateData{
-			Form:    form,
-			PinSize: s.cfg.PinSize,
+			Form:        form,
+			PinSize:     s.cfg.PinSize,
+			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
 		}
-
-		// attach event listeners to pin inputs
-		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
 
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
 		return
@@ -229,20 +241,31 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
 	if err != nil {
 		if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
-			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+			// message not found or expired - return 404
+			status := http.StatusNotFound
+			if r.Header.Get("HX-Request") == "true" {
+				s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
+			} else {
+				s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+			}
 			return
 		}
+		// wrong PIN - add error to form
 		log.Printf("[WARN] can't load message %v", err)
 		form.AddFieldError("pin", err.Error())
 
 		data := templateData{
-			Form:    form,
-			PinSize: s.cfg.PinSize,
+			Form:        form,
+			PinSize:     s.cfg.PinSize,
+			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
 		}
-		// attach event listeners to pin inputs
-		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
-
-		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
+		// for HTMX requests, return 403 for wrong PIN
+		status := http.StatusOK
+		if r.Header.Get("HX-Request") == "true" {
+			status = http.StatusForbidden
+		}
+		s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
 
 		return
 	}
@@ -276,6 +299,87 @@ func humanDuration(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%d days", d/(time.Hour*24))
 	}
+}
+
+// getTheme gets the theme from cookie or returns "auto" as default
+func getTheme(r *http.Request) string {
+	cookie, err := r.Cookie("theme")
+	if err != nil {
+		return "auto" // default theme
+	}
+	// validate theme value
+	switch cookie.Value {
+	case "light", "dark", "auto":
+		return cookie.Value
+	default:
+		return "auto"
+	}
+}
+
+// themeToggleCtrl handles theme switching
+// POST /theme
+func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
+	currentTheme := getTheme(r)
+
+	// cycle through themes: light -> dark -> auto -> light
+	nextTheme := "light"
+	switch currentTheme {
+	case "light":
+		nextTheme = "dark"
+	case "dark":
+		nextTheme = "auto"
+	case "auto":
+		nextTheme = "light"
+	}
+
+	// set cookie (client-side storage)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "theme",
+		Value:    nextTheme,
+		Path:     "/",
+		MaxAge:   365 * 24 * 60 * 60, // 1 year
+		HttpOnly: false,              // allow JS access for immediate UI update if needed
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// trigger full page refresh to apply new theme
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
+}
+
+// copyFeedbackCtrl shows copy feedback popup
+// POST /copy-feedback
+func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		s.render(w, http.StatusOK, "popup-closed", "popup-closed", nil)
+		return
+	}
+
+	copyType := r.PostForm.Get("type")
+	// sanitize copyType to prevent XSS
+	if copyType != "Link" && copyType != "Message" {
+		copyType = "Content"
+	}
+
+	// pass structured data to template for safe rendering
+	data := struct {
+		CopyType string
+	}{
+		CopyType: copyType,
+	}
+
+	// render popup with message and auto-close after 2 seconds
+	s.render(w, http.StatusOK, "popup.tmpl.html", "popup", data)
+
+	// trigger auto-close after 2 seconds using HX-Trigger header
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "2s"}`)
+}
+
+// closePopupCtrl closes the popup
+// GET /close-popup
+func (s Server) closePopupCtrl(w http.ResponseWriter, _ *http.Request) {
+	s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
 }
 
 // newTemplateCache creates a template cache as a map

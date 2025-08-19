@@ -3,37 +3,53 @@
 {{define "main"}}
 
 <div id="show-msg" class="show-msg">
-    <form hx-post="/load-message" hx-swap="outerHTML" hx-target="#show-msg" id="load-msg-form" class="load-msg-form">
-        <input type="hidden" name="key" id="key" value={{.Form.Key}} />
-
-        <div class="pin-container">
-            <label for="pin-0">Enter PIN to see content</label>
-            <div>
-                {{range $i := until .PinSize}}
-                <input type="password"
-                       name="pin"
-                       id="pin-{{$i}}"
-                       required
-                       minlength=1
-                       maxlength=1
-                       inputmode="numeric"
-                       pattern="[0-9]+"
-                       title="PIN must be a digit"
-                       aria-label="PIN must be a digit"
-                       {{if $.Form.FieldErrors.pin }}class="error-input" {{end}} />
-                {{end}}
-            </div>
-
-            {{with .Form.FieldErrors.pin}}
-            <label class='error'>{{.}}</label>
-            {{end}}
+  <div id="message-container">
+    <div class="card load-msg-form">
+        <div class="card-header">
+            <h2 class="card-title">Access Message</h2>
+            <p class="card-description">Enter your 5-digit PIN to decrypt and view the message</p>
         </div>
-        <button class="main-btn decode-btn"
-                type="submit"
-                role="button">Decode message
-        </button>
-    </form>
-    <br/>
+        
+        <form hx-post="/load-message" 
+              hx-target="#message-container" 
+              hx-swap="innerHTML"
+              hx-indicator="#decrypt-spinner"
+              hx-target-404="#message-container"
+              hx-target-403="#message-container"
+              id="load-msg-form">
+            <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
 
+            <div class="form-group">
+                <input type="text"
+                       name="pin"
+                       id="pin"
+                       class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
+                       required
+                       maxlength="5"
+                       inputmode="numeric"
+                       pattern="[0-9]{5}"
+                       placeholder="12345"
+                       title="PIN must be exactly 5 digits"
+                       aria-label="5-digit PIN"
+                       autofocus />
+                <div id="pin-error">
+                    {{with .Form.FieldErrors.pin}}
+                    <span class='error'>{{.}}</span>
+                    {{end}}
+                </div>
+            </div>
+            
+            <button class="main-btn" type="submit">
+                <span class="htmx-indicator" id="decrypt-spinner">
+                    <svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    Decrypting...
+                </span>
+                <span class="button-text">Decode Message</span>
+            </button>
+        </form>
+    </div>
+  </div>
 </div>
 {{end}}

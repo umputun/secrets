@@ -4,7 +4,9 @@ package server
 import (
 	"context"
 	"html/template"
+	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,14 +22,15 @@ import (
 
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/ui"
 )
 
 // Config is a configuration for the server
 type Config struct {
-	Domain  string
-	WebRoot string
-	Protocol       string
-	// Validation parameters
+	Domain   string
+	WebRoot  string
+	Protocol string
+	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
@@ -117,7 +120,10 @@ func (s Server) routes() chi.Router {
 			return
 		}
 
-		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, "not found")
+		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, templateData{
+			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
+		})
 	})
 
 	router.Group(func(r chi.Router) {
@@ -126,16 +132,29 @@ func (s Server) routes() chi.Router {
 		r.Post("/generate-link", s.generateLinkCtrl)
 		r.Get("/message/{key}", s.showMessageViewCtrl)
 		r.Post("/load-message", s.loadMessageCtrl)
+		r.Post("/theme", s.themeToggleCtrl)
+		r.Post("/copy-feedback", s.copyFeedbackCtrl)
+		r.Get("/close-popup", s.closePopupCtrl)
 		r.Get("/about", s.aboutViewCtrl)
 		r.Get("/", s.indexCtrl)
 	})
 
-	fs, err := um.NewFileServer("/static", s.cfg.WebRoot)
-	if err != nil {
-		log.Fatalf("[ERROR] can't create file server %v", err)
+	// use embedded files if WebRoot doesn't exist
+	if _, err := os.Stat(s.cfg.WebRoot); os.IsNotExist(err) || s.cfg.WebRoot == "" {
+		// use embedded file system
+		staticFS, err := fs.Sub(ui.Files, "static")
+		if err != nil {
+			log.Fatalf("[ERROR] can't create embedded file server %v", err)
+		}
+		router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	} else {
+		// use local file system
+		fileServer, err := um.NewFileServer("/static", s.cfg.WebRoot)
+		if err != nil {
+			log.Fatalf("[ERROR] can't create file server %v", err)
+		}
+		router.Handle("/static/*", fileServer)
 	}
-
-	router.Handle("/static/*", fs)
 
 	return router
 }

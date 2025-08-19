@@ -381,7 +381,7 @@ func TestServer_Run(t *testing.T) {
 
 	// test that server can start and stop cleanly
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- srv.Run(ctx)
@@ -392,7 +392,7 @@ func TestServer_Run(t *testing.T) {
 
 	// cancel context to stop server
 	cancel()
-	
+
 	// wait for server to stop
 	select {
 	case err := <-errCh:
@@ -400,6 +400,225 @@ func TestServer_Run(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("server didn't stop in time")
 	}
+}
+
+func TestServer_EmbeddedFiles(t *testing.T) {
+	// test with non-existent WebRoot to trigger embedded files usage
+	eng := store.NewInMemory(time.Second * 5)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		WebRoot:        "/non/existent/path", // non-existent path to trigger embedded files
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	router := srv.routes()
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	// test that static files are served from embedded FS
+	resp, err := http.Get(ts.URL + "/static/css/main.css")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("Content-Type"), "text/css")
+}
+
+func TestServer_LocalFiles(t *testing.T) {
+	// test with valid WebRoot
+	tmpDir, err := os.MkdirTemp("", "secrets-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// create a test css file
+	cssDir := tmpDir + "/css"
+	err = os.MkdirAll(cssDir, 0o750)
+	require.NoError(t, err)
+	err = os.WriteFile(cssDir+"/test.css", []byte("body { color: red; }"), 0o600)
+	require.NoError(t, err)
+
+	eng := store.NewInMemory(time.Second * 5)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		WebRoot:        tmpDir,
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	router := srv.routes()
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	// test that static files are served from local FS
+	resp, err := http.Get(ts.URL + "/static/css/test.css")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "body { color: red; }", string(body))
+}
+
+func TestServer_ThemeToggle(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 5)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		WebRoot:        "",
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	router := srv.routes()
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	client := &http.Client{}
+	
+	// test theme toggle from auto (default) to light
+	req, err := http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "auto"})
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "true", resp.Header.Get("HX-Refresh"))
+	// verify cookie was set to light
+	cookies := resp.Cookies()
+	require.Len(t, cookies, 1)
+	assert.Equal(t, "theme", cookies[0].Name)
+	assert.Equal(t, "light", cookies[0].Value)
+	
+	// test theme toggle from light to dark  
+	req, err = http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "light"})
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	// verify cookie was set to dark
+	cookies = resp.Cookies()
+	require.Len(t, cookies, 1)
+	assert.Equal(t, "dark", cookies[0].Value)
+	
+	// test theme toggle from dark to auto
+	req, err = http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	// verify cookie was set to auto
+	cookies = resp.Cookies()
+	require.Len(t, cookies, 1)
+	assert.Equal(t, "auto", cookies[0].Value)
+}
+
+func TestServer_ClosePopup(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 5)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		WebRoot:        "",
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	router := srv.routes()
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	// test close popup
+	resp, err := http.Get(ts.URL + "/close-popup")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	
+	assert.Equal(t, 200, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "\n<div id=\"popup\" class=\"popup\"></div>\n", string(body))
+}
+
+func TestServer_CopyFeedback(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 5)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		WebRoot:        "",
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+	})
+	require.NoError(t, err)
+
+	router := srv.routes()
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	// test copy feedback for Link type
+	req, err := http.NewRequest("POST", ts.URL+"/copy-feedback", strings.NewReader("type=Link"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	
+	assert.Equal(t, 200, resp.StatusCode)
+	// header is set after render, so we can't check it here
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "<strong>Link copied!</strong>")
+	assert.Contains(t, string(body), "Share this link to access your secret content")
+	
+	// test copy feedback for Message type
+	req, err = http.NewRequest("POST", ts.URL+"/copy-feedback", strings.NewReader("type=Message"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	
+	assert.Equal(t, 200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "<strong>Message copied!</strong>")
+	assert.NotContains(t, string(body), "Share this link")
+	
+	// test copy feedback with invalid type (should default to Content)
+	req, err = http.NewRequest("POST", ts.URL+"/copy-feedback", strings.NewReader("type=Invalid"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	
+	assert.Equal(t, 200, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "<strong>Content copied!</strong>")
 }
 
 func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {

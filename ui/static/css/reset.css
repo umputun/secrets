@@ -17,7 +17,7 @@ ul, ol, li {
 html,
 body {
     height: 100%;
-    line-height: 100%;
+    line-height: 1.5;
     font-size: 16px;
     color: #000;
 }
@@ -33,11 +33,4 @@ input, button, textarea, select {
 h1, h2, h3, h4, h5, h6 {
     font-weight: inherit;
     font-size: inherit;
-}
-
-.wrapper {
-    min-height: 100%;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
 }
