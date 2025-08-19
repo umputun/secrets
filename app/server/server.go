@@ -117,7 +117,10 @@ func (s Server) routes() chi.Router {
 			return
 		}
 
-		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, templateData{CurrentYear: time.Now().Year()})
+		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, templateData{
+			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
+		})
 	})
 
 	router.Group(func(r chi.Router) {
@@ -126,6 +129,7 @@ func (s Server) routes() chi.Router {
 		r.Post("/generate-link", s.generateLinkCtrl)
 		r.Get("/message/{key}", s.showMessageViewCtrl)
 		r.Post("/load-message", s.loadMessageCtrl)
+		r.Post("/theme", s.themeToggleCtrl)
 		r.Get("/about", s.aboutViewCtrl)
 		r.Get("/", s.indexCtrl)
 	})

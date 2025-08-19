@@ -51,6 +51,7 @@ type templateData struct {
 	Form        any
 	PinSize     int
 	CurrentYear int
+	Theme       string
 }
 
 // render renders a template
@@ -95,6 +96,7 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 		},
 		PinSize:     s.cfg.PinSize,
 		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
 	}
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
@@ -148,6 +150,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 			Form:        form,
 			PinSize:     s.cfg.PinSize,
 			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
 		}
 
 		// return 400 for htmx to handle with hx-target-400
@@ -183,6 +186,7 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 		},
 		PinSize:     s.cfg.PinSize,
 		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
 	}
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
@@ -193,6 +197,7 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 	data := templateData{
 		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
 	}
 	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
@@ -226,6 +231,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			Form:        form,
 			PinSize:     s.cfg.PinSize,
 			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
 		}
 
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
@@ -252,6 +258,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			Form:        form,
 			PinSize:     s.cfg.PinSize,
 			CurrentYear: time.Now().Year(),
+			Theme:       getTheme(r),
 		}
 		// for HTMX requests, return 403 for wrong PIN
 		status := http.StatusOK
@@ -292,6 +299,52 @@ func humanDuration(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%d days", d/(time.Hour*24))
 	}
+}
+
+// getTheme gets the theme from cookie or returns "auto" as default
+func getTheme(r *http.Request) string {
+	cookie, err := r.Cookie("theme")
+	if err != nil {
+		return "auto" // default theme
+	}
+	// validate theme value
+	switch cookie.Value {
+	case "light", "dark", "auto":
+		return cookie.Value
+	default:
+		return "auto"
+	}
+}
+
+// themeToggleCtrl handles theme switching
+// POST /theme
+func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
+	currentTheme := getTheme(r)
+	
+	// cycle through themes: light -> dark -> auto -> light
+	nextTheme := "light"
+	switch currentTheme {
+	case "light":
+		nextTheme = "dark"
+	case "dark":
+		nextTheme = "auto"
+	case "auto":
+		nextTheme = "light"
+	}
+	
+	// set cookie (client-side storage)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "theme",
+		Value:    nextTheme,
+		Path:     "/",
+		MaxAge:   365 * 24 * 60 * 60, // 1 year
+		HttpOnly: false, // allow JS access for immediate UI update if needed
+		SameSite: http.SameSiteLaxMode,
+	})
+	
+	// trigger full page refresh to apply new theme
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
 }
 
 
