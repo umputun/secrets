@@ -245,6 +245,13 @@ button[type="submit"] {
 
 .btn-icon {
     flex-shrink: 0;
+    transform: translateY(-1px); /* lift icon up slightly */
+}
+
+.button-text {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .main-btn:hover,
