@@ -31,7 +31,6 @@ FROM umputun/baseimage:app-latest
 LABEL org.opencontainers.image.source="https://github.com/umputun/secrets"
 
 COPY --from=build-backend /build/secrets.bin /srv/secrets
-COPY --from=build-backend /build/secrets/ui/static /srv/ui/static/
 
 WORKDIR /srv
 EXPOSE 8080
