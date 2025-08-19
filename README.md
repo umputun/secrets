@@ -55,6 +55,8 @@ _Feel free to suggest any other ways to make the process safer._
 
 ## Installation
 
+### Docker Deployment (Recommended)
+
 1. Download `docker-compose.yml` and `secrets-nginx.conf`
 1. Adjust your local `docker-compose.yml` with:
     - TZ - your local time zone
@@ -62,6 +64,7 @@ _Feel free to suggest any other ways to make the process safer._
     - MAX_EXPIRE - maximum lifetime period, default 24h
     - PIN_SIZE - size (in characters) of the pin, default 5
     - PIN_ATTEMPTS - maximum number of failed attempts to enter pin, default 3
+    - DOMAIN - your domain name (e.g., example.com)
     - PROTOCOL - http or https
 1. Setup SSL:
     - The system can make valid certificates for you automatically with integrated [nginx-le](https://github.com/umputun/nginx-le). Just set:
@@ -75,6 +78,50 @@ _Feel free to suggest any other ways to make the process safer._
 1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
 
 _See [docker-compose.yml](https://github.com/umputun/secrets/blob/master/docker-compose.yml) for more details_
+
+### Stand-alone Deployment
+
+You can also run Safesecret directly without Docker:
+
+```bash
+./secrets [OPTIONS]
+```
+
+**Available Options:**
+
+- `-e, --engine=[MEMORY|BOLT]` - storage engine (default: MEMORY)
+- `-k, --key=` - sign key (required for security)
+- `--pinsize=` - pin size in characters (default: 5)
+- `--expire=` - max lifetime for messages (default: 24h)
+- `--pinattempts=` - max attempts to enter pin (default: 3)
+- `--bolt=` - path to boltdb file when using BOLT engine (default: /tmp/secrets.bd)
+- `--web=` - web UI static files location (default: ./ui/static/)
+- `-d, --domain=` - site domain (required for generating message links)
+- `-p, --protocol=[http|https]` - site protocol (default: https)
+- `--dbg` - enable debug mode
+
+**Environment Variables:**
+
+All options can also be set via environment variables:
+- `ENGINE` - storage engine
+- `SIGN_KEY` - sign key
+- `PIN_SIZE` - pin size
+- `MAX_EXPIRE` - max lifetime
+- `PIN_ATTEMPTS` - max pin attempts
+- `BOLT_FILE` - boltdb file path
+- `WEB` - web UI location
+- `DOMAIN` - site domain
+- `PROTOCOL` - site protocol
+
+**Example:**
+
+```bash
+# Run with in-memory storage
+./secrets -k "your-secret-key" -d "example.com" -p https
+
+# Run with persistent storage (BoltDB)
+./secrets -e BOLT --bolt=/var/lib/secrets/data.db -k "your-secret-key" -d "example.com"
+```
 
 ### Technical details
 
