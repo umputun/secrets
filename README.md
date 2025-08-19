@@ -95,7 +95,7 @@ You can also run Safesecret directly without Docker:
 - `--expire=` - max lifetime for messages (default: 24h)
 - `--pinattempts=` - max attempts to enter pin (default: 3)
 - `--bolt=` - path to boltdb file when using BOLT engine (default: /tmp/secrets.bd)
-- `--web=` - web UI static files location (default: ./ui/static/)
+- `--web=` - web UI static files location (development only, uses embedded files if not set)
 - `-d, --domain=` - site domain (required for generating message links)
 - `-p, --protocol=[http|https]` - site protocol (default: https)
 - `--dbg` - enable debug mode
@@ -109,7 +109,7 @@ All options can also be set via environment variables:
 - `MAX_EXPIRE` - max lifetime
 - `PIN_ATTEMPTS` - max pin attempts
 - `BOLT_FILE` - boltdb file path
-- `WEB` - web UI location
+- `WEB` - web UI location (development only, uses embedded files if not set)
 - `DOMAIN` - site domain
 - `PROTOCOL` - site protocol
 

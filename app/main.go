@@ -21,7 +21,7 @@ var opts struct {
 	MaxExpire      time.Duration `long:"expire" env:"MAX_EXPIRE" default:"24h" description:"max lifetime"`
 	MaxPinAttempts int           `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
 	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
-	WebRoot        string        `long:"web" env:"WEB" default:"./ui/static/" description:"web ui location"`
+	WebRoot        string        `long:"web" env:"WEB" description:"web ui location (dev mode, uses embedded files if not set)"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         string        `short:"d" long:"domain" env:"DOMAIN" description:"site domain" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
