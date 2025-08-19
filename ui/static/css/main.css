@@ -1,5 +1,5 @@
 @import "reset.css";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
 /* ==================== Design System Variables ==================== */
 :root {
@@ -14,7 +14,7 @@
     --color-surface: #ffffff;
     --color-text-primary: #374151;
     --color-text-secondary: #6b7280;
-    --color-text-muted: #9ca3af;
+    --color-text-muted: #6b7280; /* improved contrast from #9ca3af */
     --color-border: #e5e7eb;
     --color-border-hover: #d1d5db;
     --color-input-bg: #f9fafb;
@@ -36,7 +36,7 @@
     
     /* typography - Inter font with proper scale */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-brand: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-brand: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
     
     /* font sizes - proper type scale */
@@ -1058,7 +1058,7 @@ button[type="submit"]:disabled {
         --color-surface: #1f2937;
         --color-text-primary: #f9fafb;
         --color-text-secondary: #d1d5db;
-        --color-text-muted: #9ca3af;
+        --color-text-muted: #6b7280; /* improved contrast from #9ca3af */
         --color-border: #374151;
         --color-border-hover: #4b5563;
         --color-input-bg: #1f2937;
@@ -1091,7 +1091,7 @@ button[type="submit"]:disabled {
     --color-surface: #ffffff;
     --color-text-primary: #374151;
     --color-text-secondary: #6b7280;
-    --color-text-muted: #9ca3af;
+    --color-text-muted: #6b7280; /* improved contrast from #9ca3af */
     --color-border: #e5e7eb;
     --color-border-hover: #d1d5db;
     --color-input-bg: #f9fafb;
@@ -1112,7 +1112,7 @@ button[type="submit"]:disabled {
     --color-surface: #1f2937;
     --color-text-primary: #f9fafb;
     --color-text-secondary: #d1d5db;
-    --color-text-muted: #9ca3af;
+    --color-text-muted: #6b7280; /* improved contrast from #9ca3af */
     --color-border: #374151;
     --color-border-hover: #4b5563;
     --color-input-bg: #1f2937;

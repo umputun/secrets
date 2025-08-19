@@ -82,7 +82,7 @@
                            value="{{.Form.Exp}}"
                            {{if .Form.FieldErrors.exp}}class="error-input"{{end}} />
                     
-                    <select name="expUnit" {{if .Form.FieldErrors.expUnit}}class="error-input"{{end}}>
+                    <select name="expUnit" id="expUnit" aria-label="Time unit" {{if .Form.FieldErrors.expUnit}}class="error-input"{{end}}>
                         <option value="m" {{if eq .Form.ExpUnit "m"}}selected{{end}}>minutes</option>
                         <option value="h" {{if eq .Form.ExpUnit "h"}}selected{{end}}>hours</option>
                         <option value="d" {{if eq .Form.ExpUnit "d"}}selected{{end}}>days</option>
