@@ -12,7 +12,7 @@
           hx-target="#form-card" 
           hx-swap="outerHTML"
           hx-indicator="#form-spinner"
-          hx-target-400="#form-errors"
+          hx-target-400="#form-card"
           hx-target-500="#notifications">
         <div class="form-group">
             <label for="message">
@@ -80,9 +80,12 @@
                            required
                            min="1"
                            value="{{.Form.Exp}}"
-                           {{if .Form.FieldErrors.exp}}class="error-input"{{end}} />
+                           {{if .Form.FieldErrors.exp}}class="error-input"{{end}}
+                           {{if .Form.FieldErrors.exp}}hx-on:input="document.querySelectorAll('.expire-container ~ .error').forEach(el => el.remove())"{{end}} />
                     
-                    <select name="expUnit" id="expUnit" aria-label="Time unit" {{if .Form.FieldErrors.expUnit}}class="error-input"{{end}}>
+                    <select name="expUnit" id="expUnit" aria-label="Time unit" 
+                            {{if .Form.FieldErrors.expUnit}}class="error-input"{{end}}
+                            {{if or .Form.FieldErrors.exp .Form.FieldErrors.expUnit}}hx-on:change="document.querySelectorAll('.expire-container ~ .error').forEach(el => el.remove())"{{end}}>
                         <option value="m" {{if eq .Form.ExpUnit "m"}}selected{{end}}>minutes</option>
                         <option value="h" {{if eq .Form.ExpUnit "h"}}selected{{end}}>hours</option>
                         <option value="d" {{if eq .Form.ExpUnit "d"}}selected{{end}}>days</option>

@@ -226,12 +226,12 @@ textarea::placeholder {
 /* pin input - single field */
 input.pin-input {
     font-family: var(--font-mono);
-    font-size: var(--text-lg);
+    font-size: var(--text-base);
     font-weight: var(--font-medium);
     letter-spacing: 0.2em;
     text-align: center;
     max-width: 220px;
-    padding: 13px var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
 }
 
 /* number input */
