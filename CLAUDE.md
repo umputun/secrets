@@ -158,3 +158,48 @@ Core libraries used:
 - Server requires explicit local config: `--domain=localhost:8080 --protocol=http`
 - Default protocol is HTTPS, must override for local development
 - Link generation uses configured domain/protocol for absolute URLs
+
+## HTMX Implementation
+
+### Version and Extensions
+- HTMX v2.0.3 with response-targets extension for proper error handling
+- Server-driven UI pattern with minimal client-side JavaScript
+- Uses `hx-target-[status]` attributes for HTTP status-specific targeting (400, 403, 404, 500)
+
+### Form Handling Pattern
+- Forms use `hx-post` with `hx-target="#form-card"` and `hx-swap="outerHTML"` to replace entire form with result
+- Error handling via response-targets: `hx-target-400="#form-errors"` for validation errors
+- Loading indicators with `hx-indicator="#form-spinner"` for visual feedback during requests
+
+### Theme System
+- Server-side theme switching via POST /theme endpoint
+- Theme stored in browser cookies (1-year expiry) for stateless per-user preferences
+- Theme cycling: light → dark → auto → light
+- Uses `HX-Refresh: true` header to trigger full page reload on theme change
+- Template rendering passes theme to all views via `getTheme(r)` helper
+
+### JavaScript Minimization
+- All external JS files eliminated in favor of inline code
+- Clipboard functionality using `hx-on::before-request` with native Clipboard API
+- Popup handling with minimal inline event listeners (closePopup event, backdrop clicks)
+- Only 3 script tags remain: HTMX core, response-targets extension, inline popup handlers
+
+### Web Endpoints Structure
+- Web UI endpoints grouped separately from API endpoints in router
+- Web handlers in server/web.go, API handlers in server/server.go
+- Template-specific controllers suffix: `*ViewCtrl` for pages, `*Ctrl` for actions
+- All web controllers pass CurrentYear and Theme to templates for consistent rendering
+
+### HTTP Status Code Conventions
+- 200: Successful operations and normal page renders
+- 400: Validation errors (triggers error display in form)
+- 403: Authentication failures (wrong PIN)
+- 404: Resource not found (expired/missing messages)
+- HTMX requests return appropriate status codes, non-HTMX fallback to 200 with error template
+
+### Template Data Pattern
+- `templateData` struct wraps all template variables with consistent fields:
+  - Form: Contains form-specific data and validation
+  - PinSize: Configuration for PIN input rendering
+  - CurrentYear: For copyright footer
+  - Theme: Current user theme preference
