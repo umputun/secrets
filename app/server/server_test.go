@@ -86,6 +86,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 
 	assert.NoError(t, err)
@@ -262,6 +263,7 @@ func TestServer_saveMessageCtrl(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -314,6 +316,7 @@ func TestServer_getMessageCtrl(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -376,6 +379,7 @@ func TestServer_Run(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -414,6 +418,7 @@ func TestServer_EmbeddedFiles(t *testing.T) {
 		PinSize:        5,
 		MaxPinAttempts: 3,
 		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
 	})
 	require.NoError(t, err)
 
@@ -452,6 +457,7 @@ func TestServer_LocalFiles(t *testing.T) {
 		PinSize:        5,
 		MaxPinAttempts: 3,
 		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
 	})
 	require.NoError(t, err)
 
@@ -480,6 +486,7 @@ func TestServer_ThemeToggle(t *testing.T) {
 		PinSize:        5,
 		MaxPinAttempts: 3,
 		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
 	})
 	require.NoError(t, err)
 
@@ -488,7 +495,7 @@ func TestServer_ThemeToggle(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{}
-	
+
 	// test theme toggle from auto (default) to light
 	req, err := http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
 	require.NoError(t, err)
@@ -503,8 +510,8 @@ func TestServer_ThemeToggle(t *testing.T) {
 	require.Len(t, cookies, 1)
 	assert.Equal(t, "theme", cookies[0].Name)
 	assert.Equal(t, "light", cookies[0].Value)
-	
-	// test theme toggle from light to dark  
+
+	// test theme toggle from light to dark
 	req, err = http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{Name: "theme", Value: "light"})
@@ -516,7 +523,7 @@ func TestServer_ThemeToggle(t *testing.T) {
 	cookies = resp.Cookies()
 	require.Len(t, cookies, 1)
 	assert.Equal(t, "dark", cookies[0].Value)
-	
+
 	// test theme toggle from dark to auto
 	req, err = http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
 	require.NoError(t, err)
@@ -542,6 +549,7 @@ func TestServer_ClosePopup(t *testing.T) {
 		PinSize:        5,
 		MaxPinAttempts: 3,
 		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
 	})
 	require.NoError(t, err)
 
@@ -553,7 +561,7 @@ func TestServer_ClosePopup(t *testing.T) {
 	resp, err := http.Get(ts.URL + "/close-popup")
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	
+
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -571,6 +579,7 @@ func TestServer_CopyFeedback(t *testing.T) {
 		PinSize:        5,
 		MaxPinAttempts: 3,
 		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
 	})
 	require.NoError(t, err)
 
@@ -585,14 +594,14 @@ func TestServer_CopyFeedback(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	
+
 	assert.Equal(t, 200, resp.StatusCode)
 	// header is set after render, so we can't check it here
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "<strong>Link copied!</strong>")
 	assert.Contains(t, string(body), "Share this link to access your secret content")
-	
+
 	// test copy feedback for Message type
 	req, err = http.NewRequest("POST", ts.URL+"/copy-feedback", strings.NewReader("type=Message"))
 	require.NoError(t, err)
@@ -600,13 +609,13 @@ func TestServer_CopyFeedback(t *testing.T) {
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	
+
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "<strong>Message copied!</strong>")
 	assert.NotContains(t, string(body), "Share this link")
-	
+
 	// test copy feedback with invalid type (should default to Content)
 	req, err = http.NewRequest("POST", ts.URL+"/copy-feedback", strings.NewReader("type=Invalid"))
 	require.NoError(t, err)
@@ -614,7 +623,7 @@ func TestServer_CopyFeedback(t *testing.T) {
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	
+
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -634,6 +643,7 @@ func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 
 	assert.NoError(t, err)

@@ -30,6 +30,7 @@ type Config struct {
 	Domain   string
 	WebRoot  string
 	Protocol string
+	Branding string
 	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
@@ -62,6 +63,17 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 type Messager interface {
 	MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
 	LoadMessage(key, pin string) (msg *store.Message, err error)
+}
+
+// newTemplateData creates a templateData with common fields populated
+func (s Server) newTemplateData(r *http.Request, form any) templateData {
+	return templateData{
+		Form:        form,
+		PinSize:     s.cfg.PinSize,
+		CurrentYear: time.Now().Year(),
+		Theme:       getTheme(r),
+		Branding:    s.cfg.Branding,
+	}
 }
 
 // Run the lister and request's router, activate rest server
@@ -120,10 +132,7 @@ func (s Server) routes() chi.Router {
 			return
 		}
 
-		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, templateData{
-			CurrentYear: time.Now().Year(),
-			Theme:       getTheme(r),
-		})
+		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, s.newTemplateData(r, nil))
 	})
 
 	router.Group(func(r chi.Router) {

@@ -96,6 +96,7 @@ You can also run Safesecret directly without Docker:
 - `--pinattempts=` - max attempts to enter pin (default: 3)
 - `--bolt=` - path to boltdb file when using BOLT engine (default: /tmp/secrets.bd)
 - `--web=` - web UI static files location (development only, uses embedded files if not set)
+- `--branding=` - application title/branding text (default: "Safe Secrets")
 - `-d, --domain=` - site domain (required for generating message links)
 - `-p, --protocol=[http|https]` - site protocol (default: https)
 - `--dbg` - enable debug mode
@@ -110,6 +111,7 @@ All options can also be set via environment variables:
 - `PIN_ATTEMPTS` - max pin attempts
 - `BOLT_FILE` - boltdb file path
 - `WEB` - web UI location (development only, uses embedded files if not set)
+- `BRANDING` - application title/branding text
 - `DOMAIN` - site domain
 - `PROTOCOL` - site protocol
 
@@ -121,6 +123,9 @@ All options can also be set via environment variables:
 
 # Run with persistent storage (BoltDB)
 ./secrets -e BOLT --bolt=/var/lib/secrets/data.db -k "your-secret-key" -d "example.com"
+
+# Run with custom branding
+./secrets -k "your-secret-key" -d "example.com" --branding="Acme Corp Secrets"
 ```
 
 ### Technical details

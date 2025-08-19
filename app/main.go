@@ -22,6 +22,7 @@ var opts struct {
 	MaxPinAttempts int           `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
 	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
 	WebRoot        string        `long:"web" env:"WEB" description:"web ui location (dev mode, uses embedded files if not set)"`
+	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         string        `short:"d" long:"domain" env:"DOMAIN" description:"site domain" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
@@ -48,6 +49,7 @@ func main() {
 		MaxPinAttempts: opts.MaxPinAttempts,
 		MaxExpire:      opts.MaxExpire,
 		WebRoot:        opts.WebRoot,
+		Branding:       opts.Branding,
 	})
 
 	if err != nil {

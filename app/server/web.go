@@ -52,6 +52,7 @@ type templateData struct {
 	PinSize     int
 	CurrentYear int
 	Theme       string
+	Branding    string
 }
 
 // render renders a template
@@ -89,15 +90,10 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 // renders the home page
 // GET /
 func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
-	data := templateData{
-		Form: createMsgForm{
-			Exp:    15,
-			MaxExp: humanDuration(s.cfg.MaxExpire),
-		},
-		PinSize:     s.cfg.PinSize,
-		CurrentYear: time.Now().Year(),
-		Theme:       getTheme(r),
-	}
+	data := s.newTemplateData(r, createMsgForm{
+		Exp:    15,
+		MaxExp: humanDuration(s.cfg.MaxExpire),
+	})
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
 }
@@ -146,12 +142,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
 
 	if !form.Valid() {
-		data := templateData{
-			Form:        form,
-			PinSize:     s.cfg.PinSize,
-			CurrentYear: time.Now().Year(),
-			Theme:       getTheme(r),
-		}
+		data := s.newTemplateData(r, form)
 
 		// return 400 for htmx to handle with hx-target-400
 		if r.Header.Get("HX-Request") == "true" {
@@ -180,14 +171,9 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, keyKey)
 
-	data := templateData{
-		Form: showMsgForm{
-			Key: key,
-		},
-		PinSize:     s.cfg.PinSize,
-		CurrentYear: time.Now().Year(),
-		Theme:       getTheme(r),
-	}
+	data := s.newTemplateData(r, showMsgForm{
+		Key: key,
+	})
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
@@ -195,10 +181,7 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 // renders the about page
 // GET /about
 func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
-	data := templateData{
-		CurrentYear: time.Now().Year(),
-		Theme:       getTheme(r),
-	}
+	data := s.newTemplateData(r, nil)
 	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
 
@@ -227,12 +210,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !form.Valid() {
-		data := templateData{
-			Form:        form,
-			PinSize:     s.cfg.PinSize,
-			CurrentYear: time.Now().Year(),
-			Theme:       getTheme(r),
-		}
+		data := s.newTemplateData(r, form)
 
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
 		return
@@ -254,12 +232,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[WARN] can't load message %v", err)
 		form.AddFieldError("pin", err.Error())
 
-		data := templateData{
-			Form:        form,
-			PinSize:     s.cfg.PinSize,
-			CurrentYear: time.Now().Year(),
-			Theme:       getTheme(r),
-		}
+		data := s.newTemplateData(r, form)
 		// for HTMX requests, return 403 for wrong PIN
 		status := http.StatusOK
 		if r.Header.Get("HX-Request") == "true" {

@@ -90,6 +90,7 @@ func TestServer_indexCtrl(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -115,6 +116,7 @@ func TestServer_aboutViewCtrl(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -139,6 +141,7 @@ func TestServer_showMessageViewCtrl(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -308,7 +311,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 
 		srv.generateLinkCtrl(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code)                 // Should return 400 for HTMX
+		assert.Equal(t, http.StatusBadRequest, rr.Code)                 // should return 400 for HTMX
 		assert.Contains(t, rr.Body.String(), "Create a Secure Message") // returns the form
 		assert.Contains(t, rr.Body.String(), "value=\"15\"")            // with preserved values
 	})
@@ -323,12 +326,12 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		// No HX-Request header
+		// no HX-Request header
 		rr := httptest.NewRecorder()
 
 		srv.generateLinkCtrl(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code)                         // Should return 200 for regular request
+		assert.Equal(t, http.StatusOK, rr.Code)                         // should return 200 for regular request
 		assert.Contains(t, rr.Body.String(), "Create a Secure Message") // returns the form
 		assert.Contains(t, rr.Body.String(), "value=\"15\"")            // with preserved values
 	})
@@ -367,6 +370,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
@@ -454,14 +458,16 @@ func TestServer_render(t *testing.T) {
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
 		})
 	require.NoError(t, err)
 
 	t.Run("existing template", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		data := templateData{
-			Form:    createMsgForm{Exp: 15, MaxExp: "10 hours"},
-			PinSize: 5,
+			Form:     createMsgForm{Exp: 15, MaxExp: "10 hours"},
+			PinSize:  5,
+			Branding: "Safe Secrets",
 		}
 		srv.render(rr, http.StatusOK, "home.tmpl.html", baseTmpl, data)
 
@@ -480,8 +486,9 @@ func TestServer_render(t *testing.T) {
 	t.Run("empty template name defaults to base", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		data := templateData{
-			Form:    createMsgForm{Exp: 15, MaxExp: "10 hours"},
-			PinSize: 5,
+			Form:     createMsgForm{Exp: 15, MaxExp: "10 hours"},
+			PinSize:  5,
+			Branding: "Safe Secrets",
 		}
 		srv.render(rr, http.StatusOK, "home.tmpl.html", "", data)
 
@@ -507,4 +514,94 @@ func TestServer_until(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestServer_newTemplateData(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"test-v",
+		Config{
+			Domain:         "example.com",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Test Brand",
+		})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/", http.NoBody)
+
+	t.Run("with form data", func(t *testing.T) {
+		form := createMsgForm{Exp: 15, MaxExp: "10 hours"}
+		data := srv.newTemplateData(req, form)
+
+		assert.Equal(t, form, data.Form)
+		assert.Equal(t, 5, data.PinSize)
+		assert.Equal(t, "Test Brand", data.Branding)
+		assert.Equal(t, "auto", data.Theme) // default theme
+		assert.Equal(t, time.Now().Year(), data.CurrentYear)
+	})
+
+	t.Run("with nil form", func(t *testing.T) {
+		data := srv.newTemplateData(req, nil)
+
+		assert.Nil(t, data.Form)
+		assert.Equal(t, 5, data.PinSize)
+		assert.Equal(t, "Test Brand", data.Branding)
+		assert.Equal(t, "auto", data.Theme)
+	})
+
+	t.Run("with theme cookie", func(t *testing.T) {
+		req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+		data := srv.newTemplateData(req, nil)
+
+		assert.Equal(t, "dark", data.Theme)
+	})
+}
+
+func TestServer_BrandingInTemplates(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"test-v",
+		Config{
+			Domain:         "example.com",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Acme Corp Secrets",
+		})
+	require.NoError(t, err)
+
+	t.Run("home page contains custom branding", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", http.NoBody)
+		rr := httptest.NewRecorder()
+
+		srv.indexCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+		assert.Contains(t, body, "Acme Corp Secrets")
+		assert.Contains(t, body, "<title>Home - Acme Corp Secrets</title>")
+		assert.NotContains(t, body, "Safe Secrets")
+	})
+
+	t.Run("about page contains custom branding", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/about", http.NoBody)
+		rr := httptest.NewRecorder()
+
+		srv.aboutViewCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+		assert.Contains(t, body, "Acme Corp Secrets")
+		assert.NotContains(t, body, "Safe Secrets")
+	})
 }
