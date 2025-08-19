@@ -11,7 +11,8 @@
             </button>
         </div>
         <div class="popup-text">
-            {{.}}
+            <strong>{{.CopyType}} copied!</strong>
+            {{if eq .CopyType "Link"}}<br/>Share this link to access your secret content{{end}}
         </div>
     </div>
 </div>

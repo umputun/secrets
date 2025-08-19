@@ -362,14 +362,15 @@ func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
 		copyType = "Content"
 	}
 
-	message := fmt.Sprintf("<strong>%s copied!</strong>", copyType)
-	if copyType == "Link" {
-		message += "<br/>Share this link to access your secret content"
+	// pass structured data to template for safe rendering
+	data := struct {
+		CopyType string
+	}{
+		CopyType: copyType,
 	}
 
 	// render popup with message and auto-close after 2 seconds
-	// template.HTML is safe here as we control and sanitize the content
-	s.render(w, http.StatusOK, "popup.tmpl.html", "popup", template.HTML(message)) //nolint:gosec // content is sanitized
+	s.render(w, http.StatusOK, "popup.tmpl.html", "popup", data)
 
 	// trigger auto-close after 2 seconds using HX-Trigger header
 	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "2s"}`)
