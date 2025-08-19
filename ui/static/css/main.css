@@ -633,6 +633,11 @@ button[type="submit"]:disabled {
     flex-wrap: wrap;
 }
 
+.copyright {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+}
+
 .footer-link {
     font-size: 0.9rem;
     color: var(--color-text-muted);
@@ -876,12 +881,7 @@ button[type="submit"]:disabled {
         font-size: 1.1rem;
     }
     
-    .app-footer {
-        flex-direction: column;
-        gap: var(--spacing-xs);
-    }
-    
-    .separator {
+    .app-footer .footer-links .separator {
         display: none;
     }
 }

@@ -117,7 +117,7 @@ func (s Server) routes() chi.Router {
 			return
 		}
 
-		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, "not found")
+		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, templateData{CurrentYear: time.Now().Year()})
 	})
 
 	router.Group(func(r chi.Router) {

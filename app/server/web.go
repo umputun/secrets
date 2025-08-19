@@ -48,8 +48,9 @@ type showMsgForm struct {
 }
 
 type templateData struct {
-	Form    any
-	PinSize int
+	Form        any
+	PinSize     int
+	CurrentYear int
 }
 
 // render renders a template
@@ -67,6 +68,7 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 	if tmplName == "" {
 		tmplName = baseTmpl
 	}
+	
 	err := ts.ExecuteTemplate(buf, tmplName, data)
 	if err != nil {
 		log.Printf("[ERROR] %v", err)
@@ -91,7 +93,8 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 			Exp:    15,
 			MaxExp: humanDuration(s.cfg.MaxExpire),
 		},
-		PinSize: s.cfg.PinSize,
+		PinSize:     s.cfg.PinSize,
+		CurrentYear: time.Now().Year(),
 	}
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
@@ -142,8 +145,9 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if !form.Valid() {
 		data := templateData{
-			Form:    form,
-			PinSize: s.cfg.PinSize,
+			Form:        form,
+			PinSize:     s.cfg.PinSize,
+			CurrentYear: time.Now().Year(),
 		}
 
 		// return 400 for htmx to handle with hx-target-400
@@ -177,7 +181,8 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 		Form: showMsgForm{
 			Key: key,
 		},
-		PinSize: s.cfg.PinSize,
+		PinSize:     s.cfg.PinSize,
+		CurrentYear: time.Now().Year(),
 	}
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
@@ -186,7 +191,10 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 // renders the about page
 // GET /about
 func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
-	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, nil)
+	data := templateData{
+		CurrentYear: time.Now().Year(),
+	}
+	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
 
 // renders the decoded message page
@@ -215,8 +223,9 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if !form.Valid() {
 		data := templateData{
-			Form:    form,
-			PinSize: s.cfg.PinSize,
+			Form:        form,
+			PinSize:     s.cfg.PinSize,
+			CurrentYear: time.Now().Year(),
 		}
 
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
@@ -240,8 +249,9 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		form.AddFieldError("pin", err.Error())
 
 		data := templateData{
-			Form:    form,
-			PinSize: s.cfg.PinSize,
+			Form:        form,
+			PinSize:     s.cfg.PinSize,
+			CurrentYear: time.Now().Year(),
 		}
 		// for HTMX requests, return 403 for wrong PIN
 		status := http.StatusOK
