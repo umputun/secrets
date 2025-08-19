@@ -4,7 +4,9 @@ package server
 import (
 	"context"
 	"html/template"
+	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/ui"
 )
 
 // Config is a configuration for the server
@@ -136,12 +139,22 @@ func (s Server) routes() chi.Router {
 		r.Get("/", s.indexCtrl)
 	})
 
-	fs, err := um.NewFileServer("/static", s.cfg.WebRoot)
-	if err != nil {
-		log.Fatalf("[ERROR] can't create file server %v", err)
+	// use embedded files if WebRoot doesn't exist
+	if _, err := os.Stat(s.cfg.WebRoot); os.IsNotExist(err) || s.cfg.WebRoot == "" {
+		// use embedded file system
+		staticFS, err := fs.Sub(ui.Files, "static")
+		if err != nil {
+			log.Fatalf("[ERROR] can't create embedded file server %v", err)
+		}
+		router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	} else {
+		// use local file system
+		fileServer, err := um.NewFileServer("/static", s.cfg.WebRoot)
+		if err != nil {
+			log.Fatalf("[ERROR] can't create file server %v", err)
+		}
+		router.Handle("/static/*", fileServer)
 	}
-
-	router.Handle("/static/*", fs)
 
 	return router
 }

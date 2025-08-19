@@ -17,7 +17,7 @@ ul, ol, li {
 html,
 body {
     height: 100%;
-    line-height: 100%;
+    line-height: 1.5;
     font-size: 16px;
     color: #000;
 }
