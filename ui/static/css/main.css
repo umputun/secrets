@@ -350,10 +350,6 @@ button[type="submit"]:disabled {
     color: var(--color-text-primary);
 }
 
-.logo-icon {
-    height: 28px;
-    width: auto;
-}
 
 .app-name {
     font-family: var(--font-brand);
@@ -441,13 +437,6 @@ button[type="submit"]:disabled {
     }
 }
 
-.msg-container {
-    margin-bottom: var(--spacing-lg);
-}
-
-.pin-container {
-    margin-bottom: var(--spacing-lg);
-}
 
 .expire-container {
     display: grid;
@@ -804,9 +793,6 @@ button[type="submit"]:disabled {
     margin: var(--spacing-lg) 0;
 }
 
-.decode-btn {
-    margin-top: var(--spacing-md);
-}
 
 .error-page {
     display: flex;
@@ -897,9 +883,6 @@ button[type="submit"]:disabled {
         font-size: 1.25rem;
     }
     
-    .logo-icon {
-        height: 24px;
-    }
     
     .app-name {
         font-size: 1.1rem;

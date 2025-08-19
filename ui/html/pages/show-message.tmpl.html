@@ -14,9 +14,8 @@
               hx-target="#message-container" 
               hx-swap="innerHTML"
               hx-indicator="#decrypt-spinner"
-              hx-target-403="#pin-error"
               hx-target-404="#message-container"
-              hx-target-429="#rate-limit-error"
+              hx-target-403="#message-container"
               id="load-msg-form">
             <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
 
@@ -38,7 +37,6 @@
                     <span class='error'>{{.}}</span>
                     {{end}}
                 </div>
-                <div id="rate-limit-error"></div>
             </div>
             
             <button class="main-btn" type="submit">
