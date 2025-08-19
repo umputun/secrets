@@ -469,6 +469,18 @@ button[type="submit"]:disabled {
     letter-spacing: -0.01em;
 }
 
+.success {
+    font-family: var(--font-sans);
+    color: var(--color-success);
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-top: var(--spacing-xs);
+    animation: fadeIn 0.3s ease;
+    text-align: center;
+    display: block;
+    letter-spacing: -0.01em;
+}
+
 .error-block {
     background: #fef2f2;
     border: 1px solid #fecaca;
@@ -915,8 +927,132 @@ button[type="submit"]:disabled {
     animation: spin 0.6s linear infinite;
 }
 
+/* htmx loading indicators */
+.htmx-indicator {
+    display: none;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.htmx-request .htmx-indicator {
+    display: inline-flex;
+}
+
+.htmx-request .button-text {
+    display: none;
+}
+
+.spinner-icon {
+    animation: spin 1s linear infinite;
+}
+
 @keyframes spin {
-    to { transform: translate(-50%, -50%) rotate(360deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* smooth transitions for htmx swaps */
+.htmx-swapping {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+}
+
+.htmx-settling {
+    opacity: 1;
+    transition: opacity 200ms ease-in;
+}
+
+/* fade animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+/* ==================== Toast Notifications ==================== */
+.toast-container {
+    position: fixed;
+    top: var(--spacing-lg);
+    right: var(--spacing-lg);
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.toast {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    box-shadow: var(--shadow-lg);
+    animation: slideIn 0.3s ease-out;
+    pointer-events: auto;
+    min-width: 300px;
+    max-width: 500px;
+}
+
+.toast.success {
+    border-color: var(--color-success);
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+
+.toast.error {
+    border-color: var(--color-error);
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(239, 68, 68, 0.05) 100%);
+}
+
+.toast.warning {
+    border-color: var(--color-warning);
+    background: linear-gradient(135deg, var(--color-surface) 0%, rgba(245, 158, 11, 0.05) 100%);
+}
+
+.toast-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.toast-body {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
 }
 
 /* ==================== Dark Theme ==================== */

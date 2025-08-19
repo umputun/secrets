@@ -2,7 +2,7 @@
 
 {{define "secure-link"}}
 
-<div id="msg-link" class="card" data-copy>
+<div id="msg-link" class="card">
     <div class="card-header">
         <h2 class="card-title">✓ Secure Link Generated</h2>
         <p class="card-description">Your secret message has been encrypted. Share this link and PIN separately.</p>
@@ -12,15 +12,14 @@
         <label for="msg-text">Copy this link to access your secret content</label>
         <textarea name="msg-link-text" 
                   id="msg-text" 
-                  readonly 
-                  data-copy-text>{{.}}</textarea>
+                  readonly>{{.}}</textarea>
     </div>
 
     <div class="form-row two-cols">
         <button type="button"
                 class="main-btn"
                 id="copy-link-btn"
-                data-copy-btn>
+                onclick="copyToClipboard('msg-text', 'copy-link-btn', 'Link')">
             <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/>
@@ -37,6 +36,52 @@
     </div>
 </div>
 
-<script src='/static/js/copy-text.js'></script>
+<script>
+function copyToClipboard(textId, btnId, type) {
+    const textarea = document.getElementById(textId);
+    const button = document.getElementById(btnId);
+    const originalHTML = button.innerHTML;
+    
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        // success feedback
+        button.innerHTML = `
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="20,6 9,17 4,12" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <span class="btn-text">Copied!</span>
+        `;
+        button.style.background = 'var(--color-success)';
+        
+        // show notification
+        const popup = document.getElementById("popup");
+        const popupText = popup.querySelector(".popup-text");
+        popup.style.opacity = 1;
+        popup.style.visibility = "visible";
+        popupText.innerHTML = `<strong>${type} copied!</strong><br/>Share this ${type.toLowerCase()} to access your secret content`;
+        
+        // reset after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.style.background = '';
+            window.closePopup();
+        }, 2000);
+    }).catch(err => {
+        // error feedback
+        button.innerHTML = `
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2"/>
+                <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <span class="btn-text">Error!</span>
+        `;
+        button.style.background = 'var(--color-error)';
+        
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.style.background = '';
+        }, 2000);
+    });
+}
+</script>
 {{end}}
 

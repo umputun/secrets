@@ -12,7 +12,8 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     </head>
-    <body>
+    <body hx-boost="true" hx-ext="response-targets">
+    <div id="notifications" class="toast-container"></div>
     <div class="app">
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
             <svg id="theme-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -52,9 +53,9 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/htmx.org@1.9.4" integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.3" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx-ext-response-targets@2.0.1/response-targets.js"></script>
     <script src='/static/js/main.js'></script>
-    <script src="/static/js/pin.js"></script>
     <script src="/static/js/theme.js"></script>
     </body>
     </html>

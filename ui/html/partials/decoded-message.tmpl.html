@@ -1,5 +1,5 @@
 {{define "decoded-message"}}
-<div id="msg" class="card" data-copy>
+<div id="msg" class="card">
     <div class="card-header">
         <h2 class="card-title card-title-with-icon">
             <svg class="title-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -13,7 +13,7 @@
     </div>
     
     <div class="form-group">
-        <label for="msg-text">
+        <label for="decoded-msg-text">
             <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
                 <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
@@ -24,14 +24,14 @@
             Your Secret Message
         </label>
         <textarea name="msg-text" 
-                  id="msg-text" 
-                  readonly 
-                  data-copy-text>{{.}}</textarea>
+                  id="decoded-msg-text" 
+                  readonly>{{.}}</textarea>
     </div>
 
     <button type="button"
             class="main-btn"
-            data-copy-btn>
+            id="copy-msg-btn"
+            onclick="copyToClipboard('decoded-msg-text', 'copy-msg-btn', 'Message')">
         <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/>
@@ -40,5 +40,54 @@
     </button>
 </div>
 
-<script src='/static/js/copy-text.js'></script>
+<script>
+// reuse the copyToClipboard function if not already defined
+if (typeof copyToClipboard === 'undefined') {
+    function copyToClipboard(textId, btnId, type) {
+        const textarea = document.getElementById(textId);
+        const button = document.getElementById(btnId);
+        const originalHTML = button.innerHTML;
+        
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            // success feedback
+            button.innerHTML = `
+                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <polyline points="20,6 9,17 4,12" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span class="btn-text">Copied!</span>
+            `;
+            button.style.background = 'var(--color-success)';
+            
+            // show notification
+            const popup = document.getElementById("popup");
+            const popupText = popup.querySelector(".popup-text");
+            popup.style.opacity = 1;
+            popup.style.visibility = "visible";
+            popupText.innerHTML = `<strong>${type} copied!</strong>`;
+            
+            // reset after 2 seconds
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.style.background = '';
+                window.closePopup();
+            }, 2000);
+        }).catch(err => {
+            // error feedback
+            button.innerHTML = `
+                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2"/>
+                    <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span class="btn-text">Error!</span>
+            `;
+            button.style.background = 'var(--color-error)';
+            
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.style.background = '';
+            }, 2000);
+        });
+    }
+}
+</script>
 {{end}}

@@ -146,10 +146,12 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 			PinSize: s.cfg.PinSize,
 		}
 
-		// attach event listeners to pin inputs
-		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
-
-		s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		// return 400 for htmx to handle with hx-target-400
+		if r.Header.Get("HX-Request") == "true" {
+			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+		} else {
+			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		}
 		return
 	}
 
@@ -177,8 +179,6 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 		},
 		PinSize: s.cfg.PinSize,
 	}
-
-	w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
@@ -219,9 +219,6 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			PinSize: s.cfg.PinSize,
 		}
 
-		// attach event listeners to pin inputs
-		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
-
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
 		return
 	}
@@ -229,9 +226,16 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
 	if err != nil {
 		if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
-			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+			// message not found or expired - return 404
+			status := http.StatusNotFound
+			if r.Header.Get("HX-Request") == "true" {
+				s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
+			} else {
+				s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+			}
 			return
 		}
+		// wrong PIN - add error to form
 		log.Printf("[WARN] can't load message %v", err)
 		form.AddFieldError("pin", err.Error())
 
@@ -239,10 +243,12 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			Form:    form,
 			PinSize: s.cfg.PinSize,
 		}
-		// attach event listeners to pin inputs
-		w.Header().Add("HX-Trigger-After-Swap", "setUpPinInputListeners")
-
-		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
+		// for HTMX requests, return 403 for wrong PIN
+		status := http.StatusOK
+		if r.Header.Get("HX-Request") == "true" {
+			status = http.StatusForbidden
+		}
+		s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
 
 		return
 	}
@@ -277,6 +283,7 @@ func humanDuration(d time.Duration) string {
 		return fmt.Sprintf("%d days", d/(time.Hour*24))
 	}
 }
+
 
 // newTemplateCache creates a template cache as a map
 func newTemplateCache() (map[string]*template.Template, error) {

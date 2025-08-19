@@ -2,13 +2,18 @@
 
 {{define "main"}}
 
-<div class="card">
+<div class="card" id="form-card">
     <div class="card-header">
         <h2 class="card-title">Create a Secure Message</h2>
         <p class="card-description">Share sensitive information that self-destructs after being read</p>
     </div>
     
-    <form hx-post="/generate-link" hx-swap="outerHTML" hx-target=".card" hx-boost="true">
+    <form hx-post="/generate-link" 
+          hx-target="#form-card" 
+          hx-swap="outerHTML"
+          hx-indicator="#form-spinner"
+          hx-target-400="#form-errors"
+          hx-target-500="#notifications">
         <div class="form-group">
             <label for="message">
                 <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -92,12 +97,22 @@
             </div>
         </div>
 
+        <div id="form-errors"></div>
+
         <button type="submit" class="main-btn">
-            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2"/>
-            </svg>
-            Generate Secure Link
+            <span class="htmx-indicator" id="form-spinner">
+                <svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Generating...
+            </span>
+            <span class="button-text">
+                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="2"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                Generate Secure Link
+            </span>
         </button>
     </form>
 </div>
