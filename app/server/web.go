@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -11,9 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	log "github.com/go-pkgz/lgr"
-	"github.com/pkg/errors"
 
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/server/validator"
@@ -169,7 +168,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 // URL Parameters:
 //   - "key" (string): A path parameter representing the unique key of the message to be displayed.
 func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
-	key := chi.URLParam(r, keyKey)
+	key := r.PathValue(keyKey)
 
 	data := s.newTemplateData(r, showMsgForm{
 		Key: key,
@@ -226,6 +225,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			} else {
 				s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
 			}
+			log.Printf("[INFO] accessed message %s, status 404 (not found)", form.Key)
 			return
 		}
 		// wrong PIN - add error to form
@@ -239,11 +239,12 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusForbidden
 		}
 		s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
-
+		log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
 		return
 	}
 
 	s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
+	log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
 }
 
 // duration converts a number and unit into a time.Duration

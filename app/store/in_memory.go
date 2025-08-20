@@ -28,7 +28,7 @@ func (s *InMemory) Save(msg *Message) (err error) {
 	defer s.lock.Unlock()
 
 	s.data[msg.Key] = *msg
-	log.Printf("[DEBUG] saved, exp=%v, total %d", msg.Exp, len(s.data))
+	log.Printf("[DEBUG] saved, exp=%s, total %d", msg.Exp.Format(time.RFC3339), len(s.data))
 	return nil
 }
 
@@ -67,7 +67,7 @@ func (s *InMemory) Remove(key string) (err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	delete(s.data, key)
-	log.Printf("[DEBUG] removed %s", key)
+	log.Printf("[INFO] removed %s", key)
 	return nil
 }
 

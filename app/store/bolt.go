@@ -98,7 +98,7 @@ func (s *Bolt) activateCleaner(every time.Duration) {
 	go func() {
 		for range ticker.C {
 
-			expired := [][]byte{}
+			var expired [][]byte
 
 			_ = s.db.View(func(tx *bolt.Tx) error {
 				c := tx.Bucket(bucket).Cursor()

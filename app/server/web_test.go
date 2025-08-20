@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -9,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -149,18 +147,20 @@ func TestServer_showMessageViewCtrl(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/message/testkey123", http.NoBody)
-	rr := httptest.NewRecorder()
+	// create test server with actual routes
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
 
-	// add chi context with URL param
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("key", "testkey123")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	resp, err := http.Get(ts.URL + "/message/testkey123")
+	require.NoError(t, err)
+	defer resp.Body.Close()
 
-	srv.showMessageViewCtrl(rr, req)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "testkey123")
+	body := make([]byte, 1024*10) // 10KB buffer
+	n, _ := resp.Body.Read(body)
+	responseBody := string(body[:n])
+	assert.Contains(t, responseBody, "testkey123")
 }
 
 func TestServer_generateLinkCtrl(t *testing.T) {
