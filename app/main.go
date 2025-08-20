@@ -17,7 +17,7 @@ import (
 var opts struct {
 	Engine         string        `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"` // nolint
 	SignKey        string        `short:"k" long:"key" env:"SIGN_KEY" description:"sign key" required:"true"`
-	PinSize        int           `long:"pinszie" env:"PIN_SIZE" default:"5" description:"pin size"`
+	PinSize        int           `long:"pinsize" env:"PIN_SIZE" default:"5" description:"pin size"`
 	MaxExpire      time.Duration `long:"expire" env:"MAX_EXPIRE" default:"24h" description:"max lifetime"`
 	MaxPinAttempts int           `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
 	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`

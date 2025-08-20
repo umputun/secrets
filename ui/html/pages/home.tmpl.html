@@ -43,19 +43,19 @@
                         <circle cx="12" cy="16" r="1" fill="currentColor"/>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" stroke-width="2"/>
                     </svg>
-                    Create 5-digit PIN
+                    Create {{.PinSize}}-digit PIN
                 </label>
                 <input type="text" 
                        name="pin"
                        id="pin"
                        class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
                        required
-                       maxlength="5"
+                       maxlength="{{.PinSize}}"
                        inputmode="numeric"
-                       pattern="[0-9]{5}"
-                       placeholder="12345"
-                       title="PIN must be exactly 5 digits"
-                       aria-label="5-digit PIN" />
+                       pattern="[0-9]{{printf "{%d}" .PinSize}}"
+                       placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
+                       title="PIN must be exactly {{.PinSize}} digits"
+                       aria-label="{{.PinSize}}-digit PIN" />
                 {{with .Form.FieldErrors.pin}}
                 <span class='error'>{{.}}</span>
                 {{end}}

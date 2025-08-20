@@ -374,7 +374,10 @@ func newTemplateCache() (map[string]*template.Template, error) {
 			page,
 		}
 
-		ts, err := template.New(name).Funcs(template.FuncMap{"until": until}).ParseFS(ui.Files, patterns...)
+		ts, err := template.New(name).Funcs(template.FuncMap{
+			"until": until,
+			"add":   func(a, b int) int { return a + b },
+		}).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err
 		}

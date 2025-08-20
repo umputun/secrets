@@ -7,7 +7,7 @@
     <div class="card load-msg-form">
         <div class="card-header">
             <h2 class="card-title">Access Message</h2>
-            <p class="card-description">Enter your 5-digit PIN to decrypt and view the message</p>
+            <p class="card-description">Enter your {{.PinSize}}-digit PIN to decrypt and view the message</p>
         </div>
         
         <form hx-post="/load-message" 
@@ -25,12 +25,12 @@
                        id="pin"
                        class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
                        required
-                       maxlength="5"
+                       maxlength="{{.PinSize}}"
                        inputmode="numeric"
-                       pattern="[0-9]{5}"
-                       placeholder="12345"
-                       title="PIN must be exactly 5 digits"
-                       aria-label="5-digit PIN"
+                       pattern="[0-9]{{printf "{%d}" .PinSize}}"
+                       placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
+                       title="PIN must be exactly {{.PinSize}} digits"
+                       aria-label="{{.PinSize}}-digit PIN"
                        autofocus />
                 <div id="pin-error">
                     {{with .Form.FieldErrors.pin}}
