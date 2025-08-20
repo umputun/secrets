@@ -49,6 +49,10 @@ func TestTemplates_HumanDuration(t *testing.T) {
 		{name: "minutes", d: time.Duration(5) * time.Minute, want: "5 minutes"},
 		{name: "hours", d: time.Duration(5) * time.Hour, want: "5 hours"},
 		{name: "days", d: time.Duration(5*24) * time.Hour, want: "5 days"},
+		{name: "1 second", d: time.Duration(1) * time.Second, want: "1 second"},
+		{name: "1 minute", d: time.Duration(1) * time.Minute, want: "1 minute"},
+		{name: "1 hour", d: time.Duration(1) * time.Hour, want: "1 hour"},
+		{name: "1 day", d: time.Duration(1*24) * time.Hour, want: "1 day"},
 	}
 
 	for _, tt := range tests {

@@ -262,15 +262,23 @@ func duration(n int, unit string) time.Duration {
 
 // humanDuration converts a time.Duration into a human readable string like "5 minutes"
 func humanDuration(d time.Duration) string {
+
+	pluralPostfix := func(val time.Duration) string {
+		if val == 1 {
+			return ""
+		}
+		return "s"
+	}
+
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf("%d seconds", d/time.Second)
+		return fmt.Sprintf("%d second%s", d/time.Second, pluralPostfix(d/time.Second))
 	case d < time.Hour:
-		return fmt.Sprintf("%d minutes", d/time.Minute)
+		return fmt.Sprintf("%d minute%s", d/time.Minute, pluralPostfix(d/time.Minute))
 	case d < time.Hour*24:
-		return fmt.Sprintf("%d hours", d/time.Hour)
+		return fmt.Sprintf("%d hour%s", d/time.Hour, pluralPostfix(d/time.Hour))
 	default:
-		return fmt.Sprintf("%d days", d/(time.Hour*24))
+		return fmt.Sprintf("%d day%s", d/(time.Hour*24), pluralPostfix(d/(time.Hour*24)))
 	}
 }
 
