@@ -203,3 +203,42 @@ Core libraries used:
   - PinSize: Configuration for PIN input rendering
   - CurrentYear: For copyright footer
   - Theme: Current user theme preference
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflow
+- CI runs on every push and pull request using `.github/workflows/ci.yml`
+- Tests execute with 60s timeout and coverage reporting
+- GolangCI-Lint v2.3.1 enforces code quality standards
+- Docker images automatically built and pushed to DockerHub on master and tagged releases
+- Tagged releases deploy as both `umputun/secrets:vX.Y.Z` and `umputun/secrets:latest`
+
+### Release Process
+- Hotfix releases follow semantic versioning (v1.5.0 → v1.5.1 for bug fixes)
+- GitHub releases titled as "Version X.Y.Z" (no "v" prefix in title)
+- Release notes should avoid emojis in GitHub communications
+- Docker images available immediately after tagged release CI completion
+
+## Template Functions
+
+### Custom Template Functions
+- `until(n int)`: Generates slice of integers from 0 to n-1 for iteration
+- `add(a, b int)`: Addition function for template arithmetic
+- Template FuncMap defined in `app/server/web.go` during template parsing
+- Used for dynamic content generation based on configuration (e.g., PIN_SIZE)
+
+## Configuration Nuances
+
+### CLI Flags vs Environment Variables
+- Both CLI flags and environment variables supported for all configuration
+- CLI flag names use lowercase with no underscores (e.g., `--pinsize`)
+- Environment variables use uppercase with underscores (e.g., `PIN_SIZE`)
+- Some historical typos may exist in CLI flags but environment variables are reliable
+
+## Testing Patterns
+
+### Local Testing Workflow
+- Port conflicts common during testing (8080 often in use)
+- Tests may fail locally if port is occupied but pass in CI
+- Build binary embeds UI assets, no need for `--web` flag after building
+- Run formatter, goimports, and unfuck-ai-comments before committing
