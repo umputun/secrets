@@ -225,6 +225,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			} else {
 				s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
 			}
+			log.Printf("[INFO] accessed message %s, status 404 (not found)", form.Key)
 			return
 		}
 		// wrong PIN - add error to form
@@ -238,11 +239,12 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			status = http.StatusForbidden
 		}
 		s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
-
+		log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
 		return
 	}
 
 	s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
+	log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
 }
 
 // duration converts a number and unit into a time.Duration
