@@ -27,3 +27,4 @@ debug.test
 secrets
 coverage.out
 coverage.html
+.playwright-mcp/
