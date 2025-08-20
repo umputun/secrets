@@ -3,10 +3,10 @@ package messager
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
 	"golang.org/x/crypto/nacl/secretbox"
 )
 
@@ -28,14 +28,14 @@ func (c Crypt) Encrypt(req Request) ([]byte, error) {
 
 	keyWithPin := fmt.Sprintf("%s%s", c.Key, req.Pin)
 	if len(keyWithPin) != 32 {
-		return nil, errors.Errorf("key+pin should be 32 bytes, got %d", len(keyWithPin))
+		return nil, fmt.Errorf("key+pin should be 32 bytes, got %d", len(keyWithPin))
 	}
 
 	naclKey := new([32]byte)
 	copy(naclKey[:], keyWithPin[:32])
 	nonce := new([24]byte)
 	if _, err := io.ReadFull(rand.Reader, nonce[:]); err != nil {
-		return nil, errors.Wrap(err, "could not read from random")
+		return nil, fmt.Errorf("could not read from random: %w", err)
 	}
 	out := make([]byte, 24)
 	copy(out, nonce[:])
@@ -55,7 +55,7 @@ func (c Crypt) Decrypt(req Request) ([]byte, error) {
 
 	sealed, err := base64.StdEncoding.DecodeString(string(req.Data))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode")
+		return nil, fmt.Errorf("failed to decode: %w", err)
 	}
 
 	nonce := new([24]byte)

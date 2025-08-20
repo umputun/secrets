@@ -10,7 +10,6 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/umputun/secrets/app/store"
@@ -164,7 +163,7 @@ func (p MessageProc) checkHash(msg *store.Message, pin string) bool {
 func (p MessageProc) makeHash(pin string) (result string, err error) {
 	hashedPin, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
 	if err != nil {
-		return "", errors.Wrap(err, "can't make hashed pin")
+		return "", fmt.Errorf("can't make hashed pin: %w", err)
 	}
 	return string(hashedPin), nil
 }

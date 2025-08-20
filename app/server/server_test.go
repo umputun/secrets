@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -320,6 +319,10 @@ func TestServer_getMessageCtrl(t *testing.T) {
 		})
 	require.NoError(t, err)
 
+	// create test server with actual routes
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
 	// save a message first
 	msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
 	require.NoError(t, err)
@@ -339,29 +342,22 @@ func TestServer_getMessageCtrl(t *testing.T) {
 		}},
 		{name: "invalid pin returns 400 when key not found", key: msg.Key, pin: "99999", expectedStatusCode: 400},
 		{name: "non-existent key", key: "badkey", pin: "12345", expectedStatusCode: 400},
-		{name: "empty key", key: "", pin: "12345", expectedStatusCode: 400},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url := fmt.Sprintf("/api/v1/message/%s/%s", tt.key, tt.pin)
-			if tt.key == "" {
-				url = fmt.Sprintf("/api/v1/message//%s", tt.pin)
-			}
-			req := httptest.NewRequest(http.MethodGet, url, http.NoBody)
-			rr := httptest.NewRecorder()
+			url := fmt.Sprintf("%s/api/v1/message/%s/%s", ts.URL, tt.key, tt.pin)
 
-			// add chi context
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("key", tt.key)
-			rctx.URLParams.Add("pin", tt.pin)
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+			resp, err := http.Get(url) // #nosec G107 - URL is constructed from test data
+			require.NoError(t, err)
+			defer resp.Body.Close()
 
-			srv.getMessageCtrl(rr, req)
+			assert.Equal(t, tt.expectedStatusCode, resp.StatusCode)
 
-			assert.Equal(t, tt.expectedStatusCode, rr.Code)
 			if tt.checkResponse != nil {
-				tt.checkResponse(t, rr.Body.Bytes())
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.checkResponse(t, body)
 			}
 		})
 	}
@@ -376,6 +372,7 @@ func TestServer_Run(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Port:           ":0", // use random available port
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,

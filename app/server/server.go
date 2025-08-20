@@ -3,6 +3,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -10,15 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/didip/tollbooth/v7"
-	"github.com/didip/tollbooth_chi"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/render"
-	"github.com/pkg/errors"
-
+	"github.com/didip/tollbooth/v8"
 	log "github.com/go-pkgz/lgr"
-	um "github.com/go-pkgz/rest"
+	"github.com/go-pkgz/rest"
+	"github.com/go-pkgz/routegroup"
 
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/store"
@@ -31,6 +28,7 @@ type Config struct {
 	WebRoot  string
 	Protocol string
 	Branding string
+	Port     string // server port, defaults to :8080
 	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
@@ -49,7 +47,7 @@ type Server struct {
 func New(m Messager, version string, cfg Config) (Server, error) {
 	cache, err := newTemplateCache()
 	if err != nil {
-		return Server{}, errors.Wrap(err, "can't create template cache")
+		return Server{}, fmt.Errorf("can't create template cache: %w", err)
 	}
 	return Server{
 		messager:      m,
@@ -80,8 +78,13 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 func (s Server) Run(ctx context.Context) error {
 	log.Printf("[INFO] activate rest server")
 
+	port := s.cfg.Port
+	if port == "" {
+		port = ":8080"
+	}
+
 	httpServer := &http.Server{
-		Addr:              ":8080",
+		Addr:              port,
 		Handler:           s.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -101,71 +104,78 @@ func (s Server) Run(ctx context.Context) error {
 	log.Printf("[WARN] http server terminated, %s", err)
 
 	if !errors.Is(err, http.ErrServerClosed) {
-		return errors.Wrap(err, "server failed")
+		return fmt.Errorf("server failed: %w", err)
 	}
 	return nil
 }
 
-func (s Server) routes() chi.Router {
-	router := chi.NewRouter()
+func (s Server) routes() http.Handler {
+	mux := http.NewServeMux()
+	router := routegroup.New(mux)
 
-	router.Use(middleware.RequestID, middleware.RealIP, um.Recoverer(log.Default()))
-	router.Use(middleware.Throttle(1000), middleware.Timeout(60*time.Second))
-	router.Use(um.AppInfo("secrets", "Umputun", s.version), um.Ping, um.SizeLimit(64*1024))
-	router.Use(tollbooth_chi.LimitHandler(tollbooth.NewLimiter(10, nil)))
+	// global middleware - applied to all routes
+	router.Use(
+		rest.RealIP,
+		rest.Recoverer(log.Default()),
+		rest.Throttle(1000),
+		Timeout(60*time.Second),
+		rest.AppInfo("secrets", "Umputun", s.version),
+		rest.Ping,
+		rest.SizeLimit(64*1024),
+		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
+	)
 
-	router.Route("/api/v1", func(r chi.Router) {
-		r.Use(Logger(log.Default()))
-		r.Post("/message", s.saveMessageCtrl)
-		r.Get("/message/{key}/{pin}", s.getMessageCtrl)
-		r.Get("/params", s.getParamsCtrl)
+	// API routes
+	router.Mount("/api/v1").Route(func(apiGroup *routegroup.Bundle) {
+		apiGroup.Use(Logger(log.Default()))
+		apiGroup.Handle("POST /message", http.HandlerFunc(s.saveMessageCtrl))
+		apiGroup.Handle("GET /message/{key}/{pin}", http.HandlerFunc(s.getMessageCtrl))
+		apiGroup.Handle("GET /params", http.HandlerFunc(s.getParamsCtrl))
 	})
 
-	router.Get("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
-		render.PlainText(w, r, "User-agent: *\nDisallow: /api/\nDisallow: /show/\n")
+	// web routes
+	router.Group().Route(func(webGroup *routegroup.Bundle) {
+		webGroup.Use(Logger(log.Default()), StripSlashes)
+		webGroup.Handle("POST /generate-link", http.HandlerFunc(s.generateLinkCtrl))
+		webGroup.Handle("GET /message/{key}", http.HandlerFunc(s.showMessageViewCtrl))
+		webGroup.Handle("POST /load-message", http.HandlerFunc(s.loadMessageCtrl))
+		webGroup.Handle("POST /theme", http.HandlerFunc(s.themeToggleCtrl))
+		webGroup.Handle("POST /copy-feedback", http.HandlerFunc(s.copyFeedbackCtrl))
+		webGroup.Handle("GET /close-popup", http.HandlerFunc(s.closePopupCtrl))
+		webGroup.Handle("GET /about", http.HandlerFunc(s.aboutViewCtrl))
+		webGroup.Handle("GET /{$}", http.HandlerFunc(s.indexCtrl)) // exact match for root only
 	})
 
-	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+	// special routes without groups
+	router.Handle("GET /robots.txt", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("User-agent: *\nDisallow: /api/\nDisallow: /show/\n"))
+	}))
+
+	// custom 404 handler
+	router.NotFoundHandler(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/v1") {
-			render.Status(r, http.StatusNotFound)
-			render.JSON(w, r, JSON{"error": "not found"})
+			rest.SendErrorJSON(w, r, log.Default(), http.StatusNotFound, errors.New("not found"), "endpoint not found")
 			return
 		}
-
 		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, s.newTemplateData(r, nil))
 	})
 
-	router.Group(func(r chi.Router) {
-		r.Use(Logger(log.Default()))
-		r.Use(middleware.StripSlashes)
-		r.Post("/generate-link", s.generateLinkCtrl)
-		r.Get("/message/{key}", s.showMessageViewCtrl)
-		r.Post("/load-message", s.loadMessageCtrl)
-		r.Post("/theme", s.themeToggleCtrl)
-		r.Post("/copy-feedback", s.copyFeedbackCtrl)
-		r.Get("/close-popup", s.closePopupCtrl)
-		r.Get("/about", s.aboutViewCtrl)
-		r.Get("/", s.indexCtrl)
-	})
-
-	// use embedded files if WebRoot doesn't exist
+	// static file handling
 	if _, err := os.Stat(s.cfg.WebRoot); os.IsNotExist(err) || s.cfg.WebRoot == "" {
 		// use embedded file system
 		staticFS, err := fs.Sub(ui.Files, "static")
 		if err != nil {
 			log.Fatalf("[ERROR] can't create embedded file server %v", err)
 		}
-		router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+		router.HandleFiles("/static", http.FS(staticFS))
 	} else {
 		// use local file system
-		fileServer, err := um.NewFileServer("/static", s.cfg.WebRoot)
-		if err != nil {
-			log.Fatalf("[ERROR] can't create file server %v", err)
-		}
-		router.Handle("/static/*", fileServer)
+		router.HandleFiles("/static", http.Dir(s.cfg.WebRoot))
 	}
 
-	return router
+	return mux
 }
 
 func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
@@ -175,63 +185,70 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		Pin     string
 	}{}
 
-	if err := render.DecodeJSON(r.Body, &request); err != nil {
+	if err := rest.DecodeJSON(r, &request); err != nil {
 		log.Printf("[WARN] can't bind request %v", request)
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, JSON{"error": err.Error()})
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't decode request")
 		return
 	}
 
 	if len(request.Pin) != s.cfg.PinSize {
 		log.Printf("[WARN] incorrect pin size %d", len(request.Pin))
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, JSON{"error": "Incorrect pin size"})
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("incorrect pin size"), "incorrect pin size")
 		return
 	}
 
 	msg, err := s.messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, JSON{"error": err.Error()})
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create message")
 		return
 	}
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, JSON{"key": msg.Key, "exp": msg.Exp})
+	w.WriteHeader(http.StatusCreated)
+	rest.RenderJSON(w, rest.JSON{"key": msg.Key, "exp": msg.Exp})
+	log.Printf("[INFO] created message %s exp %s", msg.Key, msg.Exp.Format(time.RFC3339))
 }
 
 // GET /v1/message/{key}/{pin}
 func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
-
-	key, pin := chi.URLParam(r, "key"), chi.URLParam(r, "pin")
+	key, pin := r.PathValue("key"), r.PathValue("pin")
 	if key == "" || pin == "" || len(pin) != s.cfg.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, JSON{"error": "no key or pin passed"})
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("no key or pin passed"), "invalid request")
 		return
 	}
 
-	serveRequest := func() (status int, res JSON) {
+	serveRequest := func() (status int, res rest.JSON) {
 		msg, err := s.messager.LoadMessage(key, pin)
 		if err != nil {
 			log.Printf("[WARN] failed to load key %v", key)
-			if err == messager.ErrBadPinAttempt {
-				return http.StatusExpectationFailed, JSON{"error": err.Error()}
+			if errors.Is(err, messager.ErrBadPinAttempt) {
+				return http.StatusExpectationFailed, rest.JSON{"error": err.Error()}
 			}
-			return http.StatusBadRequest, JSON{"error": err.Error()}
+			return http.StatusBadRequest, rest.JSON{"error": err.Error()}
 		}
-		return http.StatusOK, JSON{"key": msg.Key, "message": string(msg.Data)}
+		return http.StatusOK, rest.JSON{"key": msg.Key, "message": string(msg.Data)}
 	}
 
 	// make sure serveRequest works constant time on any branch
 	st := time.Now()
 	status, res := serveRequest()
 	time.Sleep(time.Millisecond*100 - time.Since(st))
-	render.Status(r, status)
-	render.JSON(w, r, res)
+	w.WriteHeader(status)
+	rest.RenderJSON(w, res)
+
+	var statusText string
+	switch status {
+	case 200:
+		statusText = "success"
+	case 417:
+		statusText = "wrong pin"
+	default:
+		statusText = "error"
+	}
+	log.Printf("[INFO] accessed message %s, status %d (%s)", key, status, statusText)
 }
 
 // GET /params
-func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
+func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 	params := struct {
 		PinSize        int `json:"pin_size"`
 		MaxPinAttempts int `json:"max_pin_attempts"`
@@ -241,5 +258,5 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, r *http.Request) {
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 	}
-	render.JSON(w, r, params)
+	rest.RenderJSON(w, params)
 }

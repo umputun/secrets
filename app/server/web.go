@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -11,9 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	log "github.com/go-pkgz/lgr"
-	"github.com/pkg/errors"
 
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/server/validator"
@@ -169,7 +168,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 // URL Parameters:
 //   - "key" (string): A path parameter representing the unique key of the message to be displayed.
 func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
-	key := chi.URLParam(r, keyKey)
+	key := r.PathValue(keyKey)
 
 	data := s.newTemplateData(r, showMsgForm{
 		Key: key,
