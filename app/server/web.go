@@ -229,7 +229,6 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// wrong PIN - add error to form
-		log.Printf("[WARN] can't load message %v", err)
 		form.AddFieldError("pin", err.Error())
 
 		data := s.newTemplateData(r, form)

@@ -131,7 +131,7 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		if e != nil {
 			return nil, ErrBadPin
 		}
-		log.Printf("[WARN] wrong pin provided (%d times)", count)
+		log.Printf("[WARN] wrong pin provided for %s (%d times)", key, count)
 		if count >= p.MaxPinAttempts {
 			_ = p.engine.Remove(key)
 			return nil, ErrBadPin
