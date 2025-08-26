@@ -102,7 +102,7 @@ type Crypter interface {
 - `POST /api/v1/message` - Create encrypted message
 - `GET /api/v1/message/:key/:pin` - Retrieve and decrypt message
 - `GET /api/v1/params` - Get service configuration
-- `GET /api/v1/ping` - Health check
+- `GET /ping` - Health check
 
 ## Configuration
 

@@ -181,10 +181,10 @@ in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB
 
 ### ping
 
-`GET /api/v1/ping`
+`GET /ping`
 
     ```
-    $ http https://safesecret.info/api/v1/ping
+    $ http https://safesecret.info/ping
 
     HTTP/1.1 200 OK
 
