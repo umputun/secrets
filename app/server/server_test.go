@@ -648,3 +648,33 @@ func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 	ts = httptest.NewServer(srv.routes())
 	return ts, ts.Close
 }
+
+func TestServer_ping(t *testing.T) {
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+
+	client := http.Client{Timeout: time.Second}
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"root ping", "/ping"},
+		{"api ping", "/api/v1/ping"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := client.Get(ts.URL + tc.path)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "text/plain", resp.Header.Get("Content-Type"))
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "pong", string(body))
+		})
+	}
+}

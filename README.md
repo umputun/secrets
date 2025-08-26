@@ -181,10 +181,20 @@ in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB
 
 ### ping
 
-`GET /ping`
+`GET /ping` or `GET /api/v1/ping`
+
+Both endpoints work and return the same response. The ping middleware intercepts any path ending with `/ping`.
 
     ```
     $ http https://safesecret.info/ping
+
+    HTTP/1.1 200 OK
+
+    pong
+    ```
+
+    ```
+    $ http https://safesecret.info/api/v1/ping
 
     HTTP/1.1 200 OK
 

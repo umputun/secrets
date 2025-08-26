@@ -110,8 +110,7 @@ func (s Server) Run(ctx context.Context) error {
 }
 
 func (s Server) routes() http.Handler {
-	mux := http.NewServeMux()
-	router := routegroup.New(mux)
+	router := routegroup.New(http.NewServeMux())
 
 	// global middleware - applied to all routes
 	router.Use(
@@ -175,7 +174,7 @@ func (s Server) routes() http.Handler {
 		router.HandleFiles("/static", http.Dir(s.cfg.WebRoot))
 	}
 
-	return mux
+	return router
 }
 
 func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
