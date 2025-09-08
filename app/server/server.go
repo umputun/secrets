@@ -65,12 +65,19 @@ type Messager interface {
 
 // newTemplateData creates a templateData with common fields populated
 func (s Server) newTemplateData(r *http.Request, form any) templateData {
+	// construct the canonical URL
+	url := fmt.Sprintf("%s://%s%s", s.cfg.Protocol, s.cfg.Domain, r.URL.Path)
+	// construct the base URL
+	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, s.cfg.Domain)
+
 	return templateData{
 		Form:        form,
 		PinSize:     s.cfg.PinSize,
 		CurrentYear: time.Now().Year(),
 		Theme:       getTheme(r),
 		Branding:    s.cfg.Branding,
+		URL:         url,
+		BaseURL:     baseURL,
 	}
 }
 
@@ -127,30 +134,34 @@ func (s Server) routes() http.Handler {
 	// API routes
 	router.Mount("/api/v1").Route(func(apiGroup *routegroup.Bundle) {
 		apiGroup.Use(Logger(log.Default()))
-		apiGroup.Handle("POST /message", http.HandlerFunc(s.saveMessageCtrl))
-		apiGroup.Handle("GET /message/{key}/{pin}", http.HandlerFunc(s.getMessageCtrl))
-		apiGroup.Handle("GET /params", http.HandlerFunc(s.getParamsCtrl))
+		apiGroup.HandleFunc("POST /message", s.saveMessageCtrl)
+		apiGroup.HandleFunc("GET /message/{key}/{pin}", s.getMessageCtrl)
+		apiGroup.HandleFunc("GET /params", s.getParamsCtrl)
 	})
 
 	// web routes
 	router.Group().Route(func(webGroup *routegroup.Bundle) {
 		webGroup.Use(Logger(log.Default()), StripSlashes)
-		webGroup.Handle("POST /generate-link", http.HandlerFunc(s.generateLinkCtrl))
-		webGroup.Handle("GET /message/{key}", http.HandlerFunc(s.showMessageViewCtrl))
-		webGroup.Handle("POST /load-message", http.HandlerFunc(s.loadMessageCtrl))
-		webGroup.Handle("POST /theme", http.HandlerFunc(s.themeToggleCtrl))
-		webGroup.Handle("POST /copy-feedback", http.HandlerFunc(s.copyFeedbackCtrl))
-		webGroup.Handle("GET /close-popup", http.HandlerFunc(s.closePopupCtrl))
-		webGroup.Handle("GET /about", http.HandlerFunc(s.aboutViewCtrl))
-		webGroup.Handle("GET /{$}", http.HandlerFunc(s.indexCtrl)) // exact match for root only
+		webGroup.HandleFunc("POST /generate-link", s.generateLinkCtrl)
+		webGroup.HandleFunc("GET /message/{key}", s.showMessageViewCtrl)
+		webGroup.HandleFunc("POST /load-message", s.loadMessageCtrl)
+		webGroup.HandleFunc("POST /theme", s.themeToggleCtrl)
+		webGroup.HandleFunc("POST /copy-feedback", s.copyFeedbackCtrl)
+		webGroup.HandleFunc("GET /close-popup", s.closePopupCtrl)
+		webGroup.HandleFunc("GET /about", s.aboutViewCtrl)
+		webGroup.HandleFunc("GET /{$}", s.indexCtrl) // exact match for root only
 	})
 
 	// special routes without groups
-	router.Handle("GET /robots.txt", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	router.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("User-agent: *\nDisallow: /api/\nDisallow: /show/\n"))
-	}))
+		robotsContent := fmt.Sprintf("User-agent: *\nDisallow: /api/\nDisallow: /message/\nSitemap: %s://%s/sitemap.xml\n",
+			s.cfg.Protocol, s.cfg.Domain)
+		_, _ = w.Write([]byte(robotsContent))
+	})
+
+	router.HandleFunc("GET /sitemap.xml", s.sitemapCtrl)
 
 	// custom 404 handler
 	router.NotFoundHandler(func(w http.ResponseWriter, r *http.Request) {
@@ -258,4 +269,33 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 	}
 	rest.RenderJSON(w, params)
+}
+
+// sitemapCtrl generates an XML sitemap for SEO
+// GET /sitemap.xml
+func (s Server) sitemapCtrl(w http.ResponseWriter, _ *http.Request) {
+	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, s.cfg.Domain)
+
+	// use current time for lastmod
+	lastMod := time.Now().Format("2006-01-02")
+
+	sitemap := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>%s/</loc>
+        <lastmod>%s</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>1.0</priority>
+    </url>
+    <url>
+        <loc>%s/about</loc>
+        <lastmod>%s</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+</urlset>`, baseURL, lastMod, baseURL, lastMod)
+
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(sitemap))
 }
