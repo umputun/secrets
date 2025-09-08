@@ -4,12 +4,65 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <title>{{template "title" .}} - {{.Branding}}</title>
-        <meta name="description" content="Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing.">
+        <title>{{if .PageTitle}}{{.PageTitle}}{{else}}{{template "title" .}} - {{.Branding}}{{end}}</title>
+        <meta name="description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing.{{end}}">
+        <meta name="keywords" content="password sharing, secure messaging, encrypted messages, self-destructing messages, PIN protection, secret sharing, sensitive information, privacy, security">
+        <meta name="author" content="Umputun">
+        <meta name="robots" content="{{if .IsMessagePage}}noindex, nofollow{{else}}index, follow{{end}}">
+        
+        <!-- Canonical URL -->
+        <link rel="canonical" href="{{.URL}}">
+        
+        <!-- Open Graph / Facebook -->
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="{{.URL}}">
+        <meta property="og:title" content="{{if .PageTitle}}{{.PageTitle}}{{else}}{{template "title" .}} - {{.Branding}}{{end}}">
+        <meta property="og:description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with self-destructing messages protected by PIN codes.{{end}}">
+        <meta property="og:image" content="{{.BaseURL}}/static/img/logo.svg">
+        <meta property="og:site_name" content="{{.Branding}}">
+        
+        <!-- Twitter -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:url" content="{{.URL}}">
+        <meta name="twitter:title" content="{{if .PageTitle}}{{.PageTitle}}{{else}}{{template "title" .}} - {{.Branding}}{{end}}">
+        <meta name="twitter:description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with self-destructing messages protected by PIN codes.{{end}}">
+        <meta name="twitter:image" content="{{.BaseURL}}/static/img/logo.svg">
+        
+        <!-- Favicons -->
+        <link rel='shortcut icon' href='/static/img/favicon.ico' type='image/x-icon'>
+        <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
+        <meta name="theme-color" content="#1a1a1a">
+        
+        <!-- Preconnect for performance -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        
+        <!-- Stylesheets -->
         <link rel='stylesheet' href='/static/css/main.css'>
-        <link rel='shortcut icon' href='/static/img/favicon.ico' type='image/x-icon'>
+        
+        <!-- Structured Data JSON-LD -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "{{jsonEscape .Branding}}",
+            "url": "{{jsonEscape .URL}}",
+            "description": "{{if .PageDesc}}{{jsonEscape .PageDesc}}{{else}}{{jsonEscape "Share sensitive information securely with self-destructing messages protected by PIN codes."}}{{end}}",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Any",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "author": {
+                "@type": "Person",
+                "name": "Umputun",
+                "url": "https://github.com/umputun"
+            }
+        }
+        </script>
     </head>
     <body hx-boost="true" hx-ext="response-targets">
     <div id="notifications" class="toast-container"></div>

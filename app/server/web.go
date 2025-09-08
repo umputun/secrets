@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -47,11 +48,16 @@ type showMsgForm struct {
 }
 
 type templateData struct {
-	Form        any
-	PinSize     int
-	CurrentYear int
-	Theme       string
-	Branding    string
+	Form          any
+	PinSize       int
+	CurrentYear   int
+	Theme         string
+	Branding      string
+	URL           string // canonical URL for the page
+	BaseURL       string // base URL for the site (protocol://domain)
+	PageTitle     string // SEO-optimized page title
+	PageDesc      string // page description for meta tags
+	IsMessagePage bool   // true for message pages (should not be indexed)
 }
 
 // render renders a template
@@ -93,6 +99,8 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 		Exp:    15,
 		MaxExp: humanDuration(s.cfg.MaxExpire),
 	})
+	data.PageTitle = "Secure Password Sharing - Self-Destructing Messages"
+	data.PageDesc = "Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing."
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
 }
@@ -170,9 +178,13 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue(keyKey)
 
+	// set X-Robots-Tag header for defense-in-depth beyond HTML meta
+	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
+
 	data := s.newTemplateData(r, showMsgForm{
 		Key: key,
 	})
+	data.IsMessagePage = true // prevent indexing of sensitive message pages
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
@@ -181,6 +193,8 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 // GET /about
 func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 	data := s.newTemplateData(r, nil)
+	data.PageTitle = "How It Works - Encrypted Message Sharing"
+	data.PageDesc = "Learn how SafeSecret protects your sensitive information with PIN-protected encryption, self-destructing messages, and zero-knowledge architecture."
 	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
 
@@ -383,8 +397,9 @@ func newTemplateCache() (map[string]*template.Template, error) {
 		}
 
 		ts, err := template.New(name).Funcs(template.FuncMap{
-			"until": until,
-			"add":   func(a, b int) int { return a + b },
+			"until":      until,
+			"add":        func(a, b int) int { return a + b },
+			"jsonEscape": jsonEscape,
 		}).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err
@@ -402,4 +417,17 @@ func until(n int) []int {
 		result[i] = i
 	}
 	return result
+}
+
+// jsonEscape safely escapes a string for use in JSON-LD script tags
+func jsonEscape(s string) template.JS {
+	// use Go's json.Marshal to properly escape the string
+	b, err := json.Marshal(s)
+	if err != nil {
+		// this should never happen for string input, but return empty if it does
+		return template.JS("")
+	}
+	// remove the surrounding quotes that Marshal adds
+	// nolint:gosec // json.Marshal properly escapes content, template.JS prevents double escaping in JSON-LD
+	return template.JS(b[1 : len(b)-1])
 }
