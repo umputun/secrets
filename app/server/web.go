@@ -427,6 +427,10 @@ func jsonEscape(s string) template.JS {
 		// this should never happen for string input, but return empty if it does
 		return template.JS("")
 	}
+	// check length to avoid panic on empty strings
+	if len(b) < 2 {
+		return template.JS("")
+	}
 	// remove the surrounding quotes that Marshal adds
 	// nolint:gosec // json.Marshal properly escapes content, template.JS prevents double escaping in JSON-LD
 	return template.JS(b[1 : len(b)-1])
