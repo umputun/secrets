@@ -530,6 +530,7 @@ func TestServer_newTemplateData(t *testing.T) {
 		"test-v",
 		Config{
 			Domain:         "example.com",
+			Protocol:       "https",
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -548,6 +549,15 @@ func TestServer_newTemplateData(t *testing.T) {
 		assert.Equal(t, "Test Brand", data.Branding)
 		assert.Equal(t, "auto", data.Theme) // default theme
 		assert.Equal(t, time.Now().Year(), data.CurrentYear)
+		// verify URL field is set correctly
+		assert.Equal(t, "https://example.com/", data.URL)
+		// verify BaseURL field is set correctly
+		assert.Equal(t, "https://example.com", data.BaseURL)
+		// verify IsMessagePage is false by default
+		assert.False(t, data.IsMessagePage)
+		// verify PageTitle and PageDesc are empty (set by individual handlers)
+		assert.Empty(t, data.PageTitle)
+		assert.Empty(t, data.PageDesc)
 	})
 
 	t.Run("with nil form", func(t *testing.T) {
@@ -577,6 +587,7 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 		"test-v",
 		Config{
 			Domain:         "example.com",
+			Protocol:       "https",
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -593,7 +604,8 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		body := rr.Body.String()
 		assert.Contains(t, body, "Acme Corp Secrets")
-		assert.Contains(t, body, "<title>Home - Acme Corp Secrets</title>")
+		// the title is now SEO optimized, not using branding in title
+		assert.Contains(t, body, "<title>Secure Password Sharing - Self-Destructing Messages</title>")
 		assert.NotContains(t, body, "Safe Secrets")
 	})
 
@@ -607,5 +619,156 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 		body := rr.Body.String()
 		assert.Contains(t, body, "Acme Corp Secrets")
 		assert.NotContains(t, body, "Safe Secrets")
+	})
+}
+
+func TestServer_SEOMetaTags(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"test-v",
+		Config{
+			Domain:         "example.com",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Test SEO",
+			Protocol:       "https",
+		})
+	require.NoError(t, err)
+
+	t.Run("home page has SEO meta tags", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", http.NoBody)
+		req.Host = "example.com"
+		rr := httptest.NewRecorder()
+
+		srv.indexCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+
+		// check optimized title
+		assert.Contains(t, body, "<title>Secure Password Sharing - Self-Destructing Messages</title>")
+
+		// check meta description
+		assert.Contains(t, body, `<meta name="description" content="Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing."`)
+
+		// check canonical URL
+		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/">`)
+
+		// check Open Graph tags
+		assert.Contains(t, body, `<meta property="og:type" content="website">`)
+		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/">`)
+		assert.Contains(t, body, `<meta property="og:title" content="Secure Password Sharing - Self-Destructing Messages">`)
+		assert.Contains(t, body, `<meta property="og:site_name" content="Test SEO">`)
+
+		// check Twitter Card tags
+		assert.Contains(t, body, `<meta name="twitter:card" content="summary_large_image">`)
+		assert.Contains(t, body, `<meta name="twitter:url" content="https://example.com/">`)
+		assert.Contains(t, body, `<meta name="twitter:title" content="Secure Password Sharing - Self-Destructing Messages">`)
+
+		// check structured data JSON-LD
+		assert.Contains(t, body, `"@type": "WebApplication"`)
+		assert.Contains(t, body, `"applicationCategory": "SecurityApplication"`)
+		assert.Contains(t, body, `"name": "Test SEO"`)
+
+		// check other meta tags
+		assert.Contains(t, body, `<meta name="keywords" content="password sharing, secure messaging`)
+		assert.Contains(t, body, `<meta name="author" content="Umputun">`)
+		assert.Contains(t, body, `<meta name="robots" content="index, follow">`)
+	})
+
+	t.Run("about page has SEO meta tags", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/about", http.NoBody)
+		req.Host = "example.com"
+		rr := httptest.NewRecorder()
+
+		srv.aboutViewCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+
+		// check optimized title
+		assert.Contains(t, body, "<title>How It Works - Encrypted Message Sharing</title>")
+
+		// check meta description
+		assert.Contains(t, body, `<meta name="description" content="Learn how SafeSecret protects your sensitive information with PIN-protected encryption, self-destructing messages, and zero-knowledge architecture."`)
+
+		// check canonical URL
+		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/about">`)
+
+		// check Open Graph tags
+		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/about">`)
+		assert.Contains(t, body, `<meta property="og:title" content="How It Works - Encrypted Message Sharing">`)
+	})
+
+	t.Run("message page has noindex meta tag", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/message/test-key-123", http.NoBody)
+		req.Host = "example.com"
+		rr := httptest.NewRecorder()
+
+		srv.showMessageViewCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+
+		// check that message pages have noindex, nofollow
+		assert.Contains(t, body, `<meta name="robots" content="noindex, nofollow">`)
+		// verify canonical URL is still set
+		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/message/test-key-123">`)
+		// check X-Robots-Tag header for defense-in-depth
+		assert.Equal(t, "noindex, nofollow, noarchive", rr.Header().Get("X-Robots-Tag"))
+	})
+}
+
+func TestServer_CanonicalURL(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"test-v",
+		Config{
+			Domain:         "example.com",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Test SEO",
+			Protocol:       "https",
+		})
+	require.NoError(t, err)
+
+	t.Run("generates correct canonical URL", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", http.NoBody)
+		req.Host = "example.com"
+		rr := httptest.NewRecorder()
+
+		srv.indexCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+
+		// should use configured domain for canonical
+		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/">`)
+		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/">`)
+	})
+
+	t.Run("canonical URL for about page", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/about", http.NoBody)
+		req.Host = "example.com"
+		rr := httptest.NewRecorder()
+
+		srv.aboutViewCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+
+		// should include path in canonical URL
+		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/about">`)
+		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/about">`)
 	})
 }

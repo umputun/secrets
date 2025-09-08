@@ -8,7 +8,7 @@ require (
 	github.com/go-pkgz/rest v1.20.4
 	github.com/go-pkgz/routegroup v1.5.3
 	github.com/google/uuid v1.6.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	github.com/umputun/go-flags v1.5.1
 	go.etcd.io/bbolt v1.4.3
 	golang.org/x/crypto v0.41.0

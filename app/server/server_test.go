@@ -637,6 +637,8 @@ func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 		}),
 		"1",
 		Config{
+			Domain:         "example.com",
+			Protocol:       "https",
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -677,4 +679,68 @@ func TestServer_ping(t *testing.T) {
 			assert.Equal(t, "pong", string(body))
 		})
 	}
+}
+
+func TestServer_sitemap(t *testing.T) {
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+
+	client := http.Client{Timeout: time.Second}
+
+	resp, err := client.Get(ts.URL + "/sitemap.xml")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/xml; charset=utf-8", resp.Header.Get("Content-Type"))
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	bodyStr := string(body)
+
+	// check XML structure
+	assert.Contains(t, bodyStr, `<?xml version="1.0" encoding="UTF-8"?>`)
+	assert.Contains(t, bodyStr, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
+
+	// check home page entry
+	assert.Contains(t, bodyStr, "<loc>https://example.com/</loc>")
+	assert.Contains(t, bodyStr, "<changefreq>weekly</changefreq>")
+	assert.Contains(t, bodyStr, "<priority>1.0</priority>")
+
+	// check about page entry
+	assert.Contains(t, bodyStr, "<loc>https://example.com/about</loc>")
+	assert.Contains(t, bodyStr, "<changefreq>monthly</changefreq>")
+	assert.Contains(t, bodyStr, "<priority>0.8</priority>")
+
+	// check lastmod format (should be YYYY-MM-DD)
+	assert.Regexp(t, `<lastmod>\d{4}-\d{2}-\d{2}</lastmod>`, bodyStr)
+
+	// ensure no message URLs are included
+	assert.NotContains(t, bodyStr, "/message/")
+	assert.NotContains(t, bodyStr, "/api/")
+}
+
+func TestServer_robotsTxt(t *testing.T) {
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+
+	client := http.Client{Timeout: time.Second}
+
+	resp, err := client.Get(ts.URL + "/robots.txt")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	bodyStr := string(body)
+
+	// check all expected directives
+	assert.Contains(t, bodyStr, "User-agent: *")
+	assert.Contains(t, bodyStr, "Disallow: /api/")
+	assert.Contains(t, bodyStr, "Disallow: /message/")
+	assert.Contains(t, bodyStr, "Sitemap: https://example.com/sitemap.xml")
 }
