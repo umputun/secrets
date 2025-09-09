@@ -24,7 +24,7 @@ import (
 
 // Config is a configuration for the server
 type Config struct {
-	Domain   string
+	Domain   []string // allowed domains list
 	WebRoot  string
 	Protocol string
 	Branding string
@@ -45,6 +45,10 @@ type Server struct {
 
 // New creates a new server with template cache
 func New(m Messager, version string, cfg Config) (Server, error) {
+	if len(cfg.Domain) == 0 {
+		return Server{}, fmt.Errorf("at least one domain must be configured")
+	}
+
 	cache, err := newTemplateCache()
 	if err != nil {
 		return Server{}, fmt.Errorf("can't create template cache: %w", err)
@@ -65,10 +69,13 @@ type Messager interface {
 
 // newTemplateData creates a templateData with common fields populated
 func (s Server) newTemplateData(r *http.Request, form any) templateData {
+	// use the first configured domain for canonical URLs (SEO best practice)
+	canonicalDomain := s.cfg.Domain[0]
+
 	// construct the canonical URL
-	url := fmt.Sprintf("%s://%s%s", s.cfg.Protocol, s.cfg.Domain, r.URL.Path)
+	url := fmt.Sprintf("%s://%s%s", s.cfg.Protocol, canonicalDomain, r.URL.Path)
 	// construct the base URL
-	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, s.cfg.Domain)
+	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, canonicalDomain)
 
 	return templateData{
 		Form:        form,
@@ -157,7 +164,7 @@ func (s Server) routes() http.Handler {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		robotsContent := fmt.Sprintf("User-agent: *\nDisallow: /api/\nDisallow: /message/\nSitemap: %s://%s/sitemap.xml\n",
-			s.cfg.Protocol, s.cfg.Domain)
+			s.cfg.Protocol, s.cfg.Domain[0])
 		_, _ = w.Write([]byte(robotsContent))
 	})
 
@@ -274,7 +281,7 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 // sitemapCtrl generates an XML sitemap for SEO
 // GET /sitemap.xml
 func (s Server) sitemapCtrl(w http.ResponseWriter, _ *http.Request) {
-	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, s.cfg.Domain)
+	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, s.cfg.Domain[0])
 
 	// use current time for lastmod
 	lastMod := time.Now().Format("2006-01-02")

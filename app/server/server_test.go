@@ -82,6 +82,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -259,6 +260,7 @@ func TestServer_saveMessageCtrl(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -312,6 +314,7 @@ func TestServer_getMessageCtrl(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -372,6 +375,7 @@ func TestServer_Run(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			Port:           ":0", // use random available port
 			PinSize:        5,
 			MaxPinAttempts: 3,
@@ -411,6 +415,7 @@ func TestServer_EmbeddedFiles(t *testing.T) {
 		MaxPinAttempts: 3,
 	})
 	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
 		WebRoot:        "/non/existent/path", // non-existent path to trigger embedded files
 		PinSize:        5,
 		MaxPinAttempts: 3,
@@ -450,6 +455,7 @@ func TestServer_LocalFiles(t *testing.T) {
 		MaxPinAttempts: 3,
 	})
 	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
 		WebRoot:        tmpDir,
 		PinSize:        5,
 		MaxPinAttempts: 3,
@@ -479,6 +485,7 @@ func TestServer_ThemeToggle(t *testing.T) {
 		MaxPinAttempts: 3,
 	})
 	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
 		WebRoot:        "",
 		PinSize:        5,
 		MaxPinAttempts: 3,
@@ -542,6 +549,7 @@ func TestServer_ClosePopup(t *testing.T) {
 		MaxPinAttempts: 3,
 	})
 	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
 		WebRoot:        "",
 		PinSize:        5,
 		MaxPinAttempts: 3,
@@ -572,6 +580,7 @@ func TestServer_CopyFeedback(t *testing.T) {
 		MaxPinAttempts: 3,
 	})
 	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
 		WebRoot:        "",
 		PinSize:        5,
 		MaxPinAttempts: 3,
@@ -637,7 +646,7 @@ func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 		}),
 		"1",
 		Config{
-			Domain:         "example.com",
+			Domain:         []string{"example.com"},
 			Protocol:       "https",
 			PinSize:        5,
 			MaxPinAttempts: 3,
@@ -743,4 +752,105 @@ func TestServer_robotsTxt(t *testing.T) {
 	assert.Contains(t, bodyStr, "Disallow: /api/")
 	assert.Contains(t, bodyStr, "Disallow: /message/")
 	assert.Contains(t, bodyStr, "Sitemap: https://example.com/sitemap.xml")
+}
+
+func TestServer_NewWithNoDomains(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+
+	_, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{}, // no domains
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+		})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "at least one domain must be configured")
+}
+
+func TestServer_NewWithMultipleDomains(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com", "alt.example.com", "backup.example.com"},
+			Protocol:       "https",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(srv.cfg.Domain))
+	assert.Equal(t, "example.com", srv.cfg.Domain[0])
+	assert.Equal(t, "alt.example.com", srv.cfg.Domain[1])
+	assert.Equal(t, "backup.example.com", srv.cfg.Domain[2])
+}
+
+func TestServer_MultipleDomainsLinkGeneration(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"primary.com", "secondary.com"},
+			Protocol:       "https",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	// save message
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(`{"message": "test message","exp": 600,"pin": "12345"}`))
+	require.NoError(t, err)
+	client := http.Client{Timeout: time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 201, resp.StatusCode)
+
+	respSave := struct {
+		Key string
+		Exp time.Time
+	}{}
+	err = json.NewDecoder(resp.Body).Decode(&respSave)
+	assert.NoError(t, err)
+
+	// verify messages can be retrieved with the key regardless of which domain was used for creation
+	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
+	req, err = http.NewRequest("GET", url, http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respLoad := struct {
+		Key     string
+		Message string
+	}{}
+	err = json.NewDecoder(resp.Body).Decode(&respLoad)
+	assert.NoError(t, err)
+	assert.Equal(t, "test message", respLoad.Message)
 }

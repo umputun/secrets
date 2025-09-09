@@ -89,6 +89,7 @@ func TestServer_indexCtrl(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -115,6 +116,7 @@ func TestServer_aboutViewCtrl(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -140,6 +142,7 @@ func TestServer_showMessageViewCtrl(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -176,7 +179,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Protocol:       "https",
-			Domain:         "example.com",
+			Domain:        []string{"example.com", "alt.example.com"},
 		})
 	require.NoError(t, err)
 
@@ -296,7 +299,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Protocol:       "https",
-			Domain:         "example.com",
+			Domain:        []string{"example.com"},
 		})
 	require.NoError(t, err)
 
@@ -371,6 +374,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -459,6 +463,7 @@ func TestServer_render(t *testing.T) {
 		}),
 		"1",
 		Config{
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -529,7 +534,7 @@ func TestServer_newTemplateData(t *testing.T) {
 		}),
 		"test-v",
 		Config{
-			Domain:         "example.com",
+			Domain:        []string{"example.com"},
 			Protocol:       "https",
 			PinSize:        5,
 			MaxPinAttempts: 3,
@@ -586,9 +591,9 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 		}),
 		"test-v",
 		Config{
-			Domain:         "example.com",
-			Protocol:       "https",
-			PinSize:        5,
+			Domain:        []string{"example.com"},
+			Protocol:      "https",
+			PinSize:       5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Branding:       "Acme Corp Secrets",
@@ -622,6 +627,177 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 	})
 }
 
+func TestServer_getValidatedHost(t *testing.T) {
+	tests := []struct {
+		name         string
+		protocol     string
+		domains      []string
+		host         string
+		expectedHost string
+	}{
+		{
+			name:         "allowed domain",
+			protocol:     "https",
+			domains:      []string{"example.com", "alt.example.com"},
+			host:         "example.com",
+			expectedHost: "example.com",
+		},
+		{
+			name:         "case insensitive matching",
+			protocol:     "https",
+			domains:      []string{"example.com"},
+			host:         "EXAMPLE.COM",
+			expectedHost: "EXAMPLE.COM",
+		},
+		{
+			name:         "https standard port stripped",
+			protocol:     "https",
+			domains:      []string{"example.com"},
+			host:         "example.com:443",
+			expectedHost: "example.com",
+		},
+		{
+			name:         "http standard port stripped",
+			protocol:     "http",
+			domains:      []string{"example.com"},
+			host:         "example.com:80",
+			expectedHost: "example.com",
+		},
+		{
+			name:         "https custom port kept",
+			protocol:     "https",
+			domains:      []string{"example.com"},
+			host:         "example.com:8080",
+			expectedHost: "example.com:8080",
+		},
+		{
+			name:         "http non-standard port kept",
+			protocol:     "http",
+			domains:      []string{"example.com"},
+			host:         "example.com:443",
+			expectedHost: "example.com:443",
+		},
+		{
+			name:         "IPv6 address supported",
+			protocol:     "https",
+			domains:      []string{"::1"},
+			host:         "[::1]:8080",
+			expectedHost: "[::1]:8080",
+		},
+		{
+			name:         "IPv6 standard port stripped",
+			protocol:     "https",
+			domains:      []string{"::1"},
+			host:         "[::1]:443",
+			expectedHost: "::1",
+		},
+		{
+			name:         "second allowed domain",
+			protocol:     "https",
+			domains:      []string{"example.com", "alt.example.com"},
+			host:         "alt.example.com",
+			expectedHost: "alt.example.com",
+		},
+		{
+			name:         "disallowed domain falls back to first configured",
+			protocol:     "https",
+			domains:      []string{"example.com", "alt.example.com"},
+			host:         "malicious.com",
+			expectedHost: "example.com",
+		},
+		{
+			name:         "empty host falls back to first configured",
+			protocol:     "https",
+			domains:      []string{"example.com"},
+			host:         "",
+			expectedHost: "example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng := store.NewInMemory(time.Second)
+			srv, err := New(
+				messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+					MaxDuration:    10 * time.Hour,
+					MaxPinAttempts: 3,
+				}),
+				"test-v",
+				Config{
+					Domain:         tt.domains,
+					Protocol:       tt.protocol,
+					PinSize:        5,
+					MaxPinAttempts: 3,
+					MaxExpire:      10 * time.Hour,
+					Branding:       "Test Brand",
+				})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("GET", "/", http.NoBody)
+			req.Host = tt.host
+
+			result := srv.getValidatedHost(req)
+			assert.Equal(t, tt.expectedHost, result)
+		})
+	}
+}
+
+func TestServer_generateLinkCtrl_MultipleDomain(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Protocol:       "https",
+			Domain:        []string{"example.com", "alt.example.com"},
+		})
+	require.NoError(t, err)
+
+	t.Run("uses request domain when allowed", func(t *testing.T) {
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "alt.example.com"
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "https://alt.example.com/message/")
+	})
+
+	t.Run("falls back to first domain when disallowed", func(t *testing.T) {
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "malicious.com"
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "https://example.com/message/")
+	})
+}
+
 func TestServer_SEOMetaTags(t *testing.T) {
 	eng := store.NewInMemory(time.Second)
 	srv, err := New(
@@ -631,7 +807,7 @@ func TestServer_SEOMetaTags(t *testing.T) {
 		}),
 		"test-v",
 		Config{
-			Domain:         "example.com",
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
@@ -733,7 +909,7 @@ func TestServer_CanonicalURL(t *testing.T) {
 		}),
 		"test-v",
 		Config{
-			Domain:         "example.com",
+			Domain:         []string{"example.com"},
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,

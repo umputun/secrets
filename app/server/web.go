@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -166,7 +167,8 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgURL := fmt.Sprintf("%s://%s/message/%s", s.cfg.Protocol, s.cfg.Domain, msg.Key)
+	validatedHost := s.getValidatedHost(r)
+	msgURL := fmt.Sprintf("%s://%s/message/%s", s.cfg.Protocol, validatedHost, msg.Key)
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", msgURL)
 }
@@ -417,6 +419,42 @@ func until(n int) []int {
 		result[i] = i
 	}
 	return result
+}
+
+// getValidatedHost returns the request host if it's in the allowed domains list, otherwise returns the first configured domain
+func (s Server) getValidatedHost(r *http.Request) string {
+	requestHost := r.Host
+
+	// Use net.SplitHostPort for proper IPv6 support
+	host, port, err := net.SplitHostPort(requestHost)
+	if err != nil {
+		// No port present, use the whole host
+		host = requestHost
+		port = ""
+	}
+
+	// Check if the host is in allowed domains (case-insensitive per RFC)
+	for _, domain := range s.cfg.Domain {
+		if strings.EqualFold(domain, host) {
+			// Protocol-aware port stripping
+			if port != "" {
+				if (s.cfg.Protocol == "http" && port == "80") ||
+					(s.cfg.Protocol == "https" && port == "443") {
+					return host // Strip standard port
+				}
+				return requestHost // Keep non-standard port
+			}
+			return host
+		}
+	}
+
+	// Host not in allowed domains, return the first configured domain as fallback
+	if len(s.cfg.Domain) > 0 {
+		return s.cfg.Domain[0]
+	}
+
+	// Should not happen with required validation - fail loudly if reached
+	panic("no domains configured: validation should occur in server.New() at startup")
 }
 
 // jsonEscape safely escapes a string for use in JSON-LD script tags

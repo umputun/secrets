@@ -10,8 +10,11 @@ Safesecret is a Go-based web service for sharing sensitive information securely.
 
 ### Run the application
 ```bash
-# Build and run locally
+# Build and run locally (single domain)
 cd app && go build -o secrets && ./secrets --key=<SIGN_KEY> --domain=localhost --protocol=http
+
+# Build and run locally (multiple domains)
+cd app && go build -o secrets && ./secrets --key=<SIGN_KEY> --domain="localhost,127.0.0.1" --protocol=http
 
 # Run with Docker (development)
 docker-compose -f docker-compose-dev.yml up
@@ -112,7 +115,7 @@ Key configuration via environment variables or flags:
 - `MAX_EXPIRE` - Maximum message lifetime (default: 24h)
 - `PIN_SIZE` - PIN length in characters (default: 5)
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
-- `DOMAIN` - Service domain (required)
+- `DOMAIN` - Allowed domain(s), supports comma-separated list (e.g., "example.com,alt.example.com")
 - `PROTOCOL` - http or https (default: https)
 
 ## Testing Approach
@@ -157,7 +160,8 @@ Core libraries used:
 ### Local Development Configuration
 - Server requires explicit local config: `--domain=localhost:8080 --protocol=http`
 - Default protocol is HTTPS, must override for local development
-- Link generation uses configured domain/protocol for absolute URLs
+- Link generation uses request domain if allowed, falls back to first configured domain
+- Multiple domains supported via comma-separated list: `--domain="example.com,alt.example.com"`
 
 ## HTMX Implementation
 
