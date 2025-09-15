@@ -64,7 +64,7 @@ _Feel free to suggest any other ways to make the process safer._
     - MAX_EXPIRE - maximum lifetime period, default 24h
     - PIN_SIZE - size (in characters) of the pin, default 5
     - PIN_ATTEMPTS - maximum number of failed attempts to enter pin, default 3
-    - DOMAIN - your domain name (e.g., example.com)
+    - DOMAIN - your domain name(s) (e.g., example.com or "example.com,alt.example.com" for multiple)
     - PROTOCOL - http or https
 1. Setup SSL:
     - The system can make valid certificates for you automatically with integrated [nginx-le](https://github.com/umputun/nginx-le). Just set:
@@ -97,7 +97,7 @@ You can also run Safesecret directly without Docker:
 - `--bolt=` - path to boltdb file when using BOLT engine (default: /tmp/secrets.bd)
 - `--web=` - web UI static files location (development only, uses embedded files if not set)
 - `--branding=` - application title/branding text (default: "Safe Secrets")
-- `-d, --domain=` - site domain (required for generating message links)
+- `-d, --domain=` - site domain(s) (required for generating message links, supports comma-separated list)
 - `-p, --protocol=[http|https]` - site protocol (default: https)
 - `--dbg` - enable debug mode
 
@@ -112,7 +112,7 @@ All options can also be set via environment variables:
 - `BOLT_FILE` - boltdb file path
 - `WEB` - web UI location (development only, uses embedded files if not set)
 - `BRANDING` - application title/branding text
-- `DOMAIN` - site domain
+- `DOMAIN` - site domain(s), supports comma-separated list
 - `PROTOCOL` - site protocol
 
 **Example:**
@@ -120,6 +120,9 @@ All options can also be set via environment variables:
 ```bash
 # Run with in-memory storage
 ./secrets -k "your-secret-key" -d "example.com" -p https
+
+# Run with multiple domains
+./secrets -k "your-secret-key" -d "example.com,alt.example.com" -p https
 
 # Run with persistent storage (BoltDB)
 ./secrets -e BOLT --bolt=/var/lib/secrets/data.db -k "your-secret-key" -d "example.com"
