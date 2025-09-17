@@ -24,7 +24,7 @@ services:
            - BOLT_FILE=/data/secrets.bd
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
-           - DOMAIN=www.example.com # important! change to your domain
+           - DOMAIN=www.example.com # important! change to your domain(s), comma-separated
         # uncomment to expose directly without nginx proxy
         # ports:
         #  - "80:8080"

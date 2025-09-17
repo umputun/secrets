@@ -20,7 +20,7 @@ services:
            - BOLT_FILE=/data/secrets.bd
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
-           - DOMAIN=localhost:8080
+           - DOMAIN=localhost:8080,localhost
            - PROTOCOL=http
         ports:
           - "8080:8080"

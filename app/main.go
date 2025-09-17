@@ -24,7 +24,7 @@ var opts struct {
 	WebRoot        string        `long:"web" env:"WEB" description:"web ui location (dev mode, uses embedded files if not set)"`
 	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
-	Domain         string        `short:"d" long:"domain" env:"DOMAIN" description:"site domain" required:"true"`
+	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
 }
 
