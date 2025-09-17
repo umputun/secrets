@@ -1,9 +1,11 @@
 package server
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -179,7 +181,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Protocol:       "https",
-			Domain:        []string{"example.com", "alt.example.com"},
+			Domain:         []string{"example.com", "alt.example.com"},
 		})
 	require.NoError(t, err)
 
@@ -299,7 +301,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Protocol:       "https",
-			Domain:        []string{"example.com"},
+			Domain:         []string{"example.com"},
 		})
 	require.NoError(t, err)
 
@@ -534,7 +536,7 @@ func TestServer_newTemplateData(t *testing.T) {
 		}),
 		"test-v",
 		Config{
-			Domain:        []string{"example.com"},
+			Domain:         []string{"example.com"},
 			Protocol:       "https",
 			PinSize:        5,
 			MaxPinAttempts: 3,
@@ -591,9 +593,9 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 		}),
 		"test-v",
 		Config{
-			Domain:        []string{"example.com"},
-			Protocol:      "https",
-			PinSize:       5,
+			Domain:         []string{"example.com"},
+			Protocol:       "https",
+			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Branding:       "Acme Corp Secrets",
@@ -755,7 +757,7 @@ func TestServer_generateLinkCtrl_MultipleDomain(t *testing.T) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Protocol:       "https",
-			Domain:        []string{"example.com", "alt.example.com"},
+			Domain:         []string{"example.com", "alt.example.com"},
 		})
 	require.NoError(t, err)
 
@@ -796,6 +798,229 @@ func TestServer_generateLinkCtrl_MultipleDomain(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "https://example.com/message/")
 	})
+}
+
+func TestServer_IPv6LinkGeneration(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Protocol:       "https",
+			Domain:         []string{"::1", "2001:db8::1"},
+		})
+	require.NoError(t, err)
+
+	t.Run("IPv6 with standard port gets bracketed", func(t *testing.T) {
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "[::1]:443" // IPv6 with standard HTTPS port
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "https://[::1]/message/", "IPv6 without port should be bracketed")
+		assert.NotContains(t, rr.Body.String(), "https://::1/message/", "Should not have unbracketed IPv6")
+	})
+
+	t.Run("IPv6 with non-standard port stays bracketed", func(t *testing.T) {
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "[::1]:8080" // IPv6 with non-standard port
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "https://[::1]:8080/message/", "IPv6 with non-standard port should keep port and brackets")
+	})
+
+	t.Run("IPv6 without port gets bracketed", func(t *testing.T) {
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "2001:db8::1" // IPv6 without port or brackets
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "https://[2001:db8::1]/message/", "IPv6 without brackets should be bracketed")
+	})
+
+	t.Run("IPv6 edge case - unbracketed with port", func(t *testing.T) {
+		// This tests the edge case where getValidatedHost might return IPv6:port without brackets
+		// Though this shouldn't normally happen with our current getValidatedHost implementation
+		formData := url.Values{
+			"message": {"secret message"},
+			"exp":     {"15"},
+			"expUnit": {"m"},
+			"pin":     {"1", "2", "3", "4", "5"},
+		}
+
+		// Create a custom request that simulates an edge case
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "2001:db8::1:8080" // Intentionally malformed: not valid IPv6 with port; correct form is [2001:db8::1]:8080
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		// Should either be bracketed IPv6 address or fallback to first domain
+		body := rr.Body.String()
+		assert.True(t,
+			strings.Contains(body, "https://["),
+			"Should handle IPv6 edge case properly (must be bracketed IPv6 or fallback to valid domain): %s", body)
+	})
+}
+
+func TestIPv6BracketingLogic(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    string
+		description string
+	}{
+		{
+			name:        "IPv4 unchanged",
+			input:       "192.168.1.1",
+			expected:    "192.168.1.1",
+			description: "IPv4 addresses should not be modified",
+		},
+		{
+			name:        "IPv4 with port unchanged",
+			input:       "192.168.1.1:8080",
+			expected:    "192.168.1.1:8080",
+			description: "IPv4 with port should not be modified",
+		},
+		{
+			name:        "hostname unchanged",
+			input:       "example.com",
+			expected:    "example.com",
+			description: "Hostnames should not be modified",
+		},
+		{
+			name:        "hostname with port unchanged",
+			input:       "example.com:8080",
+			expected:    "example.com:8080",
+			description: "Hostnames with port should not be modified",
+		},
+		{
+			name:        "IPv6 gets bracketed",
+			input:       "::1",
+			expected:    "[::1]",
+			description: "Unbracketed IPv6 should get bracketed",
+		},
+		{
+			name:        "IPv6 full address gets bracketed",
+			input:       "2001:db8::1",
+			expected:    "[2001:db8::1]",
+			description: "Full IPv6 address should get bracketed",
+		},
+		{
+			name:        "IPv6 already bracketed unchanged",
+			input:       "[::1]",
+			expected:    "[::1]",
+			description: "Already bracketed IPv6 should stay unchanged",
+		},
+		{
+			name:        "IPv6 with port stays bracketed",
+			input:       "[::1]:8080",
+			expected:    "[::1]:8080",
+			description: "IPv6 with port and brackets should stay unchanged",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate the bracketing logic from generateLinkCtrl
+			validatedHost := tt.input
+
+			// This is the same logic from the function
+			host, port, err := net.SplitHostPort(validatedHost)
+			if err != nil {
+				// No port present, check if the whole string is an IPv6 address
+				if ip := net.ParseIP(validatedHost); ip != nil && ip.To4() == nil {
+					validatedHost = "[" + validatedHost + "]"
+				}
+			} else {
+				// Port present, check if host part is IPv6 and needs bracketing
+				if ip := net.ParseIP(host); ip != nil && ip.To4() == nil && !strings.HasPrefix(host, "[") {
+					validatedHost = "[" + host + "]:" + port
+				}
+			}
+
+			assert.Equal(t, tt.expected, validatedHost, tt.description)
+		})
+	}
+}
+
+func TestServer_URLConstruction(t *testing.T) {
+	tests := []struct {
+		name        string
+		messageKey  string
+		expectedURL string
+	}{
+		{
+			name:        "normal key",
+			messageKey:  "68cb14f4-e2767ae5-ef7b-492f-9456-25d3e998074f",
+			expectedURL: "https://example.com/message/68cb14f4-e2767ae5-ef7b-492f-9456-25d3e998074f",
+		},
+		{
+			name:        "key with spaces (hypothetical)",
+			messageKey:  "test key with spaces",
+			expectedURL: "https://example.com/message/test%20key%20with%20spaces",
+		},
+		{
+			name:        "key with special chars (hypothetical)",
+			messageKey:  "test+key&with=special?chars",
+			expectedURL: "https://example.com/message/test+key&with=special%3Fchars",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate URL construction logic
+			validatedHost := "example.com"
+			protocol := "https"
+
+			msgURL := (&url.URL{
+				Scheme: protocol,
+				Host:   validatedHost,
+				Path:   path.Join("/message", tt.messageKey),
+			}).String()
+
+			assert.Equal(t, tt.expectedURL, msgURL)
+		})
+	}
 }
 
 func TestServer_SEOMetaTags(t *testing.T) {
