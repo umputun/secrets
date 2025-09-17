@@ -101,8 +101,15 @@ func (s Server) Run(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		if httpServer != nil {
-			if clsErr := httpServer.Close(); clsErr != nil {
-				log.Printf("[ERROR] failed to close proxy http server, %v", clsErr)
+			// graceful shutdown with 10 second timeout
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if shutdownErr := httpServer.Shutdown(shutdownCtx); shutdownErr != nil {
+				log.Printf("[ERROR] failed to gracefully shutdown http server: %v", shutdownErr)
+				// force close if graceful shutdown fails
+				if clsErr := httpServer.Close(); clsErr != nil {
+					log.Printf("[ERROR] failed to close http server: %v", clsErr)
+				}
 			}
 		}
 	}()
