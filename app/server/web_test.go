@@ -827,7 +827,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Host = "[::1]:443" // IPv6 with standard HTTPS port
+		req.Host = "[::1]:443" // iPv6 with standard HTTPS port
 		rr := httptest.NewRecorder()
 
 		srv.generateLinkCtrl(rr, req)
@@ -847,7 +847,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Host = "[::1]:8080" // IPv6 with non-standard port
+		req.Host = "[::1]:8080" // iPv6 with non-standard port
 		rr := httptest.NewRecorder()
 
 		srv.generateLinkCtrl(rr, req)
@@ -866,7 +866,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Host = "2001:db8::1" // IPv6 without port or brackets
+		req.Host = "2001:db8::1" // iPv6 without port or brackets
 		rr := httptest.NewRecorder()
 
 		srv.generateLinkCtrl(rr, req)
@@ -876,8 +876,8 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 	})
 
 	t.Run("IPv6 edge case - unbracketed with port", func(t *testing.T) {
-		// This tests the edge case where getValidatedHost might return IPv6:port without brackets
-		// Though this shouldn't normally happen with our current getValidatedHost implementation
+		// this tests the edge case where getValidatedHost might return IPv6:port without brackets
+		// though this shouldn't normally happen with our current getValidatedHost implementation
 		formData := url.Values{
 			"message": {"secret message"},
 			"exp":     {"15"},
@@ -885,16 +885,16 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 			"pin":     {"1", "2", "3", "4", "5"},
 		}
 
-		// Create a custom request that simulates an edge case
+		// create a custom request that simulates an edge case
 		req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Host = "2001:db8::1:8080" // Intentionally malformed: not valid IPv6 with port; correct form is [2001:db8::1]:8080
+		req.Host = "2001:db8::1:8080" // intentionally malformed: not valid IPv6 with port; correct form is [2001:db8::1]:8080
 		rr := httptest.NewRecorder()
 
 		srv.generateLinkCtrl(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		// Should either be bracketed IPv6 address or fallback to first domain
+		// should either be bracketed IPv6 address or fallback to first domain
 		body := rr.Body.String()
 		assert.True(t,
 			strings.Contains(body, "https://["),
@@ -961,18 +961,18 @@ func TestIPv6BracketingLogic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Simulate the bracketing logic from generateLinkCtrl
+			// simulate the bracketing logic from generateLinkCtrl
 			validatedHost := tt.input
 
-			// This is the same logic from the function
+			// this is the same logic from the function
 			host, port, err := net.SplitHostPort(validatedHost)
 			if err != nil {
-				// No port present, check if the whole string is an IPv6 address
+				// no port present, check if the whole string is an IPv6 address
 				if ip := net.ParseIP(validatedHost); ip != nil && ip.To4() == nil {
 					validatedHost = "[" + validatedHost + "]"
 				}
 			} else {
-				// Port present, check if host part is IPv6 and needs bracketing
+				// port present, check if host part is IPv6 and needs bracketing
 				if ip := net.ParseIP(host); ip != nil && ip.To4() == nil && !strings.HasPrefix(host, "[") {
 					validatedHost = "[" + host + "]:" + port
 				}
@@ -1008,7 +1008,7 @@ func TestServer_URLConstruction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Simulate URL construction logic
+			// simulate URL construction logic
 			validatedHost := "example.com"
 			protocol := "https"
 

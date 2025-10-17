@@ -171,16 +171,16 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 	validatedHost := s.getValidatedHost(r)
 
-	// Ensure IPv6 addresses are properly bracketed for URL construction
-	// Extract host part to check if it's IPv6 (handles cases with ports)
+	// ensure IPv6 addresses are properly bracketed for URL construction
+	// extract host part to check if it's IPv6 (handles cases with ports)
 	host, port, err := net.SplitHostPort(validatedHost)
 	if err != nil {
-		// No port present, check if the whole string is an IPv6 address
+		// no port present, check if the whole string is an IPv6 address
 		if ip := net.ParseIP(validatedHost); ip != nil && ip.To4() == nil {
 			validatedHost = "[" + validatedHost + "]"
 		}
 	} else {
-		// Port present, check if host part is IPv6 and needs bracketing
+		// port present, check if host part is IPv6 and needs bracketing
 		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil && !strings.HasPrefix(host, "[") {
 			validatedHost = "[" + host + "]:" + port
 		}
@@ -324,11 +324,11 @@ func humanDuration(d time.Duration) string {
 func getTheme(r *http.Request) string {
 	cookie, err := r.Cookie("theme")
 	if err != nil {
-		return "auto" // default theme
+		return "auto" // default theme - respects system preference
 	}
 	// validate theme value
 	switch cookie.Value {
-	case "light", "dark", "auto":
+	case "light", "dark":
 		return cookie.Value
 	default:
 		return "auto"
@@ -340,14 +340,12 @@ func getTheme(r *http.Request) string {
 func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 	currentTheme := getTheme(r)
 
-	// cycle through themes: light -> dark -> auto -> light
-	nextTheme := "light"
+	// toggle between explicit light/dark only (auto -> light -> dark -> light)
+	var nextTheme string
 	switch currentTheme {
 	case "light":
 		nextTheme = "dark"
-	case "dark":
-		nextTheme = "auto"
-	case "auto":
+	default: // "dark" or "auto"
 		nextTheme = "light"
 	}
 
@@ -447,35 +445,35 @@ func until(n int) []int {
 func (s Server) getValidatedHost(r *http.Request) string {
 	requestHost := r.Host
 
-	// Use net.SplitHostPort for proper IPv6 support
+	// use net.SplitHostPort for proper IPv6 support
 	host, port, err := net.SplitHostPort(requestHost)
 	if err != nil {
-		// No port present, use the whole host
+		// no port present, use the whole host
 		host = requestHost
 		port = ""
 	}
 
-	// Check if the host is in allowed domains (case-insensitive per RFC)
+	// check if the host is in allowed domains (case-insensitive per RFC)
 	for _, domain := range s.cfg.Domain {
 		if strings.EqualFold(domain, host) {
-			// Protocol-aware port stripping
+			// protocol-aware port stripping
 			if port != "" {
 				if (s.cfg.Protocol == "http" && port == "80") ||
 					(s.cfg.Protocol == "https" && port == "443") {
-					return host // Strip standard port
+					return host // strip standard port
 				}
-				return requestHost // Keep non-standard port
+				return requestHost // keep non-standard port
 			}
 			return host
 		}
 	}
 
-	// Host not in allowed domains, return the first configured domain as fallback
+	// host not in allowed domains, return the first configured domain as fallback
 	if len(s.cfg.Domain) > 0 {
 		return s.cfg.Domain[0]
 	}
 
-	// Should not happen with required validation - fail loudly if reached
+	// should not happen with required validation - fail loudly if reached
 	panic("no domains configured: validation should occur in server.New() at startup")
 }
 

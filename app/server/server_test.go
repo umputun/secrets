@@ -528,7 +528,7 @@ func TestServer_ThemeToggle(t *testing.T) {
 	require.Len(t, cookies, 1)
 	assert.Equal(t, "dark", cookies[0].Value)
 
-	// test theme toggle from dark to auto
+	// test theme toggle from dark to light
 	req, err = http.NewRequest("POST", ts.URL+"/theme", http.NoBody)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
@@ -536,10 +536,10 @@ func TestServer_ThemeToggle(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
-	// verify cookie was set to auto
+	// verify cookie was set to light
 	cookies = resp.Cookies()
 	require.Len(t, cookies, 1)
-	assert.Equal(t, "auto", cookies[0].Value)
+	assert.Equal(t, "light", cookies[0].Value)
 }
 
 func TestServer_ClosePopup(t *testing.T) {
