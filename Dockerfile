@@ -18,9 +18,7 @@ RUN \
     else echo "skip tests and linter" ; fi
 
 RUN \
-    if [ -z "$CI" ] ; then \
-    echo "runs outside of CI" && version=$(git rev-parse --abbrev-ref HEAD)-$(git log -1 --format=%h)-$(date +%Y%m%dT%H:%M:%S); \
-    else version=${GIT_BRANCH}-${GITHUB_SHA:0:7}-$(date +%Y%m%dT%H:%M:%S); fi && \
+    version=$(/script/version.sh) && \
     echo "version=$version" && \
     cd app && go build -o /build/secrets.bin -ldflags "-X main.revision=${version} -s -w"
 
