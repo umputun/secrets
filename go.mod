@@ -6,7 +6,7 @@ require (
 	github.com/didip/tollbooth/v8 v8.0.1
 	github.com/go-pkgz/lgr v0.12.1
 	github.com/go-pkgz/rest v1.20.4
-	github.com/go-pkgz/routegroup v1.5.3
+	github.com/go-pkgz/routegroup v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.11.1
 	github.com/umputun/go-flags v1.5.1
