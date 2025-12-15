@@ -37,8 +37,8 @@ func TestMessageProc_MakeMessage(t *testing.T) {
 	assert.Equal(t, 0, r.Errors)
 	assert.Contains(t, r.PinHash, "$2a$")
 
-	assert.Equal(t, 1, len(s.SaveCalls()))
-	assert.Equal(t, 1, len(c.EncryptCalls()))
+	assert.Len(t, s.SaveCalls(), 1)
+	assert.Len(t, c.EncryptCalls(), 1)
 }
 
 func TestMessageProc_MakeMessage_Errors(t *testing.T) {
@@ -88,8 +88,8 @@ func TestMessageProc_MakeMessage_Errors(t *testing.T) {
 			t.Logf("%+v", r)
 			require.EqualError(t, err, tt.wantErr.Error())
 
-			assert.Equal(t, 0, len(s.SaveCalls()))
-			assert.Equal(t, 0, len(c.EncryptCalls()))
+			assert.Empty(t, s.SaveCalls())
+			assert.Empty(t, c.EncryptCalls())
 		})
 	}
 }
@@ -107,8 +107,8 @@ func TestMessageProc_MakeMessage_CrypterError(t *testing.T) {
 	t.Logf("%+v", r)
 	require.EqualError(t, err, "crypto error")
 
-	assert.Equal(t, 0, len(s.SaveCalls()))
-	assert.Equal(t, 1, len(c.EncryptCalls()))
+	assert.Empty(t, s.SaveCalls())
+	assert.Len(t, c.EncryptCalls(), 1)
 }
 
 func TestMessageProc_LoadMessage_Err(t *testing.T) {
@@ -125,10 +125,10 @@ func TestMessageProc_LoadMessage_Err(t *testing.T) {
 
 	require.EqualError(t, err, "load error")
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 0, len(s.RemoveCalls()))
-	assert.Equal(t, 0, len(s.IncErrCalls()))
-	assert.Equal(t, 0, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Empty(t, s.RemoveCalls())
+	assert.Empty(t, s.IncErrCalls())
+	assert.Empty(t, c.DecryptCalls())
 }
 
 func TestMessageProc_LoadMessage_ExpiredErr(t *testing.T) {
@@ -153,10 +153,10 @@ func TestMessageProc_LoadMessage_ExpiredErr(t *testing.T) {
 
 	require.EqualError(t, err, "message expired")
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 1, len(s.RemoveCalls()))
-	assert.Equal(t, 0, len(s.IncErrCalls()))
-	assert.Equal(t, 0, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Empty(t, s.IncErrCalls())
+	assert.Empty(t, c.DecryptCalls())
 }
 
 func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
@@ -182,10 +182,10 @@ func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
 
 	require.EqualError(t, err, "wrong pin")
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 0, len(s.RemoveCalls()))
-	assert.Equal(t, 1, len(s.IncErrCalls()))
-	assert.Equal(t, 0, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Empty(t, s.RemoveCalls())
+	assert.Len(t, s.IncErrCalls(), 1)
+	assert.Empty(t, c.DecryptCalls())
 }
 
 func TestMessageProc_LoadMessage_BadPin_MaxAttempts(t *testing.T) {
@@ -214,10 +214,10 @@ func TestMessageProc_LoadMessage_BadPin_MaxAttempts(t *testing.T) {
 
 	require.EqualError(t, err, "wrong pin")
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 1, len(s.RemoveCalls()))
-	assert.Equal(t, 1, len(s.IncErrCalls()))
-	assert.Equal(t, 0, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Len(t, s.IncErrCalls(), 1)
+	assert.Empty(t, c.DecryptCalls())
 }
 
 func TestMessageProc_LoadMessage_BadPinAttempt(t *testing.T) {
@@ -246,10 +246,10 @@ func TestMessageProc_LoadMessage_BadPinAttempt(t *testing.T) {
 
 	assert.Equal(t, r, msg)
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 0, len(s.RemoveCalls()))
-	assert.Equal(t, 1, len(s.IncErrCalls()))
-	assert.Equal(t, 0, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Empty(t, s.RemoveCalls())
+	assert.Len(t, s.IncErrCalls(), 1)
+	assert.Empty(t, c.DecryptCalls())
 }
 
 func TestMessageProc_LoadMessage_DecryptError(t *testing.T) {
@@ -278,10 +278,10 @@ func TestMessageProc_LoadMessage_DecryptError(t *testing.T) {
 
 	require.EqualError(t, err, "wrong pin")
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 1, len(s.RemoveCalls()))
-	assert.Equal(t, 0, len(s.IncErrCalls()))
-	assert.Equal(t, 1, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Empty(t, s.IncErrCalls())
+	assert.Len(t, c.DecryptCalls(), 1)
 }
 
 func TestMessageProc_LoadMessage(t *testing.T) {
@@ -313,8 +313,8 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 	assert.Equal(t, 0, r.Errors)
 	assert.Contains(t, r.PinHash, "$2a$")
 
-	assert.Equal(t, 1, len(s.LoadCalls()))
-	assert.Equal(t, 1, len(s.RemoveCalls()))
-	assert.Equal(t, 0, len(s.IncErrCalls()))
-	assert.Equal(t, 1, len(c.DecryptCalls()))
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Empty(t, s.IncErrCalls())
+	assert.Len(t, c.DecryptCalls(), 1)
 }

@@ -18,6 +18,9 @@ linters:
     - unconvert
     - unparam
     - unused
+    - nestif
+    - testifylint
+    - modernize
   settings:
     dupl:
       threshold: 100

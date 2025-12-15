@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -140,7 +141,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	exp := r.PostFormValue(expKey)
 	form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")
 	form.CheckField(validator.IsNumber(exp), expKey, "Expire must be a number")
-	form.CheckField(validator.PermittedValue(form.ExpUnit, "m", "h", "d"), expUnitKey, "Only Minutes, Hours and Days are allowed")
+	form.CheckField(slices.Contains([]string{"m", "h", "d"}, form.ExpUnit), expUnitKey, "Only Minutes, Hours and Days are allowed")
 
 	expInt, err := strconv.Atoi(exp)
 	if err != nil {
@@ -255,33 +256,38 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
 	if err != nil {
-		if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
-			// message not found or expired - return 404
-			status := http.StatusNotFound
-			if r.Header.Get("HX-Request") == "true" {
-				s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
-			} else {
-				s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
-			}
-			log.Printf("[INFO] accessed message %s, status 404 (not found)", form.Key)
-			return
-		}
-		// wrong PIN - add error to form
-		form.AddFieldError("pin", err.Error())
-
-		data := s.newTemplateData(r, form)
-		// for HTMX requests, return 403 for wrong PIN
-		status := http.StatusOK
-		if r.Header.Get("HX-Request") == "true" {
-			status = http.StatusForbidden
-		}
-		s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
-		log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
+		s.handleLoadMessageError(w, r, &form, err)
 		return
 	}
 
 	s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
 	log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
+}
+
+// handleLoadMessageError handles errors from LoadMessage, rendering appropriate responses
+func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, form *showMsgForm, err error) {
+	isHTMX := r.Header.Get("HX-Request") == "true"
+
+	if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
+		// message not found or expired - return 404
+		status := http.StatusNotFound
+		if !isHTMX {
+			status = http.StatusOK
+		}
+		s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
+		log.Printf("[INFO] accessed message %s, status 404 (not found)", form.Key)
+		return
+	}
+
+	// wrong PIN - add error to form
+	form.AddFieldError("pin", err.Error())
+	data := s.newTemplateData(r, form)
+	status := http.StatusOK
+	if isHTMX {
+		status = http.StatusForbidden
+	}
+	s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
+	log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
 }
 
 // duration converts a number and unit into a time.Duration

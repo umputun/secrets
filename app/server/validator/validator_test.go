@@ -157,7 +157,7 @@ func TestValidator_CheckField(t *testing.T) {
 	}
 }
 
-func TestValidator_NotBlack(t *testing.T) {
+func TestValidator_NotBlank(t *testing.T) {
 	tests := []struct {
 		name       string
 		value      string
@@ -332,66 +332,6 @@ func TestValidator_MaxDuration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := MaxDuration(tt.args.d, tt.args.maxDuration)
-
-			assert.Equal(t, tt.wantResult, r)
-		})
-	}
-}
-
-func TestValidator_PermittedValue(t *testing.T) {
-	type args struct {
-		value           any
-		permittedValues []any
-	}
-	tests := []struct {
-		name       string
-		args       args
-		wantResult bool
-	}{
-		{
-			name: "PermittedValue returns true for value in permitted values",
-			args: args{
-				value:           1,
-				permittedValues: []any{1, 2, 3},
-			},
-			wantResult: true,
-		},
-		{
-			name: "PermittedValue returns true for string value in permitted values",
-			args: args{
-				value:           "a",
-				permittedValues: []any{"a", "b", "c"},
-			},
-			wantResult: true,
-		},
-		{
-			name: "PermittedValue returns false for value not in permitted values",
-			args: args{
-				value:           4,
-				permittedValues: []any{1, 2, 3},
-			},
-			wantResult: false,
-		},
-		{
-			name: "PermittedValue returns false for empty permitted values",
-			args: args{
-				value:           1,
-				permittedValues: []any{},
-			},
-			wantResult: false,
-		},
-		{
-			name: "PermittedValue returns false for empty permitted values",
-			args: args{
-				value:           1,
-				permittedValues: nil,
-			},
-			wantResult: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := PermittedValue(tt.args.value, tt.args.permittedValues...)
 
 			assert.Equal(t, tt.wantResult, r)
 		})

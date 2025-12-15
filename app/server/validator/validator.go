@@ -72,14 +72,3 @@ func IsNumber(value string) bool {
 func MaxDuration(d, maxDuration time.Duration) bool {
 	return d <= maxDuration
 }
-
-// PermittedValue returns true if a value is in a list of permitted integers.
-func PermittedValue[T comparable](value T, permittedValues ...T) bool {
-	for i := range permittedValues {
-		if value == permittedValues[i] {
-			return true
-		}
-
-	}
-	return false
-}

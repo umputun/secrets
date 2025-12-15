@@ -68,9 +68,9 @@ func TestTemplates_HumanDuration(t *testing.T) {
 func TestTemplates_NewTemplateCache(t *testing.T) {
 	cache, err := newTemplateCache()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, 9, len(cache))
+	assert.Len(t, cache, 9)
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
@@ -896,8 +896,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// should either be bracketed IPv6 address or fallback to first domain
 		body := rr.Body.String()
-		assert.True(t,
-			strings.Contains(body, "https://["),
+		assert.Contains(t, body, "https://[",
 			"Should handle IPv6 edge case properly (must be bracketed IPv6 or fallback to valid domain): %s", body)
 	})
 }

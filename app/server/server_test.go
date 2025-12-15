@@ -37,7 +37,7 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 		Exp time.Time
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respSave)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	t.Logf("%+v", respSave)
 
 	// load saved message
@@ -54,7 +54,7 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 		Message string
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respLoad)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	t.Logf("%+v", respLoad)
 	assert.Equal(t, struct {
 		Key     string
@@ -89,7 +89,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 			Branding:       "Safe Secrets",
 		})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
@@ -108,7 +108,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 		Exp time.Time
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respSave)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	t.Logf("%+v", respSave)
 
 	// load saved message
@@ -125,7 +125,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 		Message string
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respLoad)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	t.Logf("%+v", respLoad)
 	assert.Equal(t, struct {
 		Key     string
@@ -157,7 +157,7 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 		Exp time.Time
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respSave)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	t.Logf("%+v", respSave)
 
 	// load saved message
@@ -207,7 +207,7 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 		Exp time.Time
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respSave)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	t.Logf("%+v", respSave)
 
 	// load saved message
@@ -275,9 +275,9 @@ func TestServer_saveMessageCtrl(t *testing.T) {
 		checkResponse      func(t *testing.T, body []byte)
 	}{
 		{name: "valid message", body: `{"message": "secret", "exp": 600, "pin": "12345"}`, expectedStatusCode: 201, checkResponse: func(t *testing.T, body []byte) {
-			var resp map[string]interface{}
+			var resp map[string]any
 			err := json.Unmarshal(body, &resp)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotEmpty(t, resp["key"])
 			assert.NotEmpty(t, resp["exp"])
 		}},
@@ -338,9 +338,9 @@ func TestServer_getMessageCtrl(t *testing.T) {
 		checkResponse      func(t *testing.T, body []byte)
 	}{
 		{name: "valid key and pin", key: msg.Key, pin: "12345", expectedStatusCode: 200, checkResponse: func(t *testing.T, body []byte) {
-			var resp map[string]interface{}
+			var resp map[string]any
 			err := json.Unmarshal(body, &resp)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "test secret", resp["message"])
 		}},
 		{name: "invalid pin returns 400 when key not found", key: msg.Key, pin: "99999", expectedStatusCode: 400},
@@ -401,7 +401,7 @@ func TestServer_Run(t *testing.T) {
 	// wait for server to stop
 	select {
 	case err := <-errCh:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("server didn't stop in time")
 	}
@@ -654,7 +654,7 @@ func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 			Branding:       "Safe Secrets",
 		})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ts = httptest.NewServer(srv.routes())
 	return ts, ts.Close
@@ -771,7 +771,7 @@ func TestServer_NewWithNoDomains(t *testing.T) {
 			Branding:       "Safe Secrets",
 		})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one domain must be configured")
 }
 
@@ -794,7 +794,7 @@ func TestServer_NewWithMultipleDomains(t *testing.T) {
 		})
 
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(srv.cfg.Domain))
+	assert.Len(t, srv.cfg.Domain, 3)
 	assert.Equal(t, "example.com", srv.cfg.Domain[0])
 	assert.Equal(t, "alt.example.com", srv.cfg.Domain[1])
 	assert.Equal(t, "backup.example.com", srv.cfg.Domain[2])
@@ -835,7 +835,7 @@ func TestServer_MultipleDomainsLinkGeneration(t *testing.T) {
 		Exp time.Time
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respSave)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// verify messages can be retrieved with the key regardless of which domain was used for creation
 	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
@@ -851,6 +851,6 @@ func TestServer_MultipleDomainsLinkGeneration(t *testing.T) {
 		Message string
 	}{}
 	err = json.NewDecoder(resp.Body).Decode(&respLoad)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test message", respLoad.Message)
 }
