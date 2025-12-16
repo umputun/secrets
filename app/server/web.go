@@ -383,9 +383,12 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// check if message is file BEFORE loading (LoadMessage may delete on max attempts)
+	isFile := s.messager.IsFile(form.Key)
+
 	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
 	if err != nil {
-		s.handleLoadMessageError(w, r, &form, err)
+		s.handleLoadMessageError(w, r, &form, err, isFile)
 		return
 	}
 
@@ -422,8 +425,9 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
 }
 
-// handleLoadMessageError handles errors from LoadMessage, rendering appropriate responses
-func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, form *showMsgForm, err error) {
+// handleLoadMessageError handles errors from LoadMessage, rendering appropriate responses.
+// isFile indicates whether the message was a file (checked before LoadMessage which may delete it).
+func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, form *showMsgForm, err error, isFile bool) {
 	isHTMX := r.Header.Get("HX-Request") == "true"
 
 	if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
@@ -440,7 +444,7 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	// wrong PIN - add error to form
 	form.AddFieldError("pin", err.Error())
 	data := s.newTemplateData(r, form)
-	data.IsFile = s.messager.IsFile(form.Key) // preserve file context for re-rendered form
+	data.IsFile = isFile // use pre-checked value (message may be deleted after max attempts)
 	status := http.StatusOK
 	tmpl := baseTmpl // full page for non-HTMX (file download form uses hx-boost="false")
 	if isHTMX {

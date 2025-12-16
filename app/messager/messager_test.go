@@ -418,6 +418,9 @@ func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
 		{name: "filename with path traversal", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "../etc/passwd", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
 		{name: "filename with forward slash", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "path/to/file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
 		{name: "filename with backslash", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "path\\file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with null byte", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\x00file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with control char", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\x01file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with tab", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\tfile.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
 		{name: "file too large", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: make([]byte, 2048)}, wantErr: ErrFileTooLarge},
 		{name: "bad duration", req: FileRequest{Duration: time.Hour, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrDuration},
 	}
@@ -444,6 +447,21 @@ func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
 	_, err := m.MakeFileMessage(FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
 	require.EqualError(t, err, ErrCrypto.Error())
 	assert.Empty(t, s.SaveCalls())
+	assert.Len(t, c.EncryptCalls(), 1)
+}
+
+func TestMessageProc_MakeFileMessage_SaveError(t *testing.T) {
+	s := &EngineMock{
+		SaveFunc: func(msg *store.Message) error { return fmt.Errorf("storage error") },
+	}
+	c := &CrypterMock{
+		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted"), nil },
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
+	_, err := m.MakeFileMessage(FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
+	require.EqualError(t, err, "storage error")
+	assert.Len(t, s.SaveCalls(), 1)
 	assert.Len(t, c.EncryptCalls(), 1)
 }
 

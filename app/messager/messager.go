@@ -222,8 +222,8 @@ func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, er
 	}
 
 	if req.FileName == "" || len(req.FileName) > 255 || strings.Contains(req.FileName, "!!") ||
-		strings.ContainsAny(req.FileName, "\n\r") || strings.Contains(req.FileName, "..") ||
-		strings.ContainsAny(req.FileName, "/\\") {
+		strings.ContainsAny(req.FileName, "\n\r\x00") || strings.Contains(req.FileName, "..") ||
+		strings.ContainsAny(req.FileName, "/\\") || hasControlChars(req.FileName) {
 		log.Printf("[WARN] save rejected, invalid file name")
 		return nil, ErrBadFileName
 	}
@@ -305,4 +305,14 @@ func ParseFileHeader(data []byte) (filename, contentType string, dataStart int) 
 	}
 
 	return parts[0], parts[1], headerEnd + 1
+}
+
+// hasControlChars checks if string contains ASCII control characters (0x01-0x1F, excluding already checked \n\r)
+func hasControlChars(s string) bool {
+	for _, r := range s {
+		if r < 32 && r != '\n' && r != '\r' {
+			return true
+		}
+	}
+	return false
 }
