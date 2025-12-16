@@ -28,7 +28,7 @@
                        title="PIN must be exactly {{.PinSize}} digits"
                        aria-label="{{.PinSize}}-digit PIN"
                        autofocus
-                       oninput="document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
+                       oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
                 <div id="pin-error">
                     {{with .Form.FieldErrors.pin}}
                     <span class='error'>{{.}}</span>
@@ -163,7 +163,7 @@
                        title="PIN must be exactly {{.PinSize}} digits"
                        aria-label="{{.PinSize}}-digit PIN"
                        autofocus
-                       oninput="document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
+                       oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
                 <div id="pin-error">
                     {{with .Form.FieldErrors.pin}}
                     <span class='error'>{{.}}</span>
