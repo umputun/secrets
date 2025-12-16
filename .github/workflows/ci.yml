@@ -97,6 +97,7 @@ jobs:
         id: tags
         run: |
           ref="${GITHUB_REF#refs/*/}"
+          ref="${ref//\//_}"
           echo "ref=${ref}" >> $GITHUB_OUTPUT
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "is_tag=true" >> $GITHUB_OUTPUT
