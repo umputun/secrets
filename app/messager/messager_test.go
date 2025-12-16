@@ -423,6 +423,10 @@ func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
 		{name: "filename with tab", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\tfile.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
 		{name: "file too large", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: make([]byte, 2048)}, wantErr: ErrFileTooLarge},
 		{name: "bad duration", req: FileRequest{Duration: time.Hour, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrDuration},
+		{name: "content-type with delimiter", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain!!", Data: []byte("x")}, wantErr: ErrBadContentType},
+		{name: "content-type with newline", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain\n", Data: []byte("x")}, wantErr: ErrBadContentType},
+		{name: "content-type with carriage return", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain\r", Data: []byte("x")}, wantErr: ErrBadContentType},
+		{name: "content-type with null byte", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain\x00", Data: []byte("x")}, wantErr: ErrBadContentType},
 	}
 
 	for _, tt := range tests {
@@ -528,6 +532,8 @@ func TestParseFileHeader(t *testing.T) {
 		{name: "not a file", data: []byte("encrypted text"), wantInvalid: true},
 		{name: "no newline", data: []byte("!!FILE!!test.pdf!!application/pdf!!"), wantInvalid: true},
 		{name: "missing content type", data: []byte("!!FILE!!test.pdf!!!!\ndata"), wantName: "test.pdf", wantType: "", wantStart: 21},
+		{name: "no delimiters", data: []byte("!!FILE!!nodelimiter\ndata"), wantInvalid: true},
+		{name: "header too long", data: append(append([]byte("!!FILE!!"), make([]byte, 5000)...), '\n'), wantInvalid: true},
 	}
 
 	for _, tt := range tests {

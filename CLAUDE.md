@@ -103,6 +103,22 @@ type Crypter interface {
 4. Encrypted message saved to storage engine with UUID key and expiration
 5. For retrieval: validate PIN attempts, decrypt if correct, delete after successful read
 
+### File Message Format
+File messages use a distinct storage format with encrypted metadata:
+- **Stored format**: `!!FILE!!<encrypted blob>`
+- **Encrypted blob contains**: `filename!!content-type!!\n<binary data>`
+- Only the `!!FILE!!` prefix is unencrypted (used to detect file vs text messages)
+- Filename and content-type are encrypted together with file content for privacy
+
+**Validation requirements** (to prevent header parsing issues):
+- Filename: no `!!`, `\n`, `\r`, `\x00`, `/`, `\`, `..`, control chars; max 255 chars
+- Content-type: no `!!`, `\n`, `\r`, `\x00`
+
+**Key functions**:
+- `IsFileMessage(data)` - checks for `!!FILE!!` prefix
+- `ParseFileHeader(data)` - extracts filename, content-type, data start position (4KB scan limit)
+- `IsFile(key)` - loads message to check type without decrypting (used for UI to show "Download" vs "Reveal")
+
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message
 - `GET /api/v1/message/:key/:pin` - Retrieve and decrypt message

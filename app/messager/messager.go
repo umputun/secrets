@@ -21,18 +21,20 @@ import (
 
 // Errors
 var (
-	ErrBadPin        = fmt.Errorf("wrong pin")
-	ErrBadPinAttempt = fmt.Errorf("wrong pin attempt")
-	ErrCrypto        = fmt.Errorf("crypto error")
-	ErrInternal      = fmt.Errorf("internal error")
-	ErrExpired       = fmt.Errorf("message expired")
-	ErrDuration      = fmt.Errorf("bad duration")
-	ErrFileTooLarge  = fmt.Errorf("file too large")
-	ErrBadFileName   = fmt.Errorf("invalid file name")
+	ErrBadPin         = fmt.Errorf("wrong pin")
+	ErrBadPinAttempt  = fmt.Errorf("wrong pin attempt")
+	ErrCrypto         = fmt.Errorf("crypto error")
+	ErrInternal       = fmt.Errorf("internal error")
+	ErrExpired        = fmt.Errorf("message expired")
+	ErrDuration       = fmt.Errorf("bad duration")
+	ErrFileTooLarge   = fmt.Errorf("file too large")
+	ErrBadFileName    = fmt.Errorf("invalid file name")
+	ErrBadContentType = fmt.Errorf("invalid content type")
 )
 
-// filePrefix marks file messages with unencrypted metadata
-// format: !!FILE!!filename!!content-type!!\n<encrypted binary>
+// filePrefix marks file messages.
+// stored format: !!FILE!!<encrypted blob containing metadata+data>
+// after decryption, blob contains: filename!!content-type!!\n<binary>
 const filePrefix = "!!FILE!!"
 
 // MessageProc creates and save messages and retrieve per key
@@ -228,6 +230,12 @@ func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, er
 		return nil, ErrBadFileName
 	}
 
+	// validate content-type to prevent header parsing corruption
+	if strings.Contains(req.ContentType, "!!") || strings.ContainsAny(req.ContentType, "\n\r\x00") {
+		log.Printf("[WARN] save rejected, invalid content type")
+		return nil, ErrBadContentType
+	}
+
 	if int64(len(req.Data)) > p.MaxFileSize {
 		log.Printf("[WARN] save rejected, file too large: %d > %d", len(req.Data), p.MaxFileSize)
 		return nil, ErrFileTooLarge
@@ -285,9 +293,10 @@ func ParseFileHeader(data []byte) (filename, contentType string, dataStart int) 
 	}
 
 	// format: !!FILE!!filename!!content-type!!\n<data>
-	// find newline which marks end of header
+	// find newline which marks end of header (limit scan to 4KB for safety)
 	headerEnd := -1
-	for i := len(filePrefix); i < len(data); i++ {
+	maxScan := min(len(data), len(filePrefix)+4096)
+	for i := len(filePrefix); i < maxScan; i++ {
 		if data[i] == '\n' {
 			headerEnd = i
 			break
