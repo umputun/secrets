@@ -135,6 +135,13 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// reject multipart when files disabled
+	if isMultipart && !s.cfg.EnableFiles {
+		log.Printf("[WARN] file upload rejected, files disabled")
+		s.render(w, http.StatusBadRequest, "error.tmpl.html", errorTmpl, "file uploads disabled")
+		return
+	}
+
 	// handle text message (existing logic)
 	err := r.ParseForm()
 	if err != nil {
@@ -195,9 +202,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 // generateFileLinkCtrl handles file upload requests
 func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
-	// limit request body size
-	r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxFileSize+10*1024) // extra 10KB for form fields
-
+	// note: request body size already limited by rest.SizeLimit middleware in routes()
 	err := r.ParseMultipartForm(s.cfg.MaxFileSize)
 	if err != nil {
 		log.Printf("[WARN] failed to parse multipart form: %v", err)
@@ -394,6 +399,13 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// check if decrypted data is a file message
 	if messager.IsFileMessage(msg.Data) {
+		// reject file messages when files are disabled
+		if !s.cfg.EnableFiles {
+			log.Printf("[WARN] file download rejected for %s, files disabled", form.Key)
+			s.render(w, http.StatusForbidden, "error.tmpl.html", errorTmpl, "file downloads disabled")
+			return
+		}
+
 		filename, _, dataStart := messager.ParseFileHeader(msg.Data)
 		if dataStart < 0 {
 			log.Printf("[ERROR] failed to parse file header for %s", form.Key)

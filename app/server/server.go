@@ -262,6 +262,11 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			}
 			return http.StatusBadRequest, rest.JSON{"error": err.Error()}
 		}
+		// reject file messages when files are disabled
+		if messager.IsFileMessage(msg.Data) && !s.cfg.EnableFiles {
+			log.Printf("[WARN] file download rejected for %s, files disabled", key)
+			return http.StatusForbidden, rest.JSON{"error": "file downloads disabled"}
+		}
 		return http.StatusOK, rest.JSON{"key": msg.Key, "message": string(msg.Data)}
 	}
 

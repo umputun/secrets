@@ -1524,3 +1524,96 @@ func TestServer_CanonicalURL(t *testing.T) {
 		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/about">`)
 	})
 }
+
+func TestServer_generateLinkCtrl_MultipartWhenFilesDisabled(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+		MaxFileSize:    1024 * 1024,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
+		Protocol:       "https",
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
+		EnableFiles:    false, // files disabled
+		MaxFileSize:    1024 * 1024,
+	})
+	require.NoError(t, err)
+
+	// create multipart form with file
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "test.txt")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("file content"))
+	require.NoError(t, err)
+	_ = writer.WriteField("exp", "1")
+	_ = writer.WriteField("exp-unit", "h")
+	for range 5 {
+		_ = writer.WriteField("pin", "1")
+	}
+	err = writer.Close()
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/generate-link", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+
+	srv.generateLinkCtrl(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "file uploads disabled")
+}
+
+func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	crypt := messager.Crypt{Key: "123456789012345678901234567"}
+	msg := messager.New(eng, crypt, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+		MaxFileSize:    1024 * 1024,
+	})
+
+	// create a file message directly
+	fileMsg, err := msg.MakeFileMessage(messager.FileRequest{
+		Duration:    time.Hour,
+		Pin:         "12345",
+		FileName:    "test.txt",
+		ContentType: "text/plain",
+		Data:        []byte("secret file content"),
+	})
+	require.NoError(t, err)
+
+	// create server with files DISABLED
+	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
+		Protocol:       "https",
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
+		EnableFiles:    false, // files disabled
+		MaxFileSize:    1024 * 1024,
+	})
+	require.NoError(t, err)
+
+	// attempt to load file message via web endpoint - should be rejected
+	form := url.Values{}
+	form.Set("key", fileMsg.Key)
+	for _, c := range "12345" {
+		form.Add("pin", string(c))
+	}
+
+	req := httptest.NewRequest("POST", "/load-message", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	srv.loadMessageCtrl(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Contains(t, rr.Body.String(), "file downloads disabled")
+}

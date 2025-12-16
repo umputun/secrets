@@ -855,3 +855,57 @@ func TestServer_MultipleDomainsLinkGeneration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test message", respLoad.Message)
 }
+
+func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
+	// create server with files enabled to store a file message
+	eng := store.NewInMemory(time.Second * 30)
+	crypt := messager.Crypt{Key: "123456789012345678901234567"}
+	msg := messager.New(eng, crypt, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+		MaxFileSize:    1024 * 1024,
+	})
+
+	// create a file message directly
+	fileMsg, err := msg.MakeFileMessage(messager.FileRequest{
+		Duration:    time.Hour,
+		Pin:         "12345",
+		FileName:    "test.txt",
+		ContentType: "text/plain",
+		Data:        []byte("secret file content"),
+	})
+	require.NoError(t, err)
+
+	// create server with files DISABLED
+	srv, err := New(msg, "test", Config{
+		Domain:         []string{"example.com"},
+		Protocol:       "https",
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
+		EnableFiles:    false, // files disabled
+		MaxFileSize:    1024 * 1024,
+	})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	// attempt to retrieve file message via API - should be rejected
+	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, fileMsg.Key)
+	req, err := http.NewRequest("GET", url, http.NoBody)
+	require.NoError(t, err)
+
+	client := http.Client{Timeout: time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	var result map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+	assert.Equal(t, "file downloads disabled", result["error"])
+}
