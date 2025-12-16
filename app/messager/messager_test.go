@@ -65,7 +65,23 @@ func TestMessageProc_MakeMessage_Errors(t *testing.T) {
 			},
 		},
 		{
-			name:    "bad duration",
+			name:    "zero duration",
+			wantErr: ErrDuration,
+			args: args{
+				duration: 0,
+				pin:      "1234",
+			},
+		},
+		{
+			name:    "negative duration",
+			wantErr: ErrDuration,
+			args: args{
+				duration: -time.Second,
+				pin:      "1234",
+			},
+		},
+		{
+			name:    "duration exceeds max",
 			wantErr: ErrDuration,
 			args: args{
 				duration: time.Minute * 30,
@@ -333,7 +349,9 @@ func TestMessageProc_MakeFileMessage(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	r, err := m.MakeFileMessage(time.Second*30, []byte("file content"), "test.txt", "text/plain", "56789")
+	r, err := m.MakeFileMessage(FileRequest{
+		Duration: time.Second * 30, Data: []byte("file content"), FileName: "test.txt", ContentType: "text/plain", Pin: "56789",
+	})
 	t.Logf("%+v", r)
 	require.NoError(t, err)
 	assert.Equal(t, "encrypted file data", string(r.Data))
@@ -380,7 +398,9 @@ func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: tt.maxFileSize})
-			r, err := m.MakeFileMessage(tt.duration, tt.data, tt.fileName, "text/plain", tt.pin)
+			r, err := m.MakeFileMessage(FileRequest{
+				Duration: tt.duration, Data: tt.data, FileName: tt.fileName, ContentType: "text/plain", Pin: tt.pin,
+			})
 			t.Logf("%+v", r)
 			require.EqualError(t, err, tt.wantErr.Error())
 
@@ -399,7 +419,9 @@ func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	r, err := m.MakeFileMessage(time.Second*30, []byte("file data"), "test.txt", "text/plain", "56789")
+	r, err := m.MakeFileMessage(FileRequest{
+		Duration: time.Second * 30, Data: []byte("file data"), FileName: "test.txt", ContentType: "text/plain", Pin: "56789",
+	})
 	t.Logf("%+v", r)
 	require.EqualError(t, err, "crypto error")
 
@@ -421,8 +443,34 @@ func TestMessageProc_MakeFileMessage_NoMaxFileSize(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 0})
-	r, err := m.MakeFileMessage(time.Second*30, []byte("any size file"), "test.txt", "text/plain", "56789")
+	r, err := m.MakeFileMessage(FileRequest{
+		Duration: time.Second * 30, Data: []byte("any size file"), FileName: "test.txt", ContentType: "text/plain", Pin: "56789",
+	})
 	require.NoError(t, err)
 	assert.True(t, r.IsFile)
 	assert.Len(t, s.SaveCalls(), 1)
+}
+
+func TestMessageProc_MakeFileMessage_SaveError(t *testing.T) {
+	// test that engine.Save error is propagated
+	s := &EngineMock{
+		SaveFunc: func(msg *store.Message) error {
+			return fmt.Errorf("storage error")
+		},
+	}
+	c := &CrypterMock{
+		EncryptFunc: func(req Request) ([]byte, error) {
+			return []byte("encrypted"), nil
+		},
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
+	r, err := m.MakeFileMessage(FileRequest{
+		Duration: time.Second * 30, Data: []byte("file data"), FileName: "test.txt", ContentType: "text/plain", Pin: "56789",
+	})
+	require.EqualError(t, err, "storage error")
+	assert.NotNil(t, r)
+	assert.True(t, r.IsFile)
+	assert.Len(t, s.SaveCalls(), 1)
+	assert.Len(t, c.EncryptCalls(), 1)
 }

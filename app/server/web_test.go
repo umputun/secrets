@@ -1260,7 +1260,7 @@ func TestServer_generateFileLinkCtrl(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("valid file upload", func(t *testing.T) {
-		body, contentType := createMultipartFileWeb(t, "file", "test.txt", "text/plain", []byte("secret content"), "12345", "15", "m")
+		body, contentType := createMultipartFileWeb(t, "file", "test.txt", "text/plain", []byte("secret content"), "12345", "15")
 		req, err := http.NewRequest("POST", ts.URL+"/generate-file-link", body)
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", contentType)
@@ -1275,6 +1275,58 @@ func TestServer_generateFileLinkCtrl(t *testing.T) {
 		n, _ := resp.Body.Read(respBody)
 		assert.Contains(t, string(respBody[:n]), "https://example.com/message/")
 		assert.Contains(t, string(respBody[:n]), "test.txt")
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		body, contentType := createMultipartFileWeb(t, "", "", "", nil, "12345", "15")
+		req, err := http.NewRequest("POST", ts.URL+"/generate-file-link", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("HX-Request", "true")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("invalid pin", func(t *testing.T) {
+		body, contentType := createMultipartFileWeb(t, "file", "test.txt", "text/plain", []byte("content"), "abc", "15")
+		req, err := http.NewRequest("POST", ts.URL+"/generate-file-link", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("HX-Request", "true")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("invalid expiration", func(t *testing.T) {
+		body, contentType := createMultipartFileWeb(t, "file", "test.txt", "text/plain", []byte("content"), "12345", "abc")
+		req, err := http.NewRequest("POST", ts.URL+"/generate-file-link", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("HX-Request", "true")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("expiration exceeds max", func(t *testing.T) {
+		body, contentType := createMultipartFileWeb(t, "file", "test.txt", "text/plain", []byte("content"), "12345", "999999")
+		req, err := http.NewRequest("POST", ts.URL+"/generate-file-link", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("HX-Request", "true")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 }
 
@@ -1298,7 +1350,9 @@ func TestServer_downloadFileCtrl(t *testing.T) {
 
 	// create a file message directly via messager
 	fileContent := []byte("secret file content for download test")
-	fileMsg, err := msg.MakeFileMessage(time.Hour, fileContent, "download-web.txt", "text/plain", "12345")
+	fileMsg, err := msg.MakeFileMessage(messager.FileRequest{
+		Duration: time.Hour, Data: fileContent, FileName: "download-web.txt", ContentType: "text/plain", Pin: "12345",
+	})
 	require.NoError(t, err)
 
 	t.Run("valid file download", func(t *testing.T) {
@@ -1337,7 +1391,9 @@ func TestServer_downloadFileCtrl(t *testing.T) {
 
 	t.Run("wrong pin", func(t *testing.T) {
 		// create another file message
-		fileMsg2, err := msg.MakeFileMessage(time.Hour, []byte("another file"), "test2.txt", "text/plain", "12345")
+		fileMsg2, err := msg.MakeFileMessage(messager.FileRequest{
+			Duration: time.Hour, Data: []byte("another file"), FileName: "test2.txt", ContentType: "text/plain", Pin: "12345",
+		})
 		require.NoError(t, err)
 
 		formData := url.Values{
@@ -1353,6 +1409,59 @@ func TestServer_downloadFileCtrl(t *testing.T) {
 
 		// wrong pin - should show error
 		assert.Contains(t, rr.Body.String(), "error")
+	})
+
+	t.Run("invalid pin format", func(t *testing.T) {
+		formData := url.Values{
+			"key": {"somekey"},
+			"pin": {"a", "b", "c", "d", "e"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/download-file", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.downloadFileCtrl(rr, req)
+
+		// invalid pin - should render show-message template with error
+		assert.Contains(t, rr.Body.String(), "Pin must be")
+	})
+
+	t.Run("non-existent key", func(t *testing.T) {
+		formData := url.Values{
+			"key": {"nonexistent-key"},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/download-file", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.downloadFileCtrl(rr, req)
+
+		// should show error for non-existent key
+		assert.Contains(t, rr.Body.String(), "error")
+	})
+
+	t.Run("text message renders as text", func(t *testing.T) {
+		// create a text message (not a file)
+		textMsg, err := msg.MakeMessage(time.Hour, "secret text", "12345")
+		require.NoError(t, err)
+
+		formData := url.Values{
+			"key": {textMsg.Key},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/download-file", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.downloadFileCtrl(rr, req)
+
+		// text message should render as decoded-message, not file download
+		assert.Contains(t, rr.Body.String(), "secret text")
+		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 }
 
@@ -1441,7 +1550,32 @@ func TestServer_formatFileSize(t *testing.T) {
 	}
 }
 
-func createMultipartFileWeb(t *testing.T, fieldName, fileName, contentType string, content []byte, pin, exp, expUnit string) (body *strings.Reader, ct string) {
+func TestServer_sanitizeContentType(t *testing.T) {
+	tests := []struct {
+		name        string
+		contentType string
+		expected    string
+	}{
+		{name: "empty", contentType: "", expected: "application/octet-stream"},
+		{name: "valid simple", contentType: "text/plain", expected: "text/plain"},
+		{name: "valid with charset", contentType: "text/html; charset=utf-8", expected: "text/html"},
+		{name: "application json", contentType: "application/json", expected: "application/json"},
+		{name: "image png", contentType: "image/png", expected: "image/png"},
+		{name: "application pdf", contentType: "application/pdf", expected: "application/pdf"},
+		{name: "invalid content type", contentType: "not a valid content type!!!", expected: "application/octet-stream"},
+		{name: "whitespace only", contentType: "   ", expected: "application/octet-stream"},
+		{name: "with params", contentType: "multipart/form-data; boundary=something", expected: "multipart/form-data"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeContentType(tt.contentType)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func createMultipartFileWeb(t *testing.T, fieldName, fileName, contentType string, content []byte, pin, exp string) (body *strings.Reader, ct string) {
 	t.Helper()
 	var b strings.Builder
 	boundary := "----TestBoundary7MA4YWxkTrZu0gW"
@@ -1464,7 +1598,7 @@ func createMultipartFileWeb(t *testing.T, fieldName, fileName, contentType strin
 
 	b.WriteString("--" + boundary + "\r\n")
 	b.WriteString("Content-Disposition: form-data; name=\"expUnit\"\r\n\r\n")
-	b.WriteString(expUnit + "\r\n")
+	b.WriteString("m\r\n")
 
 	b.WriteString("--" + boundary + "--\r\n")
 

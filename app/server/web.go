@@ -109,6 +109,17 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 	}
 }
 
+// validatePinValues checks if all PIN values are valid (non-blank numeric).
+// returns the concatenated PIN and any validation error message.
+func (s Server) validatePinValues(pinValues []string) (pin, errMsg string) {
+	for _, p := range pinValues {
+		if validator.Blank(p) || !validator.IsNumber(p) {
+			return "", fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize)
+		}
+	}
+	return strings.Join(pinValues, ""), ""
+}
+
 // renders the home page
 // GET /
 func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
@@ -142,11 +153,9 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
-		}
+	pin, pinErr := s.validatePinValues(pinValues)
+	if pinErr != "" {
+		form.AddFieldError(pinKey, pinErr)
 	}
 
 	form.CheckField(validator.NotBlank(form.Message), msgKey, "Message can't be empty")
@@ -177,7 +186,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.MakeMessage(expDuration, form.Message, strings.Join(pinValues, ""))
+	msg, err := s.messager.MakeMessage(expDuration, form.Message, pin)
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
 		return
@@ -236,11 +245,9 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
-		}
+	pin, pinErr := s.validatePinValues(pinValues)
+	if pinErr != "" {
+		form.AddFieldError(pinKey, pinErr)
 	}
 
 	if !form.Valid() {
@@ -250,9 +257,24 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
+	// constant-time wrapper to prevent timing attacks
+	serveRequest := func() (*store.Message, error) {
+		return s.messager.LoadMessage(form.Key, pin)
+	}
+
+	st := time.Now()
+	msg, err := serveRequest()
+	time.Sleep(time.Millisecond*100 - time.Since(st))
+
 	if err != nil {
 		s.handleLoadMessageError(w, r, &form, err)
+		return
+	}
+
+	// handle file messages - serve as download
+	if msg.IsFile {
+		s.serveFileDownload(w, msg)
+		log.Printf("[INFO] served file %s via load-message, name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
 		return
 	}
 
@@ -431,9 +453,9 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		form.AddFieldError("file", "file too large or invalid form")
 		data := s.newTemplateData(r, form)
 		if r.Header.Get("HX-Request") == "true" {
-			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+			s.render(w, http.StatusBadRequest, "file-input.tmpl.html", "file-input", data)
 		} else {
-			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+			s.render(w, http.StatusOK, "file-input.tmpl.html", "file-input", data)
 		}
 		return
 	}
@@ -445,9 +467,9 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		form.AddFieldError("file", "file is required")
 		data := s.newTemplateData(r, form)
 		if r.Header.Get("HX-Request") == "true" {
-			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+			s.render(w, http.StatusBadRequest, "file-input.tmpl.html", "file-input", data)
 		} else {
-			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+			s.render(w, http.StatusOK, "file-input.tmpl.html", "file-input", data)
 		}
 		return
 	}
@@ -468,11 +490,9 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
-		}
+	pin, pinErr := s.validatePinValues(pinValues)
+	if pinErr != "" {
+		form.AddFieldError(pinKey, pinErr)
 	}
 
 	exp := r.PostFormValue(expKey)
@@ -492,19 +512,22 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	if !form.Valid() {
 		data := s.newTemplateData(r, form)
 		if r.Header.Get("HX-Request") == "true" {
-			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+			s.render(w, http.StatusBadRequest, "file-input.tmpl.html", "file-input", data)
 		} else {
-			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+			s.render(w, http.StatusOK, "file-input.tmpl.html", "file-input", data)
 		}
 		return
 	}
 
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
+	contentType := sanitizeContentType(header.Header.Get("Content-Type"))
 
-	msg, err := s.messager.MakeFileMessage(expDuration, fileData, header.Filename, contentType, strings.Join(pinValues, ""))
+	msg, err := s.messager.MakeFileMessage(messager.FileRequest{
+		Duration:    expDuration,
+		Data:        fileData,
+		FileName:    header.Filename,
+		ContentType: contentType,
+		Pin:         pin,
+	})
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link-file.tmpl.html", errorTmpl, err.Error())
 		return
@@ -544,11 +567,9 @@ func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
-		}
+	pin, pinErr := s.validatePinValues(pinValues)
+	if pinErr != "" {
+		form.AddFieldError(pinKey, pinErr)
 	}
 
 	if !form.Valid() {
@@ -557,7 +578,15 @@ func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
+	// constant-time wrapper to prevent timing attacks
+	serveRequest := func() (*store.Message, error) {
+		return s.messager.LoadMessage(form.Key, pin)
+	}
+
+	st := time.Now()
+	msg, err := serveRequest()
+	time.Sleep(time.Millisecond*100 - time.Since(st))
+
 	if err != nil {
 		s.handleLoadMessageError(w, r, &form, err)
 		return
@@ -570,7 +599,12 @@ func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// serve file download with security headers
+	s.serveFileDownload(w, msg)
+	log.Printf("[INFO] served file %s via download-file, name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
+}
+
+// serveFileDownload serves a file message as a download with security headers
+func (s Server) serveFileDownload(w http.ResponseWriter, msg *store.Message) {
 	contentType := msg.ContentType
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -584,9 +618,24 @@ func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(msg.Data); err != nil {
-		log.Printf("[WARN] failed to write file data for %s: %v", form.Key, err)
+		log.Printf("[WARN] failed to write file data: %v", err)
 	}
-	log.Printf("[INFO] served file %s, name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
+}
+
+// sanitizeContentType validates and normalizes content type, returning a safe default if invalid.
+// uses mime.ParseMediaType to properly parse and validate the content type.
+func sanitizeContentType(contentType string) string {
+	if contentType == "" {
+		return "application/octet-stream"
+	}
+
+	// parse and validate content type
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType == "" {
+		return "application/octet-stream"
+	}
+
+	return mediaType
 }
 
 // formatFileSize formats bytes to human readable string

@@ -8,7 +8,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -70,7 +69,7 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 // Messager interface making and loading messages
 type Messager interface {
 	MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
-	MakeFileMessage(duration time.Duration, data []byte, fileName, contentType, pin string) (result *store.Message, err error)
+	MakeFileMessage(req messager.FileRequest) (result *store.Message, err error)
 	LoadMessage(key, pin string) (msg *store.Message, err error)
 }
 
@@ -385,7 +384,13 @@ func (s Server) saveFileCtrl(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 
-	msg, err := s.messager.MakeFileMessage(time.Second*time.Duration(exp), data, header.Filename, contentType, pin)
+	msg, err := s.messager.MakeFileMessage(messager.FileRequest{
+		Duration:    time.Second * time.Duration(exp),
+		Data:        data,
+		FileName:    header.Filename,
+		ContentType: contentType,
+		Pin:         pin,
+	})
 	if err != nil {
 		log.Printf("[WARN] can't create file message: %v", err)
 		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create file message")
@@ -433,22 +438,7 @@ func (s Server) getFileCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// serve the file with security headers
-	contentType := msg.ContentType
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	// use mime.FormatMediaType for proper RFC 2231 encoding of filename
-	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": msg.FileName})
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", disposition)
-	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(msg.Data)), 10))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(msg.Data); err != nil {
-		log.Printf("[WARN] failed to write file data for %s: %v", key, err)
-	}
+	s.serveFileDownload(w, msg)
 	log.Printf("[INFO] served file %s, name=%s, size=%d", key, msg.FileName, len(msg.Data))
 }
 

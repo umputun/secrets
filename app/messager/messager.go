@@ -32,6 +32,15 @@ var (
 
 const maxFileNameLength = 255 // max filename length in bytes
 
+// FileRequest contains parameters for creating a file message
+type FileRequest struct {
+	Duration    time.Duration
+	Data        []byte
+	FileName    string
+	ContentType string
+	Pin         string
+}
+
 // MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
 	Params
@@ -92,6 +101,11 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		return nil, ErrInternal
 	}
 
+	if duration <= 0 {
+		log.Printf("[ERROR] can't use non-positive duration: %v", duration)
+		return nil, ErrDuration
+	}
+
 	if duration > p.MaxDuration {
 		log.Printf("[ERROR] can't use duration, %v > %v", duration, p.MaxDuration)
 		return nil, ErrDuration
@@ -116,52 +130,52 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 }
 
 // MakeFileMessage creates encrypted file message with metadata, saves to engine.
-func (p MessageProc) MakeFileMessage(duration time.Duration, data []byte, fileName, contentType, pin string) (result *store.Message, err error) {
-	if pin == "" {
+func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, err error) {
+	if req.Pin == "" {
 		log.Printf("[WARN] file save rejected, empty pin")
 		return nil, ErrBadPin
 	}
 
-	if len(fileName) > maxFileNameLength {
-		log.Printf("[WARN] file save rejected, filename too long: %d > %d", len(fileName), maxFileNameLength)
+	if len(req.FileName) > maxFileNameLength {
+		log.Printf("[WARN] file save rejected, filename too long: %d > %d", len(req.FileName), maxFileNameLength)
 		return nil, ErrFileNameLength
 	}
 
-	if p.MaxFileSize > 0 && int64(len(data)) > p.MaxFileSize {
-		log.Printf("[WARN] file save rejected, size %d > max %d", len(data), p.MaxFileSize)
+	if p.MaxFileSize > 0 && int64(len(req.Data)) > p.MaxFileSize {
+		log.Printf("[WARN] file save rejected, size %d > max %d", len(req.Data), p.MaxFileSize)
 		return nil, ErrFileTooLarge
 	}
 
-	pinHash, err := p.makeHash(pin)
+	pinHash, err := p.makeHash(req.Pin)
 	if err != nil {
 		log.Printf("[ERROR] can't hash pin for file, %v", err)
 		return nil, ErrInternal
 	}
 
-	if duration <= 0 {
-		log.Printf("[ERROR] can't use non-positive duration for file: %v", duration)
+	if req.Duration <= 0 {
+		log.Printf("[ERROR] can't use non-positive duration for file: %v", req.Duration)
 		return nil, ErrDuration
 	}
 
-	if duration > p.MaxDuration {
-		log.Printf("[ERROR] can't use duration for file, %v > %v", duration, p.MaxDuration)
+	if req.Duration > p.MaxDuration {
+		log.Printf("[ERROR] can't use duration for file, %v > %v", req.Duration, p.MaxDuration)
 		return nil, ErrDuration
 	}
 
 	key := uuid.New().String()
-	exp := time.Now().Add(duration)
+	exp := time.Now().Add(req.Duration)
 
 	result = &store.Message{
 		Key:         store.Key(exp, key),
 		Exp:         exp,
 		PinHash:     pinHash,
 		IsFile:      true,
-		FileName:    fileName,
-		ContentType: contentType,
-		FileSize:    int64(len(data)),
+		FileName:    req.FileName,
+		ContentType: req.ContentType,
+		FileSize:    int64(len(req.Data)),
 	}
 
-	result.Data, err = p.crypt.Encrypt(Request{Data: data, Pin: pin})
+	result.Data, err = p.crypt.Encrypt(Request{Data: req.Data, Pin: req.Pin})
 	if err != nil {
 		log.Printf("[ERROR] failed to encrypt file, %v", err)
 		return nil, ErrCrypto
