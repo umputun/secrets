@@ -294,6 +294,7 @@ button[type="submit"] {
 .main-btn:hover,
 button[type="submit"]:hover {
     background: var(--color-primary-hover);
+    color: white;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px 0 rgba(37, 99, 235, 0.25), 0 2px 4px 0 rgba(0, 0, 0, 0.05);
 }

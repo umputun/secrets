@@ -11,8 +11,8 @@
         </div>
 
         {{if .IsFile}}
-        {{/* file download: use standard form to get binary response */}}
-        <form action="/load-message" method="post" hx-boost="false" id="download-form">
+        {{/* file download: use JS to handle binary response and show success */}}
+        <form id="download-form">
             <input type="hidden" name="key" value="{{.Form.Key}}" />
 
             <div class="form-group">
@@ -27,7 +27,8 @@
                        placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
                        title="PIN must be exactly {{.PinSize}} digits"
                        aria-label="{{.PinSize}}-digit PIN"
-                       autofocus />
+                       autofocus
+                       oninput="document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
                 <div id="pin-error">
                     {{with .Form.FieldErrors.pin}}
                     <span class='error'>{{.}}</span>
@@ -36,7 +37,7 @@
             </div>
 
             <button class="main-btn" type="submit" id="download-btn">
-                <span class="button-text">
+                <span class="button-text" id="btn-text">
                     <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2"/>
                         <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2"/>
@@ -44,8 +45,94 @@
                     </svg>
                     Download File
                 </span>
+                <span class="button-text" id="btn-loading" style="display:none;">Downloading...</span>
             </button>
         </form>
+        <script>
+        document.getElementById('download-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = document.getElementById('download-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnLoading = document.getElementById('btn-loading');
+            const pinError = document.getElementById('pin-error');
+            const pinInput = document.getElementById('pin');
+
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline';
+
+            try {
+                const formData = new URLSearchParams(new FormData(form));
+                const resp = await fetch('/load-message', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: formData
+                });
+
+                if (resp.ok && resp.headers.get('Content-Disposition')) {
+                    // success - download file
+                    const blob = await resp.blob();
+                    const disposition = resp.headers.get('Content-Disposition');
+                    const match = disposition.match(/filename="([^"]+)"/);
+                    const filename = match ? match[1] : 'download';
+
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    // show success message - file is now deleted
+                    document.getElementById('message-container').innerHTML =
+                        '<div class="card success-card">' +
+                        '<div class="card-header"><h2 class="card-title">File Downloaded</h2></div>' +
+                        '<p class="success-message">The encrypted file has been downloaded and permanently deleted from the server.</p>' +
+                        '<a href="/" class="main-btn">Create New Secret</a></div>';
+                } else {
+                    // error - show error message
+                    const html = await resp.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    // check for pin error (wrong PIN, message still exists)
+                    const pinErr = doc.querySelector('#pin-error');
+                    if (pinErr && pinErr.innerHTML.trim()) {
+                        pinError.innerHTML = pinErr.innerHTML;
+                        pinInput.classList.add('error-input');
+                        btn.disabled = false;
+                        btnText.style.display = 'inline';
+                        btnLoading.style.display = 'none';
+                        return;
+                    }
+
+                    // check for message expired/deleted error (after too many attempts)
+                    const expiredErr = doc.querySelector('.error-message');
+                    if (expiredErr) {
+                        document.getElementById('message-container').innerHTML =
+                            '<div class="card error-card">' +
+                            '<div class="card-header"><h2 class="card-title">Message Unavailable</h2></div>' +
+                            '<p class="error-message">' + expiredErr.textContent + '</p>' +
+                            '<a href="/" class="main-btn">Back to Main Page</a></div>';
+                        return;
+                    }
+
+                    // fallback for unknown error
+                    pinError.innerHTML = '<span class="error">An error occurred. Please try again.</span>';
+                    pinInput.classList.add('error-input');
+                    btn.disabled = false;
+                    btnText.style.display = 'inline';
+                    btnLoading.style.display = 'none';
+                }
+            } catch (err) {
+                pinError.innerHTML = '<span class="error">Download failed. Please try again.</span>';
+                btn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+            }
+        });
+        </script>
         {{else}}
         {{/* text message: use HTMX for inline decryption */}}
         <form hx-post="/load-message"

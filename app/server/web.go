@@ -391,7 +391,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// check if decrypted data is a file message
 	if messager.IsFileMessage(msg.Data) {
-		filename, contentType, dataStart := messager.ParseFileHeader(msg.Data)
+		filename, _, dataStart := messager.ParseFileHeader(msg.Data)
 		if dataStart < 0 {
 			log.Printf("[ERROR] failed to parse file header for %s", form.Key)
 			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "invalid file format")
@@ -399,8 +399,16 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// serve file directly as download
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-		w.Header().Set("Content-Type", contentType)
+		// sanitize filename for Content-Disposition to prevent header injection
+		safeName := strings.Map(func(r rune) rune {
+			if r < 32 || r == '"' || r == '\\' || r > 127 {
+				return '_'
+			}
+			return r
+		}, filename)
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", safeName))
+		// force binary download to prevent browser content interpretation (XSS mitigation)
+		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.Itoa(len(msg.Data)-dataStart))
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
@@ -432,11 +440,14 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	// wrong PIN - add error to form
 	form.AddFieldError("pin", err.Error())
 	data := s.newTemplateData(r, form)
+	data.IsFile = s.messager.IsFile(form.Key) // preserve file context for re-rendered form
 	status := http.StatusOK
+	tmpl := baseTmpl // full page for non-HTMX (file download form uses hx-boost="false")
 	if isHTMX {
 		status = http.StatusForbidden
+		tmpl = mainTmpl // partial for HTMX swap
 	}
-	s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
+	s.render(w, status, "show-message.tmpl.html", tmpl, data)
 	log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
 }
 

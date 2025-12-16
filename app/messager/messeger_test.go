@@ -359,6 +359,11 @@ func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
 		{name: "empty pin", req: FileRequest{Duration: time.Second, Pin: "", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadPin},
 		{name: "empty filename", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
 		{name: "filename too long", req: FileRequest{Duration: time.Second, Pin: "123", FileName: string(make([]byte, 256)), ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with delimiter", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test!!file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with newline", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\nfile.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with path traversal", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "../etc/passwd", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with forward slash", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "path/to/file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename with backslash", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "path\\file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
 		{name: "file too large", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: make([]byte, 2048)}, wantErr: ErrFileTooLarge},
 		{name: "bad duration", req: FileRequest{Duration: time.Hour, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrDuration},
 	}
@@ -386,6 +391,35 @@ func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
 	require.EqualError(t, err, ErrCrypto.Error())
 	assert.Empty(t, s.SaveCalls())
 	assert.Len(t, c.EncryptCalls(), 1)
+}
+
+func TestMessageProc_IsFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		loadErr error
+		data    []byte
+		want    bool
+	}{
+		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), want: true},
+		{name: "text message", loadErr: nil, data: []byte("encrypted text"), want: false},
+		{name: "load error", loadErr: fmt.Errorf("not found"), data: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &EngineMock{
+				LoadFunc: func(key string) (*store.Message, error) {
+					if tt.loadErr != nil {
+						return nil, tt.loadErr
+					}
+					return &store.Message{Data: tt.data}, nil
+				},
+			}
+			m := New(s, nil, Params{})
+			assert.Equal(t, tt.want, m.IsFile("test-key"))
+			assert.Len(t, s.LoadCalls(), 1)
+		})
+	}
 }
 
 func TestIsFileMessage(t *testing.T) {

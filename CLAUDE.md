@@ -72,7 +72,9 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 ```go
 type Messager interface {
     MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
+    MakeFileMessage(req messager.FileRequest) (result *store.Message, err error)
     LoadMessage(key, pin string) (msg *store.Message, err error)
+    IsFile(key string) bool // checks if message is a file without decrypting
 }
 ```
 
@@ -117,6 +119,8 @@ Key configuration via environment variables or flags:
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
 - `DOMAIN` - Allowed domain(s), supports comma-separated list (e.g., "example.com,alt.example.com")
 - `PROTOCOL` - http or https (default: https)
+- `FILES_ENABLED` - Enable file uploads (default: false)
+- `FILES_MAX_SIZE` - Maximum file size in bytes (default: 1MB)
 
 ## Testing Approach
 

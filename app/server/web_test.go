@@ -1345,7 +1345,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 		srv.loadMessageCtrl(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "application/pdf", rr.Header().Get("Content-Type"))
+		assert.Equal(t, "application/octet-stream", rr.Header().Get("Content-Type")) // forced for XSS mitigation
 		assert.Equal(t, `attachment; filename="secret.pdf"`, rr.Header().Get("Content-Disposition"))
 		assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
 		assert.Equal(t, "fake pdf content", rr.Body.String())

@@ -218,14 +218,16 @@ func (p MessageProc) IsFile(key string) bool {
 }
 
 // MakeFileMessage creates a message from file data with unencrypted prefix for metadata.
-// Format: ~FILE~filename~content-type~\n<encrypted binary>
+// Format: !!FILE!!filename!!content-type!!\n<encrypted binary>
 func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, err error) {
 	if req.Pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")
 		return nil, ErrBadPin
 	}
 
-	if req.FileName == "" || len(req.FileName) > 255 || strings.Contains(req.FileName, "!!") || strings.ContainsAny(req.FileName, "\n\r") {
+	if req.FileName == "" || len(req.FileName) > 255 || strings.Contains(req.FileName, "!!") ||
+		strings.ContainsAny(req.FileName, "\n\r") || strings.Contains(req.FileName, "..") ||
+		strings.ContainsAny(req.FileName, "/\\") {
 		log.Printf("[WARN] save rejected, invalid file name")
 		return nil, ErrBadFileName
 	}
@@ -282,7 +284,7 @@ func ParseFileHeader(data []byte) (filename, contentType string, dataStart int) 
 		return "", "", -1
 	}
 
-	// format: ~FILE~filename~content-type~\n<data>
+	// format: !!FILE!!filename!!content-type!!\n<data>
 	// find newline which marks end of header
 	headerEnd := -1
 	for i := len(filePrefix); i < len(data); i++ {
