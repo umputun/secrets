@@ -38,7 +38,7 @@ type Config struct {
 	MaxFileSize int64 // bytes, 0 means use default (1MB)
 	// authentication (optional)
 	AuthHash   string        // bcrypt hash of password, empty disables auth
-	SessionTTL time.Duration // session lifetime, defaults to 24h
+	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
 }
 
 // Server is a rest with store

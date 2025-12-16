@@ -574,3 +574,36 @@ func TestServer_validateSessionToken(t *testing.T) {
 		assert.False(t, srv.validateSessionToken(token))
 	})
 }
+
+func TestServer_loginPopupCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	hash := testBcryptHash(t, "secret123")
+
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:     []string{"example.com"},
+			PinSize:    5,
+			MaxExpire:  10 * time.Hour,
+			AuthHash:   hash,
+			SessionTTL: time.Hour,
+		},
+	)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	t.Run("renders login popup", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/login-popup")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Contains(t, resp.Header.Get("Content-Type"), "text/html")
+	})
+}
