@@ -72,7 +72,9 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 ```go
 type Messager interface {
     MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
+    MakeFileMessage(req messager.FileRequest) (result *store.Message, err error)
     LoadMessage(key, pin string) (msg *store.Message, err error)
+    IsFile(key string) bool // checks if message is a file without decrypting
 }
 ```
 
@@ -101,6 +103,22 @@ type Crypter interface {
 4. Encrypted message saved to storage engine with UUID key and expiration
 5. For retrieval: validate PIN attempts, decrypt if correct, delete after successful read
 
+### File Message Format
+File messages use a distinct storage format with encrypted metadata:
+- **Stored format**: `!!FILE!!<encrypted blob>`
+- **Encrypted blob contains**: `filename!!content-type!!\n<binary data>`
+- Only the `!!FILE!!` prefix is unencrypted (used to detect file vs text messages)
+- Filename and content-type are encrypted together with file content for privacy
+
+**Validation requirements** (to prevent header parsing issues):
+- Filename: no `!!`, `\n`, `\r`, `\x00`, `/`, `\`, `..`, control chars; max 255 chars
+- Content-type: no `!!`, `\n`, `\r`, `\x00`
+
+**Key functions**:
+- `IsFileMessage(data)` - checks for `!!FILE!!` prefix
+- `ParseFileHeader(data)` - extracts filename, content-type, data start position (4KB scan limit)
+- `IsFile(key)` - loads message to check type without decrypting (used for UI to show "Download" vs "Reveal")
+
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message
 - `GET /api/v1/message/:key/:pin` - Retrieve and decrypt message
@@ -117,6 +135,8 @@ Key configuration via environment variables or flags:
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
 - `DOMAIN` - Allowed domain(s), supports comma-separated list (e.g., "example.com,alt.example.com")
 - `PROTOCOL` - http or https (default: https)
+- `FILES_ENABLED` - Enable file uploads (default: false)
+- `FILES_MAX_SIZE` - Maximum file size in bytes (default: 1MB)
 
 ## Testing Approach
 

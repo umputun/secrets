@@ -58,8 +58,8 @@ func (s *Bolt) Save(msg *Message) (err error) {
 func (s *Bolt) Load(key string) (result *Message, err error) {
 
 	err = s.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(bucket)
-		val := bucket.Get([]byte(key))
+		b := tx.Bucket(bucket)
+		val := b.Get([]byte(key))
 		if val == nil {
 			log.Printf("[INFO] not found %s", key)
 			return ErrLoadRejected

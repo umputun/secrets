@@ -294,6 +294,7 @@ button[type="submit"] {
 .main-btn:hover,
 button[type="submit"]:hover {
     background: var(--color-primary-hover);
+    color: white;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px 0 rgba(37, 99, 235, 0.25), 0 2px 4px 0 rgba(0, 0, 0, 0.05);
 }
@@ -361,14 +362,15 @@ button[type="submit"]:disabled {
 .app {
     min-height: 100vh;
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: center;
     padding: var(--spacing-xl) var(--spacing-lg) var(--spacing-lg);
 }
 
 .app-container {
     width: 100%;
     max-width: 580px;
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xl);
@@ -441,6 +443,17 @@ button[type="submit"]:disabled {
     margin-bottom: var(--spacing-lg);
 }
 
+.card-header:has(.mode-toggle) {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.card-header-text {
+    flex: 1;
+}
+
 .card-title {
     font-size: 1.5rem;
     font-weight: 600;
@@ -451,6 +464,37 @@ button[type="submit"]:disabled {
 .card-description {
     font-size: 1rem;
     color: var(--color-text-secondary);
+}
+
+/* Mode Toggle (Text/File selector) */
+.mode-toggle {
+    display: flex;
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.mode-btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.mode-btn:hover {
+    color: var(--color-text-primary);
+}
+
+.mode-btn.active {
+    background: var(--color-primary);
+    color: white;
 }
 
 .card-title-with-icon {
@@ -867,6 +911,109 @@ button[type="submit"]:disabled {
     font-weight: 600;
     text-align: center;
     letter-spacing: -0.01em;
+}
+
+/* ==================== Content Input Area ==================== */
+#content-input .form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.content-input-area {
+    height: 120px;
+}
+
+textarea.content-input-area {
+    resize: none;
+    min-height: unset;
+    display: block;
+}
+
+/* ==================== File Upload Drop Zone ==================== */
+.drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-input-bg);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.drop-zone:hover {
+    border-color: var(--color-primary);
+    background: var(--color-surface);
+}
+
+.drop-zone.drag-over {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+
+.drop-zone svg {
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-md);
+}
+
+.drop-zone p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+}
+
+.drop-zone .file-info {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--color-primary);
+    font-weight: var(--font-medium);
+}
+
+.drop-zone .file-info.error {
+    color: var(--color-error);
+    background: #fef2f2;
+}
+
+.drop-zone.error-input {
+    border-color: var(--color-error);
+    background: #fef2f2;
+}
+
+/* ==================== File Info Box (Secure Link) ==================== */
+.file-info-box {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--color-primary-light);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.file-info-box svg {
+    flex-shrink: 0;
+    color: var(--color-primary);
+}
+
+.file-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.file-name {
+    font-weight: var(--font-medium);
+    color: var(--color-text-primary);
+    word-break: break-all;
+}
+
+.file-size {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
 }
 
 /* ==================== Responsive ==================== */

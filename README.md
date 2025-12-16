@@ -14,11 +14,15 @@ or just run your own from prepared docker image. And of course, you can build fr
 
 Create a **safesecret** link to your message by entering 3 things:
 
-- Content of your secret message
+- Content of your secret message (text or file)
 - Expiration time of your secret message
 - Secret PIN
 
  This will give you a link which you can send by email, chat or share by using any other means.
+
+### File Sharing
+
+When file uploads are enabled, you can also share files securely. Files are encrypted with your PIN just like text messages and self-destruct after being downloaded once. The file name is preserved but stored separately from the encrypted content.
  As soon as your recipient opens the link they will be asked for the secret PIN and see your secret message.
  The PIN is (typically) numeric and easy to pass by a voice call or text message.
  Each link can be opened only **once** and the number of attempts to enter a wrong PIN is limited to 3 times by default.
@@ -100,6 +104,8 @@ You can also run Safesecret directly without Docker:
 - `-d, --domain=` - site domain(s) (required for generating message links, supports comma-separated list)
 - `-p, --protocol=[http|https]` - site protocol (default: https)
 - `--dbg` - enable debug mode
+- `--files.enabled` - enable file uploads (default: false)
+- `--files.max-size` - maximum file size in bytes (default: 1048576, i.e., 1MB)
 
 **Environment Variables:**
 
@@ -114,6 +120,8 @@ All options can also be set via environment variables:
 - `BRANDING` - application title/branding text
 - `DOMAIN` - site domain(s), supports comma-separated list
 - `PROTOCOL` - site protocol
+- `FILES_ENABLED` - enable file uploads
+- `FILES_MAX_SIZE` - maximum file size in bytes
 
 **Example:**
 
@@ -129,6 +137,9 @@ All options can also be set via environment variables:
 
 # Run with custom branding
 ./secrets -k "your-secret-key" -d "example.com" --branding="Acme Corp Secrets"
+
+# Run with file uploads enabled (5MB max)
+./secrets -k "your-secret-key" -d "example.com" --files.enabled --files.max-size=5242880
 ```
 
 ### Technical details
@@ -216,6 +227,8 @@ Both endpoints work and return the same response. The ping middleware intercepts
     {
         "max_exp_sec": 86400,
         "max_pin_attempts": 3,
-        "pin_size": 5
+        "pin_size": 5,
+        "files_enabled": true,
+        "max_file_size": 1048576
     }
     ```

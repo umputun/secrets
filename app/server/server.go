@@ -33,6 +33,9 @@ type Config struct {
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
+	// file upload settings
+	EnableFiles bool
+	MaxFileSize int64 // bytes, 0 means use default (1MB)
 }
 
 // Server is a rest with store
@@ -64,7 +67,9 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 // Messager interface making and loading messages
 type Messager interface {
 	MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
+	MakeFileMessage(req messager.FileRequest) (result *store.Message, err error)
 	LoadMessage(key, pin string) (msg *store.Message, err error)
+	IsFile(key string) bool // checks if message is a file without decrypting
 }
 
 // newTemplateData creates a templateData with common fields populated
@@ -78,13 +83,15 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, canonicalDomain)
 
 	return templateData{
-		Form:        form,
-		PinSize:     s.cfg.PinSize,
-		CurrentYear: time.Now().Year(),
-		Theme:       getTheme(r),
-		Branding:    s.cfg.Branding,
-		URL:         url,
-		BaseURL:     baseURL,
+		Form:         form,
+		PinSize:      s.cfg.PinSize,
+		CurrentYear:  time.Now().Year(),
+		Theme:        getTheme(r),
+		Branding:     s.cfg.Branding,
+		URL:          url,
+		BaseURL:      baseURL,
+		FilesEnabled: s.cfg.EnableFiles,
+		MaxFileSize:  s.cfg.MaxFileSize,
 	}
 }
 
@@ -133,6 +140,12 @@ func (s Server) Run(ctx context.Context) error {
 func (s Server) routes() http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
+	// determine size limit based on whether files are enabled
+	sizeLimit := int64(64 * 1024) // 64KB default for text-only
+	if s.cfg.EnableFiles {
+		sizeLimit = s.cfg.MaxFileSize + 10*1024 // file size + 10KB for form overhead
+	}
+
 	// global middleware - applied to all routes
 	router.Use(
 		rest.RealIP,
@@ -141,7 +154,7 @@ func (s Server) routes() http.Handler {
 		Timeout(60*time.Second),
 		rest.AppInfo("secrets", "Umputun", s.version),
 		rest.Ping,
-		rest.SizeLimit(64*1024),
+		rest.SizeLimit(sizeLimit),
 		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
 	)
 
@@ -274,13 +287,17 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 // GET /params
 func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 	params := struct {
-		PinSize        int `json:"pin_size"`
-		MaxPinAttempts int `json:"max_pin_attempts"`
-		MaxExpSecs     int `json:"max_exp_sec"`
+		PinSize        int   `json:"pin_size"`
+		MaxPinAttempts int   `json:"max_pin_attempts"`
+		MaxExpSecs     int   `json:"max_exp_sec"`
+		FilesEnabled   bool  `json:"files_enabled"`
+		MaxFileSize    int64 `json:"max_file_size"`
 	}{
 		PinSize:        s.cfg.PinSize,
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
+		FilesEnabled:   s.cfg.EnableFiles,
+		MaxFileSize:    s.cfg.MaxFileSize,
 	}
 	rest.RenderJSON(w, params)
 }
