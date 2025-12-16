@@ -1,0 +1,71 @@
+project_name: secrets
+dist: .bin
+builds:
+  - id: secrets
+    binary: "secrets"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    dir: app
+    ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
+
+archives:
+  - id: secrets
+    name_template: >-
+      {{.ProjectName}}_
+      {{- .Tag}}_
+      {{- if eq .Os "darwin"}}macos
+      {{- else if eq .Os "windows"}}win
+      {{- else}}{{.Os}}{{end}}_
+      {{- if eq .Arch "amd64"}}x86_64
+      {{- else if eq .Arch "386"}}i386
+      {{- else}}{{.Arch}}{{end}}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+    rlcp: true
+
+brews:
+  - name: secrets
+    repository:
+      owner: umputun
+      name: homebrew-apps
+      branch: master
+    commit_author:
+      name: umputun
+      email: umputun@gmail.com
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/umputun/secrets"
+    description: "Self-hosted service for sharing encrypted secrets with one-time access"
+    license: "MIT"
+
+nfpms:
+  - id: secrets
+    package_name: secrets
+    file_name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
+    vendor: Umputun
+    homepage: https://github.com/umputun/secrets
+    maintainer: Umputun <umputun@gmail.com>
+    description: Self-hosted service for sharing encrypted secrets with one-time access
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    epoch: 1
+    release: 1
