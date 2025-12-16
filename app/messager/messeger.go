@@ -159,15 +159,13 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		return msg, ErrBadPinAttempt
 	}
 
-	// for file messages, only decrypt the data portion (after header)
-	var header []byte
+	// for file messages, everything after !!FILE!! is encrypted (including metadata)
+	// for text messages, the entire data is encrypted
 	dataToDecrypt := msg.Data
-	if IsFileMessage(msg.Data) {
-		_, _, dataStart := ParseFileHeader(msg.Data)
-		if dataStart > 0 {
-			header = msg.Data[:dataStart]
-			dataToDecrypt = msg.Data[dataStart:]
-		}
+	isFile := IsFileMessage(msg.Data)
+	if isFile {
+		// skip !!FILE!! prefix, decrypt the rest (metadata + binary)
+		dataToDecrypt = msg.Data[len(filePrefix):]
 	}
 
 	r, err := p.crypt.Decrypt(Request{Data: dataToDecrypt, Pin: pin})
@@ -181,12 +179,10 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		log.Printf("[WARN] failed to remove, %v", err)
 	}
 
-	// reconstruct file message with header + decrypted data
-	if header != nil {
-		result := make([]byte, len(header)+len(r))
-		copy(result, header)
-		copy(result[len(header):], r)
-		msg.Data = result
+	// for file messages, prepend !!FILE!! to decrypted result for ParseFileHeader compatibility
+	// decrypted result is: filename!!content-type!!\n<binary>
+	if isFile {
+		msg.Data = append([]byte(filePrefix), r...)
 	} else {
 		msg.Data = r
 	}
@@ -248,16 +244,20 @@ func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, er
 		return nil, ErrInternal
 	}
 
-	// encrypt only the binary data
-	encryptedData, err := p.crypt.Encrypt(Request{Data: req.Data, Pin: req.Pin})
+	// build metadata header and combine with binary data for encryption
+	// format after decryption: filename!!content-type!!\n<binary>
+	metadata := fmt.Sprintf("%s!!%s!!\n", req.FileName, req.ContentType)
+	dataToEncrypt := append([]byte(metadata), req.Data...)
+
+	// encrypt metadata + binary together (only !!FILE!! prefix stays unencrypted)
+	encryptedData, err := p.crypt.Encrypt(Request{Data: dataToEncrypt, Pin: req.Pin})
 	if err != nil {
 		log.Printf("[ERROR] failed to encrypt file, %v", err)
 		return nil, ErrCrypto
 	}
 
-	// build message with unencrypted prefix: !!FILE!!filename!!content-type!!\n<encrypted>
-	prefix := fmt.Sprintf("%s%s!!%s!!\n", filePrefix, req.FileName, req.ContentType)
-	fullData := append([]byte(prefix), encryptedData...)
+	// stored format: !!FILE!!<encrypted blob containing metadata+data>
+	fullData := append([]byte(filePrefix), encryptedData...)
 
 	key := uuid.New().String()
 	exp := time.Now().Add(req.Duration)

@@ -2,6 +2,7 @@ package messager
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -325,7 +326,7 @@ func TestMessageProc_MakeFileMessage(t *testing.T) {
 		SaveFunc: func(msg *store.Message) error { return nil },
 	}
 	c := &CrypterMock{
-		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted-data"), nil },
+		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted-blob"), nil },
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
@@ -338,16 +339,69 @@ func TestMessageProc_MakeFileMessage(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.True(t, IsFileMessage(r.Data))
-
-	filename, contentType, dataStart := ParseFileHeader(r.Data)
-	assert.Equal(t, "test.pdf", filename)
-	assert.Equal(t, "application/pdf", contentType)
-	assert.Equal(t, "encrypted-data", string(r.Data[dataStart:]))
+	assert.True(t, IsFileMessage(r.Data), "should have !!FILE!! prefix")
 	assert.Contains(t, r.PinHash, "$2a$")
 
+	// verify filename is NOT visible in stored data (encrypted)
+	assert.NotContains(t, string(r.Data), "test.pdf", "filename should be encrypted")
+	assert.NotContains(t, string(r.Data), "application/pdf", "content-type should be encrypted")
+
+	// verify stored format: !!FILE!! + encrypted blob
+	assert.True(t, strings.HasPrefix(string(r.Data), "!!FILE!!"))
+	assert.Equal(t, "!!FILE!!encrypted-blob", string(r.Data))
+
+	// verify encryption received metadata + data combined
+	require.Len(t, c.EncryptCalls(), 1)
+	encryptInput := string(c.EncryptCalls()[0].Req.Data)
+	assert.Contains(t, encryptInput, "test.pdf!!")
+	assert.Contains(t, encryptInput, "!!application/pdf!!")
+	assert.Contains(t, encryptInput, "file content")
+
 	assert.Len(t, s.SaveCalls(), 1)
-	assert.Len(t, c.EncryptCalls(), 1)
+}
+
+func TestMessageProc_LoadFileMessage(t *testing.T) {
+	// stored data format: !!FILE!! + encrypted blob
+	// decrypted blob contains: filename!!content-type!!\n + binary data
+	storedData := []byte("!!FILE!!encrypted-blob")
+
+	s := &EngineMock{
+		LoadFunc: func(key string) (*store.Message, error) {
+			return &store.Message{
+				Data:    storedData,
+				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
+				Exp:     time.Now().Add(1 * time.Minute),
+			}, nil
+		},
+		RemoveFunc: func(key string) error { return nil },
+	}
+
+	c := &CrypterMock{
+		DecryptFunc: func(req Request) ([]byte, error) {
+			// verify we receive only the encrypted blob (without !!FILE!! prefix)
+			assert.Equal(t, "encrypted-blob", string(req.Data))
+			// return decrypted metadata + binary
+			return []byte("secret-doc.pdf!!application/pdf!!\nfile binary content"), nil
+		},
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage("somekey", "123456")
+
+	require.NoError(t, err)
+
+	// verify decrypted result has !!FILE!! prefix prepended for ParseFileHeader compatibility
+	assert.True(t, IsFileMessage(r.Data), "result should have !!FILE!! prefix")
+
+	// verify we can parse the header correctly
+	filename, contentType, dataStart := ParseFileHeader(r.Data)
+	assert.Equal(t, "secret-doc.pdf", filename)
+	assert.Equal(t, "application/pdf", contentType)
+	assert.Equal(t, "file binary content", string(r.Data[dataStart:]))
+
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Len(t, c.DecryptCalls(), 1)
 }
 
 func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
