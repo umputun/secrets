@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -271,8 +272,25 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// handle file messages - serve as download
+	// handle file messages - render download template for HTMX, direct download otherwise
 	if msg.IsFile {
+		if r.Header.Get("HX-Request") == "true" {
+			// for HTMX requests, render template with base64 data for JS download
+			data := struct {
+				FileName    string
+				FileSize    string
+				ContentType string
+				DataBase64  string
+			}{
+				FileName:    msg.FileName,
+				FileSize:    formatFileSize(int64(len(msg.Data))),
+				ContentType: msg.ContentType,
+				DataBase64:  base64.StdEncoding.EncodeToString(msg.Data),
+			}
+			s.render(w, http.StatusOK, "decoded-file.tmpl.html", "decoded-file", data)
+			log.Printf("[INFO] served file %s via load-message (htmx), name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
+			return
+		}
 		s.serveFileDownload(w, msg)
 		log.Printf("[INFO] served file %s via load-message, name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
 		return
@@ -286,13 +304,21 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, form *showMsgForm, err error) {
 	isHTMX := r.Header.Get("HX-Request") == "true"
 
+	// for non-HTMX requests, render full page with base template
+	tmpl := baseTmpl
+	if isHTMX {
+		tmpl = mainTmpl
+	}
+
 	if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
-		// message not found or expired - return 404
-		status := http.StatusNotFound
-		if !isHTMX {
-			status = http.StatusOK
+		// message not found or expired - show error on form
+		form.AddFieldError("pin", "message expired or deleted")
+		data := s.newTemplateData(r, form)
+		status := http.StatusOK
+		if isHTMX {
+			status = http.StatusNotFound
 		}
-		s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
+		s.render(w, status, "show-message.tmpl.html", tmpl, data)
 		log.Printf("[INFO] accessed message %s, status 404 (not found)", form.Key)
 		return
 	}
@@ -304,7 +330,7 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	if isHTMX {
 		status = http.StatusForbidden
 	}
-	s.render(w, status, "show-message.tmpl.html", mainTmpl, data)
+	s.render(w, status, "show-message.tmpl.html", tmpl, data)
 	log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
 }
 
@@ -574,7 +600,7 @@ func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if !form.Valid() {
 		data := s.newTemplateData(r, form)
-		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
+		s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 		return
 	}
 
@@ -593,13 +619,28 @@ func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !msg.IsFile {
-		// not a file, render as text
-		s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
+		// not a file, render full page with decoded text
+		data := s.newTemplateData(r, nil)
+		data.Form = string(msg.Data) // message text for template
+		s.render(w, http.StatusOK, "decoded-message.tmpl.html", baseTmpl, data)
 		log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
 		return
 	}
 
-	s.serveFileDownload(w, msg)
+	// file message - render download page with file info and download button
+	data := s.newTemplateData(r, nil)
+	data.Form = struct {
+		FileName    string
+		FileSize    string
+		ContentType string
+		DataBase64  string
+	}{
+		FileName:    msg.FileName,
+		FileSize:    formatFileSize(int64(len(msg.Data))),
+		ContentType: msg.ContentType,
+		DataBase64:  base64.StdEncoding.EncodeToString(msg.Data),
+	}
+	s.render(w, http.StatusOK, "decoded-file.tmpl.html", baseTmpl, data)
 	log.Printf("[INFO] served file %s via download-file, name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
 }
 

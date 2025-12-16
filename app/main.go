@@ -27,7 +27,7 @@ var opts struct {
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
 	EnableFiles    bool          `long:"enable-files" env:"ENABLE_FILES" description:"enable file upload/download support"`
-	MaxFileSize    int64         `long:"maxfilesize" env:"MAX_FILE_SIZE" default:"1048576" description:"max file size in bytes"`
+	MaxFileSize    int64         `long:"max-file-size" env:"MAX_FILE_SIZE" default:"1048576" description:"max file size in bytes"`
 }
 
 var revision string

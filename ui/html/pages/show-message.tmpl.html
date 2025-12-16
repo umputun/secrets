@@ -10,13 +10,7 @@
             <p class="card-description">Enter your {{.PinSize}}-digit PIN to decrypt and view the message</p>
         </div>
         
-        <form hx-post="/load-message" 
-              hx-target="#message-container" 
-              hx-swap="innerHTML"
-              hx-indicator="#decrypt-spinner"
-              hx-target-404="#message-container"
-              hx-target-403="#message-container"
-              id="load-msg-form">
+        <form action="/download-file" method="post" id="load-msg-form" hx-boost="false">
             <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
 
             <div class="form-group">
@@ -39,15 +33,7 @@
                 </div>
             </div>
             
-            <button class="main-btn" type="submit">
-                <span class="htmx-indicator" id="decrypt-spinner">
-                    <svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    Decrypting...
-                </span>
-                <span class="button-text">Decode Message</span>
-            </button>
+            <button class="main-btn" type="submit">Decode Message</button>
         </form>
     </div>
   </div>

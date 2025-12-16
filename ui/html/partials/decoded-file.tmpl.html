@@ -1,0 +1,85 @@
+{{define "title"}}File Download{{end}}
+
+{{/* main: for full page rendering with templateData */}}
+{{define "main"}}
+{{template "decoded-file-content" .Form}}
+{{end}}
+
+{{/* decoded-file: for HTMX partial rendering */}}
+{{define "decoded-file"}}
+{{template "decoded-file-content" .}}
+{{end}}
+
+{{/* decoded-file-content: shared content */}}
+{{define "decoded-file-content"}}
+<div id="msg" class="card">
+    <div class="card-header">
+        <h2 class="card-title card-title-with-icon">
+            <svg class="title-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            File Decrypted
+        </h2>
+        <p class="card-description">Your file is ready. The link has been destroyed on the server.</p>
+    </div>
+
+    <div class="file-download-info">
+        <svg class="file-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <div class="file-details">
+            <span class="file-name">{{.FileName}}</span>
+            <span class="file-size">{{.FileSize}}</span>
+        </div>
+    </div>
+
+    <a id="download-link"
+       class="main-btn"
+       download="{{.FileName}}"
+       style="text-decoration: none; display: inline-flex; justify-content: center;">
+        <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Download File
+    </a>
+
+    <script>
+    (function() {
+        const base64Data = "{{.DataBase64}}";
+        const contentType = "{{.ContentType}}";
+        const fileName = "{{.FileName}}";
+
+        // decode base64 to binary
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // create blob and object URL
+        const blob = new Blob([bytes], { type: contentType });
+        const url = URL.createObjectURL(blob);
+
+        // set download link href
+        const link = document.getElementById('download-link');
+        link.href = url;
+
+        // revoke blob URL after download to prevent re-downloads
+        link.addEventListener('click', function() {
+            setTimeout(function() {
+                URL.revokeObjectURL(url);
+                link.removeAttribute('href');
+                link.style.pointerEvents = 'none';
+                link.style.opacity = '0.5';
+                link.textContent = 'Downloaded';
+            }, 100);
+        }, { once: true });
+    })();
+    </script>
+</div>
+{{end}}

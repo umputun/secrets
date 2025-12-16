@@ -201,11 +201,11 @@ func (s Server) routes() http.Handler {
 		webGroup.HandleFunc("GET /close-popup", s.closePopupCtrl)
 		webGroup.HandleFunc("GET /about", s.aboutViewCtrl)
 		webGroup.HandleFunc("GET /{$}", s.indexCtrl) // exact match for root only
+		webGroup.HandleFunc("POST /download-file", s.downloadFileCtrl)
 		if s.cfg.EnableFiles {
 			webGroup.HandleFunc("GET /form/text", s.textFormPartialCtrl)
 			webGroup.HandleFunc("GET /form/file", s.fileFormPartialCtrl)
 			webGroup.HandleFunc("POST /generate-file-link", s.generateFileLinkCtrl)
-			webGroup.HandleFunc("POST /download-file", s.downloadFileCtrl)
 		}
 	})
 

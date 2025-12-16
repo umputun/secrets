@@ -100,7 +100,7 @@ You can also run Safesecret directly without Docker:
 - `-d, --domain=` - site domain(s) (required for generating message links, supports comma-separated list)
 - `-p, --protocol=[http|https]` - site protocol (default: https)
 - `--enable-files` - enable file upload/download support (disabled by default)
-- `--maxfilesize=` - maximum file size in bytes (default: 1048576, i.e. 1MB)
+- `--max-file-size=` - maximum file size in bytes (default: 1048576, i.e. 1MB)
 - `--dbg` - enable debug mode
 
 **Environment Variables:**
@@ -135,7 +135,7 @@ All options can also be set via environment variables:
 ./secrets -k "your-secret-key" -d "example.com" --branding="Acme Corp Secrets"
 
 # Run with file upload support (max 5MB)
-./secrets -k "your-secret-key" -d "example.com" --enable-files --maxfilesize=5242880
+./secrets -k "your-secret-key" -d "example.com" --enable-files --max-file-size=5242880
 ```
 
 ### Technical details

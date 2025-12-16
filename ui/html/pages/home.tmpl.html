@@ -15,8 +15,9 @@
                     document.getElementById('text-tab').classList.add('active');
                     document.getElementById('file-tab').classList.remove('active');
                     document.getElementById('content-type').value = 'text';
-                    document.getElementById('create-form').action = '/generate-link';
-                    document.getElementById('create-form').enctype = 'application/x-www-form-urlencoded';
+                    document.getElementById('create-form').setAttribute('hx-post', '/generate-link');
+                    document.getElementById('create-form').removeAttribute('hx-encoding');
+                    htmx.process(document.getElementById('create-form'));
                 "
                 hx-get="/form/text"
                 hx-target="#content-input"
@@ -34,8 +35,9 @@
                     document.getElementById('file-tab').classList.add('active');
                     document.getElementById('text-tab').classList.remove('active');
                     document.getElementById('content-type').value = 'file';
-                    document.getElementById('create-form').action = '/generate-file-link';
-                    document.getElementById('create-form').enctype = 'multipart/form-data';
+                    document.getElementById('create-form').setAttribute('hx-post', '/generate-file-link');
+                    document.getElementById('create-form').setAttribute('hx-encoding', 'multipart/form-data');
+                    htmx.process(document.getElementById('create-form'));
                 "
                 hx-get="/form/file"
                 hx-target="#content-input"
@@ -56,8 +58,7 @@
           hx-swap="outerHTML"
           hx-indicator="#form-spinner"
           hx-target-400="#form-card"
-          hx-target-500="#notifications"
-          {{if .FilesEnabled}}hx-encoding="multipart/form-data"{{end}}>
+          hx-target-500="#notifications">
 
         <input type="hidden" name="contentType" id="content-type" value="text" />
 

@@ -70,12 +70,13 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Len(t, cache, 12)
+	assert.Len(t, cache, 13)
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
 	assert.NotNil(t, cache["show-message.tmpl.html"])
 	assert.NotNil(t, cache["decoded-message.tmpl.html"])
+	assert.NotNil(t, cache["decoded-file.tmpl.html"])
 	assert.NotNil(t, cache["text-input.tmpl.html"])
 	assert.NotNil(t, cache["file-input.tmpl.html"])
 	assert.NotNil(t, cache["secure-link-file.tmpl.html"])
@@ -1368,9 +1369,12 @@ func TestServer_downloadFileCtrl(t *testing.T) {
 		srv.downloadFileCtrl(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "text/plain", rr.Header().Get("Content-Type"))
-		assert.Contains(t, rr.Header().Get("Content-Disposition"), "download-web.txt")
-		assert.Equal(t, fileContent, rr.Body.Bytes())
+		body := rr.Body.String()
+		// returns HTML page with download button, not direct file
+		assert.Contains(t, body, "File Decrypted")
+		assert.Contains(t, body, "download-web.txt")
+		assert.Contains(t, body, "Download File")
+		assert.Contains(t, body, "base64Data") // file data encoded in JS
 	})
 
 	t.Run("second download fails", func(t *testing.T) {
@@ -1573,6 +1577,58 @@ func TestServer_sanitizeContentType(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestServer_loadMessageCtrl_FileWithHTMX_NoAutoDownload(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+		MaxFileSize:    1024 * 1024,
+	})
+	srv, err := New(msg, "1", Config{
+		Domain:         []string{"example.com"},
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
+		EnableFiles:    true,
+		MaxFileSize:    1024 * 1024,
+	})
+	require.NoError(t, err)
+
+	// create a file message
+	fileContent := []byte("secret file content for htmx test")
+	fileMsg, err := msg.MakeFileMessage(messager.FileRequest{
+		Duration: time.Hour, Data: fileContent, FileName: "htmx-test.txt", ContentType: "text/plain", Pin: "12345",
+	})
+	require.NoError(t, err)
+
+	t.Run("htmx file request returns download page without auto-download", func(t *testing.T) {
+		formData := url.Values{
+			"key": {fileMsg.Key},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		body := rr.Body.String()
+
+		// should contain file info
+		assert.Contains(t, body, "File Decrypted")
+		assert.Contains(t, body, "htmx-test.txt")
+		assert.Contains(t, body, "Download File")
+		// should have accurate description (link destroyed, not self-destruct after download)
+		assert.Contains(t, body, "destroyed on the server")
+		// should NOT auto-trigger download via click()
+		assert.NotContains(t, body, "link.click()")
+	})
 }
 
 func createMultipartFileWeb(t *testing.T, fieldName, fileName, contentType string, content []byte, pin, exp string) (body *strings.Reader, ct string) {

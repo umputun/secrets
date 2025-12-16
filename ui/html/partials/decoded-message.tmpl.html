@@ -1,4 +1,17 @@
+{{define "title"}}Message Decrypted{{end}}
+
+{{/* main: for full page rendering with templateData */}}
+{{define "main"}}
+{{template "decoded-message-content" .Form}}
+{{end}}
+
+{{/* decoded-message: for HTMX partial rendering with string */}}
 {{define "decoded-message"}}
+{{template "decoded-message-content" .}}
+{{end}}
+
+{{/* decoded-message-content: shared content, expects message string */}}
+{{define "decoded-message-content"}}
 <div id="msg" class="card">
     <div class="card-header">
         <h2 class="card-title card-title-with-icon">
@@ -9,9 +22,9 @@
             </svg>
             Message Decrypted
         </h2>
-        <p class="card-description">This message will self-destruct immediately. Copy it now if needed.</p>
+        <p class="card-description">This message has been destroyed. Copy it now if needed.</p>
     </div>
-    
+
     <div class="form-group">
         <label for="decoded-msg-text">
             <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -23,8 +36,8 @@
             </svg>
             Your Secret Message
         </label>
-        <textarea name="msg-text" 
-                  id="decoded-msg-text" 
+        <textarea name="msg-text"
+                  id="decoded-msg-text"
                   readonly>{{.}}</textarea>
     </div>
 
