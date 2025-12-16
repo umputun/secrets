@@ -73,7 +73,7 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Len(t, cache, 9)
+	assert.Len(t, cache, 10)
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
@@ -83,6 +83,7 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 	assert.NotNil(t, cache["secure-link.tmpl.html"])
 	assert.NotNil(t, cache["popup.tmpl.html"])
 	assert.NotNil(t, cache["copy-button.tmpl.html"])
+	assert.NotNil(t, cache["login-popup.tmpl.html"])
 }
 
 func TestServer_indexCtrl(t *testing.T) {

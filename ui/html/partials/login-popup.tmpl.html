@@ -1,0 +1,34 @@
+{{define "login-popup"}}
+<div id="popup" class="popup active">
+    <div class="popup-content login-popup">
+        <div class="popup-header">
+            <span class="popup-title">Login Required</span>
+            <button hx-get="/close-popup"
+                    hx-target="#popup"
+                    hx-swap="outerHTML"
+                    class="close-popup">
+                <img src="/static/img/close.svg" alt="close" />
+            </button>
+        </div>
+        <form hx-post="/login"
+              hx-target="#popup"
+              hx-swap="outerHTML"
+              class="login-form">
+            {{if .Error}}
+            <div class="form-error">{{.Error}}</div>
+            {{end}}
+            <div class="form-field">
+                <label for="password">Password</label>
+                <input type="password"
+                       id="password"
+                       name="password"
+                       placeholder="Enter password"
+                       autocomplete="current-password"
+                       required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+    </div>
+</div>
+<script>setTimeout(function(){document.getElementById('password')?.focus();},50);</script>
+{{end}}

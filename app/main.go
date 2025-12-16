@@ -31,6 +31,11 @@ var opts struct {
 		Enabled bool  `long:"enabled" env:"ENABLED" description:"enable file uploads"`
 		MaxSize int64 `long:"max-size" env:"MAX_SIZE" default:"1048576" description:"max file size in bytes (default 1MB)"`
 	} `group:"files" namespace:"files" env-namespace:"FILES"`
+
+	Auth struct {
+		Hash       string        `long:"hash" env:"HASH" description:"bcrypt hash of password (enables auth if set)"`
+		SessionTTL time.Duration `long:"session-ttl" env:"SESSION_TTL" default:"168h" description:"session lifetime"`
+	} `group:"auth" namespace:"auth" env-namespace:"AUTH"`
 }
 
 var revision string
@@ -47,6 +52,10 @@ func main() {
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize}
 
+	if opts.Auth.Hash != "" {
+		log.Printf("[INFO]  authentication enabled (session TTL: %v)", opts.Auth.SessionTTL)
+	}
+
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
 		Protocol:       opts.Protocol,
@@ -57,6 +66,8 @@ func main() {
 		Branding:       opts.Branding,
 		EnableFiles:    opts.Files.Enabled,
 		MaxFileSize:    opts.Files.MaxSize,
+		AuthHash:       opts.Auth.Hash,
+		SessionTTL:     opts.Auth.SessionTTL,
 	})
 
 	if err != nil {
