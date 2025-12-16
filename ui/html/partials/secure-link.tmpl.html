@@ -4,7 +4,13 @@
 
 <div id="msg-link" class="card">
     <div class="card-header">
-        <h2 class="card-title">✓ Secure Link Generated</h2>
+        <h2 class="card-title card-title-with-icon">
+            <svg class="title-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="22 4 12 14.01 9 11.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Secure Link Generated
+        </h2>
         <p class="card-description">Your {{if .IsFile}}file{{else}}secret message{{end}} has been encrypted. Share this link and PIN separately.</p>
     </div>
 

@@ -1,8 +1,9 @@
 {{define "error"}}
-<div class="error-page">
-    <div class="error-card">
-        <div class="error-message">{{.}}</div>
-        <a class="main-btn-link" href="/">Back to the main page</a>
+<div class="card">
+    <div class="card-header" style="text-align: center;">
+        <h2 class="card-title">Message Unavailable</h2>
+        <p class="card-description" style="color: var(--color-error);">{{.}}</p>
     </div>
+    <a class="main-btn-link" href="/">Back to Main Page</a>
 </div>
 {{end}}
