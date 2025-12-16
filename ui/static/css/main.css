@@ -361,14 +361,15 @@ button[type="submit"]:disabled {
 .app {
     min-height: 100vh;
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: center;
     padding: var(--spacing-xl) var(--spacing-lg) var(--spacing-lg);
 }
 
 .app-container {
     width: 100%;
     max-width: 580px;
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xl);
@@ -441,6 +442,17 @@ button[type="submit"]:disabled {
     margin-bottom: var(--spacing-lg);
 }
 
+.card-header:has(.mode-toggle) {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.card-header-text {
+    flex: 1;
+}
+
 .card-title {
     font-size: 1.5rem;
     font-weight: 600;
@@ -451,6 +463,37 @@ button[type="submit"]:disabled {
 .card-description {
     font-size: 1rem;
     color: var(--color-text-secondary);
+}
+
+/* Mode Toggle (Text/File selector) */
+.mode-toggle {
+    display: flex;
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.mode-btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.mode-btn:hover {
+    color: var(--color-text-primary);
+}
+
+.mode-btn.active {
+    background: var(--color-primary);
+    color: white;
 }
 
 .card-title-with-icon {
@@ -869,47 +912,19 @@ button[type="submit"]:disabled {
     letter-spacing: -0.01em;
 }
 
-/* ==================== Content Tabs ==================== */
-.content-tabs {
-    display: flex;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-lg);
-    padding: var(--spacing-xs);
-    background: var(--color-input-bg);
-    border-radius: var(--radius-md);
-}
-
-.tab-btn {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md) var(--spacing-lg);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--color-text-secondary);
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
-
-.tab-btn:hover {
-    color: var(--color-text-primary);
-    background: var(--color-surface);
-}
-
-.tab-btn.active {
-    color: var(--color-primary);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
-}
-
 /* ==================== Content Input Area ==================== */
+#content-input .form-group {
+    margin-bottom: var(--spacing-lg);
+}
+
 .content-input-area {
-    min-height: 150px;
+    height: 120px;
+}
+
+textarea.content-input-area {
+    resize: none;
+    min-height: unset;
+    display: block;
 }
 
 /* ==================== File Upload Drop Zone ==================== */
@@ -918,7 +933,6 @@ button[type="submit"]:disabled {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 150px;
     padding: var(--spacing-xl);
     border: 2px dashed var(--color-border);
     border-radius: var(--radius-md);
