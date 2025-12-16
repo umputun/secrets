@@ -616,7 +616,7 @@ func TestServer_BrandingInTemplates(t *testing.T) {
 		body := rr.Body.String()
 		assert.Contains(t, body, "Acme Corp Secrets")
 		// the title is now SEO optimized, not using branding in title
-		assert.Contains(t, body, "<title>Secure Password Sharing - Self-Destructing Messages</title>")
+		assert.Contains(t, body, "<title>Secret Sharing - Self-Destructing Encrypted Messages</title>")
 		assert.NotContains(t, body, "Safe Secrets")
 	})
 
@@ -1055,10 +1055,10 @@ func TestServer_SEOMetaTags(t *testing.T) {
 		body := rr.Body.String()
 
 		// check optimized title
-		assert.Contains(t, body, "<title>Secure Password Sharing - Self-Destructing Messages</title>")
+		assert.Contains(t, body, "<title>Secret Sharing - Self-Destructing Encrypted Messages</title>")
 
 		// check meta description
-		assert.Contains(t, body, `<meta name="description" content="Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing."`)
+		assert.Contains(t, body, `<meta name="description" content="Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused."`)
 
 		// check canonical URL
 		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/">`)
@@ -1066,13 +1066,13 @@ func TestServer_SEOMetaTags(t *testing.T) {
 		// check Open Graph tags
 		assert.Contains(t, body, `<meta property="og:type" content="website">`)
 		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/">`)
-		assert.Contains(t, body, `<meta property="og:title" content="Secure Password Sharing - Self-Destructing Messages">`)
+		assert.Contains(t, body, `<meta property="og:title" content="Secret Sharing - Self-Destructing Encrypted Messages">`)
 		assert.Contains(t, body, `<meta property="og:site_name" content="Test SEO">`)
 
 		// check Twitter Card tags
 		assert.Contains(t, body, `<meta name="twitter:card" content="summary_large_image">`)
 		assert.Contains(t, body, `<meta name="twitter:url" content="https://example.com/">`)
-		assert.Contains(t, body, `<meta name="twitter:title" content="Secure Password Sharing - Self-Destructing Messages">`)
+		assert.Contains(t, body, `<meta name="twitter:title" content="Secret Sharing - Self-Destructing Encrypted Messages">`)
 
 		// check structured data JSON-LD
 		assert.Contains(t, body, `"@type": "WebApplication"`)
@@ -1080,7 +1080,7 @@ func TestServer_SEOMetaTags(t *testing.T) {
 		assert.Contains(t, body, `"name": "Test SEO"`)
 
 		// check other meta tags
-		assert.Contains(t, body, `<meta name="keywords" content="password sharing, secure messaging`)
+		assert.Contains(t, body, `<meta name="keywords" content="secret sharing, password sharing`)
 		assert.Contains(t, body, `<meta name="author" content="Umputun">`)
 		assert.Contains(t, body, `<meta name="robots" content="index, follow">`)
 	})

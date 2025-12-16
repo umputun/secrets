@@ -56,19 +56,20 @@ type showMsgForm struct {
 }
 
 type templateData struct {
-	Form          any
-	PinSize       int
-	CurrentYear   int
-	Theme         string
-	Branding      string
-	URL           string // canonical URL for the page
-	BaseURL       string // base URL for the site (protocol://domain)
-	PageTitle     string // SEO-optimized page title
-	PageDesc      string // page description for meta tags
-	IsMessagePage bool   // true for message pages (should not be indexed)
-	FilesEnabled  bool   // true if file uploads are enabled
-	MaxFileSize   int64  // max file size in bytes
-	IsFile        bool   // true if the message is a file (for show-message template)
+	Form           any
+	PinSize        int
+	CurrentYear    int
+	Theme          string
+	Branding       string
+	URL            string // canonical URL for the page
+	BaseURL        string // base URL for the site (protocol://domain)
+	PageTitle      string // SEO-optimized page title
+	PageDesc       string // page description for meta tags
+	BreadcrumbName string // breadcrumb name for current page (empty for home)
+	IsMessagePage  bool   // true for message pages (should not be indexed)
+	FilesEnabled   bool   // true if file uploads are enabled
+	MaxFileSize    int64  // max file size in bytes
+	IsFile         bool   // true if the message is a file (for show-message template)
 }
 
 // render renders a template
@@ -110,8 +111,8 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 		Exp:    15,
 		MaxExp: humanDuration(s.cfg.MaxExpire),
 	})
-	data.PageTitle = "Secure Password Sharing - Self-Destructing Messages"
-	data.PageDesc = "Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing."
+	data.PageTitle = "Secret Sharing - Self-Destructing Encrypted Messages"
+	data.PageDesc = "Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused."
 
 	s.render(w, http.StatusOK, "home.tmpl.html", baseTmpl, data)
 }
@@ -363,6 +364,7 @@ func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolin
 	data := s.newTemplateData(r, nil)
 	data.PageTitle = "How It Works - Encrypted Message Sharing"
 	data.PageDesc = "Learn how SafeSecret protects your sensitive information with PIN-protected encryption, self-destructing messages, and zero-knowledge architecture."
+	data.BreadcrumbName = "How it works"
 	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
 

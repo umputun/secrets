@@ -5,8 +5,8 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <title>{{if .PageTitle}}{{.PageTitle}}{{else}}{{template "title" .}} - {{.Branding}}{{end}}</title>
-        <meta name="description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused password sharing.{{end}}">
-        <meta name="keywords" content="password sharing, secure messaging, encrypted messages, self-destructing messages, PIN protection, secret sharing, sensitive information, privacy, security">
+        <meta name="description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with encrypted, self-destructing messages protected by PIN codes. Free, open-source, and privacy-focused.{{end}}">
+        <meta name="keywords" content="secret sharing, password sharing, secure file sharing, encrypted messages, self-destructing messages, PIN protection, sensitive information, privacy, security">
         <meta name="author" content="Umputun">
         <meta name="robots" content="{{if .IsMessagePage}}noindex, nofollow{{else}}index, follow{{end}}">
         
@@ -17,7 +17,7 @@
         <meta property="og:type" content="website">
         <meta property="og:url" content="{{.URL}}">
         <meta property="og:title" content="{{if .PageTitle}}{{.PageTitle}}{{else}}{{template "title" .}} - {{.Branding}}{{end}}">
-        <meta property="og:description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with self-destructing messages protected by PIN codes.{{end}}">
+        <meta property="og:description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with encrypted, self-destructing messages protected by PIN codes.{{end}}">
         <meta property="og:image" content="{{.BaseURL}}/static/img/logo-social.png">
         <meta property="og:image:width" content="1200">
         <meta property="og:image:height" content="630">
@@ -27,14 +27,15 @@
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:url" content="{{.URL}}">
         <meta name="twitter:title" content="{{if .PageTitle}}{{.PageTitle}}{{else}}{{template "title" .}} - {{.Branding}}{{end}}">
-        <meta name="twitter:description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with self-destructing messages protected by PIN codes.{{end}}">
+        <meta name="twitter:description" content="{{if .PageDesc}}{{.PageDesc}}{{else}}Share sensitive information securely with encrypted, self-destructing messages protected by PIN codes.{{end}}">
         <meta name="twitter:image" content="{{.BaseURL}}/static/img/logo-social.png">
         
         <!-- Favicons -->
         <link rel='shortcut icon' href='/static/img/favicon.ico' type='image/x-icon'>
         <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
         <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
-        <meta name="theme-color" content="#1a1a1a">
+        <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
+        <meta name="theme-color" content="#14b8a6">
         
         <!-- Preconnect for performance -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -47,22 +48,57 @@
         <script type="application/ld+json">
         {
             "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "{{jsonEscape .Branding}}",
-            "url": "{{jsonEscape .URL}}",
-            "description": "{{if .PageDesc}}{{jsonEscape .PageDesc}}{{else}}{{jsonEscape "Share sensitive information securely with self-destructing messages protected by PIN codes."}}{{end}}",
-            "applicationCategory": "SecurityApplication",
-            "operatingSystem": "Any",
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            },
-            "author": {
-                "@type": "Person",
-                "name": "Umputun",
-                "url": "https://github.com/umputun"
-            }
+            "@graph": [
+                {
+                    "@type": "Organization",
+                    "@id": "{{jsonEscape .BaseURL}}/#organization",
+                    "name": "{{jsonEscape .Branding}}",
+                    "url": "{{jsonEscape .BaseURL}}",
+                    "logo": "{{jsonEscape .BaseURL}}/static/img/logo-social.png"
+                },
+                {
+                    "@type": "WebSite",
+                    "@id": "{{jsonEscape .BaseURL}}/#website",
+                    "url": "{{jsonEscape .BaseURL}}",
+                    "name": "{{jsonEscape .Branding}}",
+                    "publisher": {"@id": "{{jsonEscape .BaseURL}}/#organization"}
+                },
+                {
+                    "@type": "WebApplication",
+                    "name": "{{jsonEscape .Branding}}",
+                    "url": "{{jsonEscape .BaseURL}}",
+                    "description": "{{if .PageDesc}}{{jsonEscape .PageDesc}}{{else}}{{jsonEscape "Share sensitive information securely with encrypted, self-destructing messages protected by PIN codes."}}{{end}}",
+                    "applicationCategory": "SecurityApplication",
+                    "operatingSystem": "Any",
+                    "offers": {
+                        "@type": "Offer",
+                        "price": "0",
+                        "priceCurrency": "USD"
+                    },
+                    "author": {
+                        "@type": "Person",
+                        "name": "Umputun",
+                        "url": "https://github.com/umputun"
+                    }
+                },
+                {
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {
+                            "@type": "ListItem",
+                            "position": 1,
+                            "name": "Home",
+                            "item": "{{jsonEscape .BaseURL}}/"
+                        }{{if .BreadcrumbName}},
+                        {
+                            "@type": "ListItem",
+                            "position": 2,
+                            "name": "{{jsonEscape .BreadcrumbName}}",
+                            "item": "{{jsonEscape .URL}}"
+                        }{{end}}
+                    ]
+                }
+            ]
         }
         </script>
     </head>
