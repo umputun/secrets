@@ -15,6 +15,7 @@ func TestMessageProc_NewDefault(t *testing.T) {
 	m := New(nil, Crypt{}, Params{})
 	assert.Equal(t, time.Hour*24*31, m.MaxDuration)
 	assert.Equal(t, 3, m.MaxPinAttempts)
+	assert.Equal(t, int64(1024*1024), m.MaxFileSize)
 }
 
 func TestMessageProc_MakeMessage(t *testing.T) {
@@ -317,4 +318,122 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 	assert.Len(t, s.RemoveCalls(), 1)
 	assert.Empty(t, s.IncErrCalls())
 	assert.Len(t, c.DecryptCalls(), 1)
+}
+
+func TestMessageProc_MakeFileMessage(t *testing.T) {
+	s := &EngineMock{
+		SaveFunc: func(msg *store.Message) error { return nil },
+	}
+	c := &CrypterMock{
+		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted-data"), nil },
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
+	r, err := m.MakeFileMessage(FileRequest{
+		Duration:    time.Second * 30,
+		Pin:         "12345",
+		FileName:    "test.pdf",
+		ContentType: "application/pdf",
+		Data:        []byte("file content"),
+	})
+
+	require.NoError(t, err)
+	assert.True(t, IsFileMessage(r.Data))
+
+	filename, contentType, dataStart := ParseFileHeader(r.Data)
+	assert.Equal(t, "test.pdf", filename)
+	assert.Equal(t, "application/pdf", contentType)
+	assert.Equal(t, "encrypted-data", string(r.Data[dataStart:]))
+	assert.Contains(t, r.PinHash, "$2a$")
+
+	assert.Len(t, s.SaveCalls(), 1)
+	assert.Len(t, c.EncryptCalls(), 1)
+}
+
+func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     FileRequest
+		wantErr error
+	}{
+		{name: "empty pin", req: FileRequest{Duration: time.Second, Pin: "", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadPin},
+		{name: "empty filename", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "filename too long", req: FileRequest{Duration: time.Second, Pin: "123", FileName: string(make([]byte, 256)), ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
+		{name: "file too large", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: make([]byte, 2048)}, wantErr: ErrFileTooLarge},
+		{name: "bad duration", req: FileRequest{Duration: time.Hour, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrDuration},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &EngineMock{}
+			c := &CrypterMock{}
+			m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
+			_, err := m.MakeFileMessage(tt.req)
+			require.EqualError(t, err, tt.wantErr.Error())
+			assert.Empty(t, s.SaveCalls())
+		})
+	}
+}
+
+func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
+	s := &EngineMock{}
+	c := &CrypterMock{
+		EncryptFunc: func(req Request) ([]byte, error) { return nil, fmt.Errorf("encrypt error") },
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
+	_, err := m.MakeFileMessage(FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
+	require.EqualError(t, err, ErrCrypto.Error())
+	assert.Empty(t, s.SaveCalls())
+	assert.Len(t, c.EncryptCalls(), 1)
+}
+
+func TestIsFileMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want bool
+	}{
+		{name: "valid file message", data: []byte("~FILE~test.pdf~application/pdf~\ndata"), want: true},
+		{name: "text message", data: []byte("encrypted text"), want: false},
+		{name: "empty data", data: []byte{}, want: false},
+		{name: "partial prefix", data: []byte("~FIL"), want: false},
+		{name: "just prefix", data: []byte("~FILE~"), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsFileMessage(tt.data))
+		})
+	}
+}
+
+func TestParseFileHeader(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        []byte
+		wantName    string
+		wantType    string
+		wantStart   int
+		wantInvalid bool
+	}{
+		{name: "valid header", data: []byte("~FILE~test.pdf~application/pdf~\nencrypted"), wantName: "test.pdf", wantType: "application/pdf", wantStart: 32},
+		{name: "empty filename", data: []byte("~FILE~~text/plain~\ndata"), wantName: "", wantType: "text/plain", wantStart: 19},
+		{name: "not a file", data: []byte("encrypted text"), wantInvalid: true},
+		{name: "no newline", data: []byte("~FILE~test.pdf~application/pdf~"), wantInvalid: true},
+		{name: "missing content type", data: []byte("~FILE~test.pdf~~\ndata"), wantName: "test.pdf", wantType: "", wantStart: 17},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, ctype, start := ParseFileHeader(tt.data)
+			if tt.wantInvalid {
+				assert.Equal(t, -1, start)
+				return
+			}
+			assert.Equal(t, tt.wantName, name)
+			assert.Equal(t, tt.wantType, ctype)
+			assert.Equal(t, tt.wantStart, start)
+		})
+	}
 }

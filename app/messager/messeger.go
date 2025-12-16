@@ -26,7 +26,12 @@ var (
 	ErrInternal      = fmt.Errorf("internal error")
 	ErrExpired       = fmt.Errorf("message expired")
 	ErrDuration      = fmt.Errorf("bad duration")
+	ErrFileTooLarge  = fmt.Errorf("file too large")
+	ErrBadFileName   = fmt.Errorf("invalid file name")
 )
+
+// filePrefix marks file messages with unencrypted metadata
+const filePrefix = "~FILE~"
 
 // MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
@@ -39,6 +44,16 @@ type MessageProc struct {
 type Params struct {
 	MaxDuration    time.Duration
 	MaxPinAttempts int
+	MaxFileSize    int64
+}
+
+// FileRequest contains data for file message creation
+type FileRequest struct {
+	Duration    time.Duration
+	Pin         string
+	FileName    string
+	ContentType string
+	Data        []byte
 }
 
 // Crypter interface wraps crypt methods
@@ -63,6 +78,9 @@ func New(engine Engine, crypter Crypter, params Params) *MessageProc {
 	}
 	if params.MaxPinAttempts == 0 {
 		params.MaxPinAttempts = 3
+	}
+	if params.MaxFileSize == 0 {
+		params.MaxFileSize = 1024 * 1024 // 1MB default
 	}
 	log.Printf("[INFO] created messager with %+v", params)
 
@@ -139,18 +157,37 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 		return msg, ErrBadPinAttempt
 	}
 
-	r, err := p.crypt.Decrypt(Request{Data: msg.Data, Pin: pin})
+	// for file messages, only decrypt the data portion (after header)
+	var header []byte
+	dataToDecrypt := msg.Data
+	if IsFileMessage(msg.Data) {
+		_, _, dataStart := ParseFileHeader(msg.Data)
+		if dataStart > 0 {
+			header = msg.Data[:dataStart]
+			dataToDecrypt = msg.Data[dataStart:]
+		}
+	}
+
+	r, err := p.crypt.Decrypt(Request{Data: dataToDecrypt, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
 		_ = p.engine.Remove(key)
 		return nil, ErrBadPin
-
 	}
 
 	if err := p.engine.Remove(key); err != nil {
 		log.Printf("[WARN] failed to remove, %v", err)
 	}
-	msg.Data = r
+
+	// reconstruct file message with header + decrypted data
+	if header != nil {
+		result := make([]byte, len(header)+len(r))
+		copy(result, header)
+		copy(result[len(header):], r)
+		msg.Data = result
+	} else {
+		msg.Data = r
+	}
 	return msg, nil
 }
 
@@ -166,4 +203,117 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 		return "", fmt.Errorf("can't make hashed pin: %w", err)
 	}
 	return string(hashedPin), nil
+}
+
+// IsFile checks if a message with given key is a file message (without decrypting).
+// Returns false if message doesn't exist or is not a file.
+func (p MessageProc) IsFile(key string) bool {
+	msg, err := p.engine.Load(key)
+	if err != nil {
+		return false
+	}
+	return IsFileMessage(msg.Data)
+}
+
+// MakeFileMessage creates a message from file data with unencrypted prefix for metadata.
+// Format: ~FILE~filename~content-type~\n<encrypted binary>
+func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, err error) {
+	if req.Pin == "" {
+		log.Printf("[WARN] save rejected, empty pin")
+		return nil, ErrBadPin
+	}
+
+	if req.FileName == "" || len(req.FileName) > 255 {
+		log.Printf("[WARN] save rejected, invalid file name")
+		return nil, ErrBadFileName
+	}
+
+	if int64(len(req.Data)) > p.MaxFileSize {
+		log.Printf("[WARN] save rejected, file too large: %d > %d", len(req.Data), p.MaxFileSize)
+		return nil, ErrFileTooLarge
+	}
+
+	if req.Duration > p.MaxDuration {
+		log.Printf("[ERROR] can't use duration, %v > %v", req.Duration, p.MaxDuration)
+		return nil, ErrDuration
+	}
+
+	pinHash, err := p.makeHash(req.Pin)
+	if err != nil {
+		log.Printf("[ERROR] can't hash pin, %v", err)
+		return nil, ErrInternal
+	}
+
+	// encrypt only the binary data
+	encryptedData, err := p.crypt.Encrypt(Request{Data: req.Data, Pin: req.Pin})
+	if err != nil {
+		log.Printf("[ERROR] failed to encrypt file, %v", err)
+		return nil, ErrCrypto
+	}
+
+	// build message with unencrypted prefix: ~FILE~filename~content-type~\n<encrypted>
+	prefix := fmt.Sprintf("%s%s~%s~\n", filePrefix, req.FileName, req.ContentType)
+	fullData := append([]byte(prefix), encryptedData...)
+
+	key := uuid.New().String()
+	exp := time.Now().Add(req.Duration)
+	result = &store.Message{
+		Key:     store.Key(exp, key),
+		Exp:     exp,
+		PinHash: pinHash,
+		Data:    fullData,
+	}
+
+	err = p.engine.Save(result)
+	return result, err
+}
+
+// IsFileMessage checks if message data has file prefix (works on raw stored data)
+func IsFileMessage(data []byte) bool {
+	return len(data) > len(filePrefix) && string(data[:len(filePrefix)]) == filePrefix
+}
+
+// ParseFileHeader extracts filename, content-type, and data start position from file message.
+// Returns empty strings and -1 if not a valid file message.
+func ParseFileHeader(data []byte) (filename, contentType string, dataStart int) {
+	if !IsFileMessage(data) {
+		return "", "", -1
+	}
+
+	// format: ~FILE~filename~content-type~\n<data>
+	// find newline which marks end of header
+	headerEnd := -1
+	for i := len(filePrefix); i < len(data); i++ {
+		if data[i] == '\n' {
+			headerEnd = i
+			break
+		}
+	}
+	if headerEnd == -1 {
+		return "", "", -1
+	}
+
+	// parse header: filename~content-type~
+	header := string(data[len(filePrefix):headerEnd])
+	parts := splitHeader(header)
+	if len(parts) < 2 {
+		return "", "", -1
+	}
+
+	return parts[0], parts[1], headerEnd + 1
+}
+
+// splitHeader splits "filename~content-type~" into parts
+func splitHeader(header string) []string {
+	var parts []string
+	var current string
+	for _, ch := range header {
+		if ch == '~' {
+			parts = append(parts, current)
+			current = ""
+		} else {
+			current += string(ch)
+		}
+	}
+	return parts
 }

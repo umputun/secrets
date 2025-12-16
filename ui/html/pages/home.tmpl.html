@@ -7,32 +7,36 @@
         <h2 class="card-title">Create a Secure Message</h2>
         <p class="card-description">Share sensitive information that self-destructs after being read</p>
     </div>
-    
-    <form hx-post="/generate-link" 
-          hx-target="#form-card" 
+
+    {{if .FilesEnabled}}
+    <div class="content-tabs">
+        <button type="button" class="tab-btn active" id="text-tab" onclick="switchTab('text')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            Text
+        </button>
+        <button type="button" class="tab-btn" id="file-tab" onclick="switchTab('file')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2"/>
+                <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="2"/>
+                <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            File
+        </button>
+    </div>
+    {{end}}
+
+    <form id="secret-form" hx-post="/generate-link"
+          hx-target="#form-card"
           hx-swap="outerHTML"
           hx-indicator="#form-spinner"
           hx-target-400="#form-card"
           hx-target-500="#notifications">
-        <div class="form-group">
-            <label for="message">
-                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
-                    <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
-                    <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
-                    <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
-                    <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                Enter text for sharing
-            </label>
-            <textarea name="message" id="message" 
-                      placeholder="Type or paste your confidential message here..."
-                      required
-                      autofocus 
-                      {{if .Form.FieldErrors.message}}class="error-input"{{end}}>{{.Form.Message}}</textarea>
-            {{with .Form.FieldErrors.message}}
-            <span class='error'>{{.}}</span>
-            {{end}}
+
+        <div id="content-input">
+            {{template "text-input" .}}
         </div>
 
         <div class="form-row two-cols">
@@ -45,7 +49,7 @@
                     </svg>
                     Create {{.PinSize}}-digit PIN
                 </label>
-                <input type="text" 
+                <input type="text"
                        name="pin"
                        id="pin"
                        class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
@@ -74,7 +78,7 @@
                     </span>
                 </label>
                 <div class="expire-container">
-                    <input type="number" 
+                    <input type="number"
                            name="exp"
                            id="exp"
                            required
@@ -82,8 +86,8 @@
                            value="{{.Form.Exp}}"
                            {{if .Form.FieldErrors.exp}}class="error-input"{{end}}
                            {{if .Form.FieldErrors.exp}}hx-on:input="document.querySelectorAll('.expire-container ~ .error').forEach(el => el.remove())"{{end}} />
-                    
-                    <select name="expUnit" id="expUnit" aria-label="Time unit" 
+
+                    <select name="expUnit" id="expUnit" aria-label="Time unit"
                             {{if .Form.FieldErrors.expUnit}}class="error-input"{{end}}
                             {{if or .Form.FieldErrors.exp .Form.FieldErrors.expUnit}}hx-on:change="document.querySelectorAll('.expire-container ~ .error').forEach(el => el.remove())"{{end}}>
                         <option value="m" {{if eq .Form.ExpUnit "m"}}selected{{end}}>minutes</option>
@@ -120,4 +124,157 @@
     </form>
 </div>
 
+{{if .FilesEnabled}}
+<script>
+const maxFileSize = {{.MaxFileSize}};
+
+function switchTab(mode) {
+    const form = document.getElementById('secret-form');
+    const textTab = document.getElementById('text-tab');
+    const fileTab = document.getElementById('file-tab');
+    const contentInput = document.getElementById('content-input');
+
+    if (mode === 'file') {
+        textTab.classList.remove('active');
+        fileTab.classList.add('active');
+        form.setAttribute('enctype', 'multipart/form-data');
+        contentInput.innerHTML = `{{template "file-input-js" .}}`;
+        initDragDrop();
+    } else {
+        fileTab.classList.remove('active');
+        textTab.classList.add('active');
+        form.removeAttribute('enctype');
+        contentInput.innerHTML = `{{template "text-input-js" .}}`;
+    }
+}
+
+function initDragDrop() {
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file');
+    const fileInfo = document.getElementById('file-info');
+    const submitBtn = document.querySelector('button[type="submit"]');
+
+    if (!dropZone) return;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+        dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); });
+    });
+
+    ['dragenter', 'dragover'].forEach(e => {
+        dropZone.addEventListener(e, () => dropZone.classList.add('drag-over'));
+    });
+
+    ['dragleave', 'drop'].forEach(e => {
+        dropZone.addEventListener(e, () => dropZone.classList.remove('drag-over'));
+    });
+
+    dropZone.addEventListener('drop', e => {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            fileInput.files = files;
+            updateFileInfo(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', e => {
+        if (e.target.files.length) {
+            updateFileInfo(e.target.files[0]);
+        }
+    });
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function updateFileInfo(file) {
+        const sizeStr = formatSize(file.size);
+        const placeholder = dropZone.querySelector('svg');
+        const placeholderText = dropZone.querySelector('p:not(.file-info)');
+        if (file.size > maxFileSize) {
+            fileInfo.textContent = file.name + ' (' + sizeStr + ') - too large! Max: ' + formatSize(maxFileSize);
+            fileInfo.style.display = 'block';
+            fileInfo.classList.add('error');
+            dropZone.classList.add('error-input');
+            submitBtn.disabled = true;
+            fileInput.value = '';
+            if (placeholder) placeholder.style.display = 'none';
+            if (placeholderText) placeholderText.style.display = 'none';
+        } else {
+            fileInfo.textContent = file.name + ' (' + sizeStr + ')';
+            fileInfo.style.display = 'block';
+            fileInfo.classList.remove('error');
+            dropZone.classList.remove('error-input');
+            submitBtn.disabled = false;
+            if (placeholder) placeholder.style.display = 'none';
+            if (placeholderText) placeholderText.style.display = 'none';
+        }
+    }
+}
+</script>
+{{end}}
+
+{{end}}
+
+{{define "text-input"}}
+<div class="form-group">
+    <label for="message">
+        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
+            <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Enter text for sharing
+    </label>
+    <textarea name="message" id="message" class="content-input-area"
+              placeholder="Type or paste your confidential message here..."
+              required
+              autofocus
+              {{if .Form.FieldErrors.message}}class="error-input"{{end}}>{{.Form.Message}}</textarea>
+    {{with .Form.FieldErrors.message}}
+    <span class='error'>{{.}}</span>
+    {{end}}
+</div>
+{{end}}
+
+{{define "text-input-js"}}
+<div class="form-group">
+    <label for="message">
+        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
+            <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Enter text for sharing
+    </label>
+    <textarea name="message" id="message" class="content-input-area" placeholder="Type or paste your confidential message here..." required autofocus></textarea>
+</div>
+{{end}}
+
+{{define "file-input-js"}}
+<div class="form-group">
+    <label>
+        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2"/>
+            <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="2"/>
+            <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Upload file
+    </label>
+    <div id="drop-zone" class="drop-zone content-input-area" onclick="document.getElementById('file').click()">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="1.5"/>
+            <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <p>Drop file here or click to browse</p>
+        <p id="file-info" class="file-info" style="display:none"></p>
+    </div>
+    <input type="file" id="file" name="file" required style="display:none" />
+</div>
 {{end}}

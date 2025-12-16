@@ -248,7 +248,7 @@ func TestServer_getParams(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000}`+"\n", string(body))
+	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":1048576}`+"\n", string(body))
 }
 
 func TestServer_saveMessageCtrl(t *testing.T) {

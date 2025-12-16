@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -38,10 +39,13 @@ const (
 )
 
 type createMsgForm struct {
-	Message string
-	Exp     int
-	MaxExp  string
-	ExpUnit string
+	Message  string
+	Exp      int
+	MaxExp   string
+	ExpUnit  string
+	IsFile   bool   // true if this is a file upload
+	FileName string // original filename for display
+	FileSize int64  // file size in bytes for display
 	validator.Validator
 }
 
@@ -62,6 +66,9 @@ type templateData struct {
 	PageTitle     string // SEO-optimized page title
 	PageDesc      string // page description for meta tags
 	IsMessagePage bool   // true for message pages (should not be indexed)
+	FilesEnabled  bool   // true if file uploads are enabled
+	MaxFileSize   int64  // max file size in bytes
+	IsFile        bool   // true if the message is a file (for show-message template)
 }
 
 // render renders a template
@@ -115,7 +122,20 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 //   - "message" (string): The message content to be associated with the secure link.
 //   - "expUnit" (string): The unit of expiration time (e.g., "m" for minutes, "h" for hours, "d" for days).
 //   - "pin" (slice of strings): An array of PIN values.
+//
+// For file uploads (multipart/form-data):
+//   - "file" (file): The file to upload
 func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	isMultipart := strings.HasPrefix(contentType, "multipart/form-data")
+
+	// handle file upload if multipart and files enabled
+	if isMultipart && s.cfg.EnableFiles {
+		s.generateFileLinkCtrl(w, r)
+		return
+	}
+
+	// handle text message (existing logic)
 	err := r.ParseForm()
 	if err != nil {
 		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
@@ -170,18 +190,118 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.renderSecureLink(w, r, msg.Key, form)
+}
+
+// generateFileLinkCtrl handles file upload requests
+func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
+	maxFileSize := s.cfg.MaxFileSize
+	if maxFileSize == 0 {
+		maxFileSize = 1024 * 1024 // default 1MB
+	}
+
+	// limit request body size
+	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize+1024*10) // extra 10KB for form fields
+
+	err := r.ParseMultipartForm(maxFileSize)
+	if err != nil {
+		log.Printf("[WARN] failed to parse multipart form: %v", err)
+		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "file too large or invalid form")
+		return
+	}
+
+	form := createMsgForm{
+		ExpUnit: r.PostForm.Get(expUnitKey),
+		MaxExp:  humanDuration(s.cfg.MaxExpire),
+		IsFile:  true,
+	}
+
+	// validate PIN
+	pinValues := r.Form["pin"]
+	for _, p := range pinValues {
+		if validator.Blank(p) || !validator.IsNumber(p) {
+			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+			break
+		}
+	}
+
+	// validate expiration
+	exp := r.PostFormValue(expKey)
+	form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")
+	form.CheckField(validator.IsNumber(exp), expKey, "Expire must be a number")
+	form.CheckField(slices.Contains([]string{"m", "h", "d"}, form.ExpUnit), expUnitKey, "Only Minutes, Hours and Days are allowed")
+
+	expInt, err := strconv.Atoi(exp)
+	if err != nil {
+		form.AddFieldError(expKey, "Expire must be a number")
+	}
+	form.Exp = expInt
+	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
+
+	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
+
+	// get uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		form.AddFieldError("file", "Please select a file to upload")
+	} else {
+		defer file.Close()
+		form.FileName = header.Filename
+		form.FileSize = header.Size
+	}
+
+	if !form.Valid() {
+		data := s.newTemplateData(r, form)
+		if r.Header.Get("HX-Request") == "true" {
+			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+		} else {
+			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		}
+		return
+	}
+
+	// read file data
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		log.Printf("[ERROR] failed to read uploaded file: %v", err)
+		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "failed to read file")
+		return
+	}
+
+	// detect content type from header or fallback
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	// create file message
+	msg, err := s.messager.MakeFileMessage(messager.FileRequest{
+		Duration:    expDuration,
+		Pin:         strings.Join(pinValues, ""),
+		FileName:    header.Filename,
+		ContentType: contentType,
+		Data:        fileData,
+	})
+	if err != nil {
+		log.Printf("[WARN] failed to create file message: %v", err)
+		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
+		return
+	}
+
+	s.renderSecureLink(w, r, msg.Key, form)
+}
+
+// renderSecureLink renders the secure link page with the generated URL
+func (s Server) renderSecureLink(w http.ResponseWriter, r *http.Request, key string, form createMsgForm) {
 	validatedHost := s.getValidatedHost(r)
 
 	// ensure IPv6 addresses are properly bracketed for URL construction
-	// extract host part to check if it's IPv6 (handles cases with ports)
 	host, port, err := net.SplitHostPort(validatedHost)
 	if err != nil {
-		// no port present, check if the whole string is an IPv6 address
 		if ip := net.ParseIP(validatedHost); ip != nil && ip.To4() == nil {
 			validatedHost = "[" + validatedHost + "]"
 		}
 	} else {
-		// port present, check if host part is IPv6 and needs bracketing
 		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil && !strings.HasPrefix(host, "[") {
 			validatedHost = "[" + host + "]:" + port
 		}
@@ -190,10 +310,23 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	msgURL := (&url.URL{
 		Scheme: s.cfg.Protocol,
 		Host:   validatedHost,
-		Path:   path.Join("/message", msg.Key),
+		Path:   path.Join("/message", key),
 	}).String()
 
-	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", msgURL)
+	// pass form data for file info display in template
+	data := struct {
+		URL      string
+		IsFile   bool
+		FileName string
+		FileSize int64
+	}{
+		URL:      msgURL,
+		IsFile:   form.IsFile,
+		FileName: form.FileName,
+		FileSize: form.FileSize,
+	}
+
+	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", data)
 }
 
 // renders the show decoded message page
@@ -209,7 +342,8 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	data := s.newTemplateData(r, showMsgForm{
 		Key: key,
 	})
-	data.IsMessagePage = true // prevent indexing of sensitive message pages
+	data.IsMessagePage = true            // prevent indexing of sensitive message pages
+	data.IsFile = s.messager.IsFile(key) // check if message is a file for button label
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
@@ -223,7 +357,7 @@ func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolin
 	s.render(w, http.StatusOK, "about.tmpl.html", baseTmpl, data)
 }
 
-// renders the decoded message page
+// renders the decoded message page or serves file download
 // POST /load-message
 // Request Body: This function expects a POST request body containing the following fields:
 //   - "key" (string): A path parameter representing the unique key of the message to be displayed.
@@ -260,6 +394,26 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// check if decrypted data is a file message
+	if messager.IsFileMessage(msg.Data) {
+		filename, contentType, dataStart := messager.ParseFileHeader(msg.Data)
+		if dataStart < 0 {
+			log.Printf("[ERROR] failed to parse file header for %s", form.Key)
+			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "invalid file format")
+			return
+		}
+
+		// serve file directly as download
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Content-Length", strconv.Itoa(len(msg.Data)-dataStart))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(msg.Data[dataStart:])
+		log.Printf("[INFO] accessed file message %s (%s), status 200 (success)", form.Key, filename)
+		return
+	}
+
+	// text message - render decoded message template
 	s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
 	log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
 }
@@ -428,6 +582,7 @@ func newTemplateCache() (map[string]*template.Template, error) {
 			"until":      until,
 			"add":        func(a, b int) int { return a + b },
 			"jsonEscape": jsonEscape,
+			"formatSize": formatSize,
 		}).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err
@@ -445,6 +600,20 @@ func until(n int) []int {
 		result[i] = i
 	}
 	return result
+}
+
+// formatSize formats file size in human-readable format
+func formatSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
+	}
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }
 
 // getValidatedHost returns the request host if it's in the allowed domains list, otherwise returns the first configured domain

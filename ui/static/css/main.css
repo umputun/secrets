@@ -869,6 +869,138 @@ button[type="submit"]:disabled {
     letter-spacing: -0.01em;
 }
 
+/* ==================== Content Tabs ==================== */
+.content-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-xs);
+    background: var(--color-input-bg);
+    border-radius: var(--radius-md);
+}
+
+.tab-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-surface);
+}
+
+.tab-btn.active {
+    color: var(--color-primary);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ==================== Content Input Area ==================== */
+.content-input-area {
+    min-height: 150px;
+}
+
+/* ==================== File Upload Drop Zone ==================== */
+.drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 150px;
+    padding: var(--spacing-xl);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-input-bg);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.drop-zone:hover {
+    border-color: var(--color-primary);
+    background: var(--color-surface);
+}
+
+.drop-zone.drag-over {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+
+.drop-zone svg {
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-md);
+}
+
+.drop-zone p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+}
+
+.drop-zone .file-info {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--color-primary);
+    font-weight: var(--font-medium);
+}
+
+.drop-zone .file-info.error {
+    color: var(--color-error);
+    background: #fef2f2;
+}
+
+.drop-zone.error-input {
+    border-color: var(--color-error);
+    background: #fef2f2;
+}
+
+/* ==================== File Info Box (Secure Link) ==================== */
+.file-info-box {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--color-primary-light);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.file-info-box svg {
+    flex-shrink: 0;
+    color: var(--color-primary);
+}
+
+.file-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.file-name {
+    font-weight: var(--font-medium);
+    color: var(--color-text-primary);
+    word-break: break-all;
+}
+
+.file-size {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
 /* ==================== Responsive ==================== */
 @media (max-width: 768px) {
     .app {
