@@ -56,8 +56,8 @@ h1, h2, h3, h4, h5, h6 {
     /* dark theme (default) */
     --color-background: #0a0e17;
     --color-background-subtle: #0f1420;
-    --color-surface: #151c2c;
-    --color-surface-elevated: #1a2236;
+    --color-surface: #1a2538;
+    --color-surface-elevated: #212d45;
     --color-surface-hover: #1f2942;
     --color-text-primary: #f1f5f9;
     --color-text-secondary: #94a3b8;
