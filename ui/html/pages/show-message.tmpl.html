@@ -88,7 +88,7 @@
                     document.getElementById('message-container').innerHTML =
                         '<div class="card success-card">' +
                         '<div class="card-header"><h2 class="card-title">File Downloaded</h2></div>' +
-                        '<p class="success-message">The encrypted file has been downloaded and permanently deleted from the server.</p>' +
+                        '<p class="success-message">The file has been decrypted, downloaded, and permanently deleted from the server.</p>' +
                         '<a href="/" class="main-btn">Create New Secret</a></div>';
                 } else {
                     // error - show error message
@@ -101,8 +101,10 @@
                     if (pinErr && pinErr.innerHTML.trim()) {
                         pinError.innerHTML = pinErr.innerHTML;
                         pinInput.classList.add('error-input');
+                        pinInput.value = '';
+                        pinInput.focus();
                         btn.disabled = false;
-                        btnText.style.display = 'inline';
+                        btnText.style.display = 'inline-flex';
                         btnLoading.style.display = 'none';
                         return;
                     }
@@ -121,14 +123,18 @@
                     // fallback for unknown error
                     pinError.innerHTML = '<span class="error">An error occurred. Please try again.</span>';
                     pinInput.classList.add('error-input');
+                    pinInput.value = '';
+                    pinInput.focus();
                     btn.disabled = false;
-                    btnText.style.display = 'inline';
+                    btnText.style.display = 'inline-flex';
                     btnLoading.style.display = 'none';
                 }
             } catch (err) {
                 pinError.innerHTML = '<span class="error">Download failed. Please try again.</span>';
+                pinInput.value = '';
+                pinInput.focus();
                 btn.disabled = false;
-                btnText.style.display = 'inline';
+                btnText.style.display = 'inline-flex';
                 btnLoading.style.display = 'none';
             }
         });
@@ -156,7 +162,8 @@
                        placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
                        title="PIN must be exactly {{.PinSize}} digits"
                        aria-label="{{.PinSize}}-digit PIN"
-                       autofocus />
+                       autofocus
+                       oninput="document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
                 <div id="pin-error">
                     {{with .Form.FieldErrors.pin}}
                     <span class='error'>{{.}}</span>
