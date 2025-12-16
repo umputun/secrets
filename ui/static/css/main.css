@@ -1113,6 +1113,10 @@ textarea.content-input-area {
     display: block;
 }
 
+.drop-zone.content-input-area {
+    padding: var(--spacing-lg);
+}
+
 /* ==================== File Upload Drop Zone ==================== */
 .drop-zone {
     display: flex;
