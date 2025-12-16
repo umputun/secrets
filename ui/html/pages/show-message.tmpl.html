@@ -12,8 +12,7 @@
 
         {{if .IsFile}}
         {{/* file download: use standard form to get binary response */}}
-        <form action="/load-message" method="post" hx-boost="false" id="download-form"
-              onsubmit="setTimeout(function(){ document.getElementById('message-container').innerHTML = '<div class=\'card load-msg-form\'><div class=\'card-header\'><h2 class=\'card-title\'>File Downloaded</h2><p class=\'card-description\'>Your file has been downloaded and the secret has been deleted.</p></div><a class=\'main-btn-link\' href=\'/\'>Create New Secret</a></div>'; }, 100);">
+        <form action="/load-message" method="post" hx-boost="false" id="download-form">
             <input type="hidden" name="key" value="{{.Form.Key}}" />
 
             <div class="form-group">

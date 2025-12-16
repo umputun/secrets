@@ -6,6 +6,7 @@ package messager
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
@@ -31,7 +32,8 @@ var (
 )
 
 // filePrefix marks file messages with unencrypted metadata
-const filePrefix = "~FILE~"
+// format: !!FILE!!filename!!content-type!!\n<encrypted binary>
+const filePrefix = "!!FILE!!"
 
 // MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
@@ -223,7 +225,7 @@ func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, er
 		return nil, ErrBadPin
 	}
 
-	if req.FileName == "" || len(req.FileName) > 255 {
+	if req.FileName == "" || len(req.FileName) > 255 || strings.Contains(req.FileName, "!!") || strings.ContainsAny(req.FileName, "\n\r") {
 		log.Printf("[WARN] save rejected, invalid file name")
 		return nil, ErrBadFileName
 	}
@@ -251,8 +253,8 @@ func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, er
 		return nil, ErrCrypto
 	}
 
-	// build message with unencrypted prefix: ~FILE~filename~content-type~\n<encrypted>
-	prefix := fmt.Sprintf("%s%s~%s~\n", filePrefix, req.FileName, req.ContentType)
+	// build message with unencrypted prefix: !!FILE!!filename!!content-type!!\n<encrypted>
+	prefix := fmt.Sprintf("%s%s!!%s!!\n", filePrefix, req.FileName, req.ContentType)
 	fullData := append([]byte(prefix), encryptedData...)
 
 	key := uuid.New().String()
@@ -293,27 +295,12 @@ func ParseFileHeader(data []byte) (filename, contentType string, dataStart int) 
 		return "", "", -1
 	}
 
-	// parse header: filename~content-type~
+	// parse header: filename!!content-type!!
 	header := string(data[len(filePrefix):headerEnd])
-	parts := splitHeader(header)
+	parts := strings.Split(header, "!!")
 	if len(parts) < 2 {
 		return "", "", -1
 	}
 
 	return parts[0], parts[1], headerEnd + 1
-}
-
-// splitHeader splits "filename~content-type~" into parts
-func splitHeader(header string) []string {
-	var parts []string
-	var current string
-	for _, ch := range header {
-		if ch == '~' {
-			parts = append(parts, current)
-			current = ""
-		} else {
-			current += string(ch)
-		}
-	}
-	return parts
 }

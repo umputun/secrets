@@ -1,6 +1,9 @@
 package server
 
 import (
+	"bytes"
+	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1121,6 +1124,355 @@ func TestServer_SEOMetaTags(t *testing.T) {
 		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/message/test-key-123">`)
 		// check X-Robots-Tag header for defense-in-depth
 		assert.Equal(t, "noindex, nofollow, noarchive", rr.Header().Get("X-Robots-Tag"))
+	})
+}
+
+func TestServer_formatSize(t *testing.T) {
+	tests := []struct {
+		name string
+		size int64
+		want string
+	}{
+		{name: "bytes", size: 100, want: "100 B"},
+		{name: "zero bytes", size: 0, want: "0 B"},
+		{name: "kilobytes", size: 1024, want: "1.0 KB"},
+		{name: "kilobytes with decimal", size: 1536, want: "1.5 KB"},
+		{name: "megabytes", size: 1024 * 1024, want: "1.0 MB"},
+		{name: "megabytes with decimal", size: 1024 * 1024 * 5 / 2, want: "2.5 MB"},
+		{name: "gigabytes", size: 1024 * 1024 * 1024, want: "1.0 GB"},
+		{name: "just under KB", size: 1023, want: "1023 B"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatSize(tt.size)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+func TestServer_generateFileLinkCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Protocol:       "https",
+			Domain:         []string{"example.com"},
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+	require.NoError(t, err)
+
+	t.Run("valid file upload", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// add file
+		part, err := writer.CreateFormFile("file", "test.txt")
+		require.NoError(t, err)
+		_, err = part.Write([]byte("test file content"))
+		require.NoError(t, err)
+
+		// add form fields
+		require.NoError(t, writer.WriteField("exp", "15"))
+		require.NoError(t, writer.WriteField("expUnit", "m"))
+		require.NoError(t, writer.WriteField("pin", "1"))
+		require.NoError(t, writer.WriteField("pin", "2"))
+		require.NoError(t, writer.WriteField("pin", "3"))
+		require.NoError(t, writer.WriteField("pin", "4"))
+		require.NoError(t, writer.WriteField("pin", "5"))
+		require.NoError(t, writer.Close())
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "https://example.com/message/")
+		assert.Contains(t, rr.Body.String(), "test.txt")
+	})
+
+	t.Run("file upload with invalid pin", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		part, err := writer.CreateFormFile("file", "test.txt")
+		require.NoError(t, err)
+		_, err = part.Write([]byte("test file content"))
+		require.NoError(t, err)
+
+		require.NoError(t, writer.WriteField("exp", "15"))
+		require.NoError(t, writer.WriteField("expUnit", "m"))
+		require.NoError(t, writer.WriteField("pin", "1"))
+		require.NoError(t, writer.WriteField("pin", "2"))
+		require.NoError(t, writer.WriteField("pin", ""))
+		require.NoError(t, writer.WriteField("pin", "4"))
+		require.NoError(t, writer.WriteField("pin", "5"))
+		require.NoError(t, writer.Close())
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Pin must be 5 digits long without empty values")
+	})
+
+	t.Run("file upload with no file returns form for re-entry", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		require.NoError(t, writer.WriteField("exp", "15"))
+		require.NoError(t, writer.WriteField("expUnit", "m"))
+		require.NoError(t, writer.WriteField("pin", "1"))
+		require.NoError(t, writer.WriteField("pin", "2"))
+		require.NoError(t, writer.WriteField("pin", "3"))
+		require.NoError(t, writer.WriteField("pin", "4"))
+		require.NoError(t, writer.WriteField("pin", "5"))
+		require.NoError(t, writer.Close())
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		// without file, returns form for re-entry
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Create a Secure Message")  // form is returned
+		assert.NotContains(t, rr.Body.String(), "Secure Link Generated") // no success message
+	})
+
+	t.Run("file upload exceeds max duration", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		part, err := writer.CreateFormFile("file", "test.txt")
+		require.NoError(t, err)
+		_, err = part.Write([]byte("test file content"))
+		require.NoError(t, err)
+
+		require.NoError(t, writer.WriteField("exp", "100"))
+		require.NoError(t, writer.WriteField("expUnit", "d"))
+		require.NoError(t, writer.WriteField("pin", "12345"))
+		require.NoError(t, writer.Close())
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Expire must be less than")
+	})
+
+	t.Run("htmx file upload with validation error returns 400", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		require.NoError(t, writer.WriteField("exp", "15"))
+		require.NoError(t, writer.WriteField("expUnit", "m"))
+		require.NoError(t, writer.WriteField("pin", "12345"))
+		require.NoError(t, writer.Close())
+
+		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("HX-Request", "true")
+		rr := httptest.NewRecorder()
+
+		srv.generateLinkCtrl(rr, req)
+
+		// htmx request with validation error returns 400 for hx-target-400
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Create a Secure Message")  // form is returned
+		assert.NotContains(t, rr.Body.String(), "Secure Link Generated") // no success message
+	})
+}
+
+func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+	require.NoError(t, err)
+
+	t.Run("valid file download with correct pin", func(t *testing.T) {
+		// create file message
+		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+			Duration:    time.Hour,
+			Pin:         "12345",
+			FileName:    "secret.pdf",
+			ContentType: "application/pdf",
+			Data:        []byte("fake pdf content"),
+		})
+		require.NoError(t, err)
+
+		formData := url.Values{
+			"key": {msg.Key},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "application/pdf", rr.Header().Get("Content-Type"))
+		assert.Equal(t, `attachment; filename="secret.pdf"`, rr.Header().Get("Content-Disposition"))
+		assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+		assert.Equal(t, "fake pdf content", rr.Body.String())
+	})
+
+	t.Run("file download with wrong pin", func(t *testing.T) {
+		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+			Duration:    time.Hour,
+			Pin:         "12345",
+			FileName:    "secret.pdf",
+			ContentType: "application/pdf",
+			Data:        []byte("fake pdf content"),
+		})
+		require.NoError(t, err)
+
+		formData := url.Values{
+			"key": {msg.Key},
+			"pin": {"9", "9", "9", "9", "9"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "error")
+		assert.Empty(t, rr.Header().Get("Content-Disposition")) // no download headers
+	})
+
+	t.Run("file message is one-time only", func(t *testing.T) {
+		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+			Duration:    time.Hour,
+			Pin:         "12345",
+			FileName:    "secret.pdf",
+			ContentType: "application/pdf",
+			Data:        []byte("fake pdf content"),
+		})
+		require.NoError(t, err)
+
+		formData := url.Values{
+			"key": {msg.Key},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		// first access succeeds
+		req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srv.loadMessageCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "fake pdf content", rr.Body.String())
+
+		// second access fails
+		req2 := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr2 := httptest.NewRecorder()
+		srv.loadMessageCtrl(rr2, req2)
+		assert.Contains(t, rr2.Body.String(), "error")
+	})
+}
+
+func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	t.Run("text message shows decode button", func(t *testing.T) {
+		msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+		require.NoError(t, err)
+
+		resp, err := http.Get(ts.URL + "/message/" + msg.Key)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Contains(t, string(body), "Decode Message")
+		assert.NotContains(t, string(body), "Download File")
+	})
+
+	t.Run("file message shows download button", func(t *testing.T) {
+		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+			Duration:    time.Hour,
+			Pin:         "12345",
+			FileName:    "secret.pdf",
+			ContentType: "application/pdf",
+			Data:        []byte("fake pdf content"),
+		})
+		require.NoError(t, err)
+
+		resp, err := http.Get(ts.URL + "/message/" + msg.Key)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Contains(t, string(body), "Download File")
+		assert.NotContains(t, string(body), "Decode Message")
+	})
+
+	t.Run("non-existent key shows decode button by default", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/message/nonexistent-key")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Contains(t, string(body), "Decode Message")
 	})
 }
 

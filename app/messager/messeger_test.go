@@ -394,11 +394,11 @@ func TestIsFileMessage(t *testing.T) {
 		data []byte
 		want bool
 	}{
-		{name: "valid file message", data: []byte("~FILE~test.pdf~application/pdf~\ndata"), want: true},
+		{name: "valid file message", data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), want: true},
 		{name: "text message", data: []byte("encrypted text"), want: false},
 		{name: "empty data", data: []byte{}, want: false},
-		{name: "partial prefix", data: []byte("~FIL"), want: false},
-		{name: "just prefix", data: []byte("~FILE~"), want: false},
+		{name: "partial prefix", data: []byte("!!FIL"), want: false},
+		{name: "just prefix", data: []byte("!!FILE!!"), want: false},
 	}
 
 	for _, tt := range tests {
@@ -417,11 +417,11 @@ func TestParseFileHeader(t *testing.T) {
 		wantStart   int
 		wantInvalid bool
 	}{
-		{name: "valid header", data: []byte("~FILE~test.pdf~application/pdf~\nencrypted"), wantName: "test.pdf", wantType: "application/pdf", wantStart: 32},
-		{name: "empty filename", data: []byte("~FILE~~text/plain~\ndata"), wantName: "", wantType: "text/plain", wantStart: 19},
+		{name: "valid header", data: []byte("!!FILE!!test.pdf!!application/pdf!!\nencrypted"), wantName: "test.pdf", wantType: "application/pdf", wantStart: 36},
+		{name: "empty filename", data: []byte("!!FILE!!!!text/plain!!\ndata"), wantName: "", wantType: "text/plain", wantStart: 23},
 		{name: "not a file", data: []byte("encrypted text"), wantInvalid: true},
-		{name: "no newline", data: []byte("~FILE~test.pdf~application/pdf~"), wantInvalid: true},
-		{name: "missing content type", data: []byte("~FILE~test.pdf~~\ndata"), wantName: "test.pdf", wantType: "", wantStart: 17},
+		{name: "no newline", data: []byte("!!FILE!!test.pdf!!application/pdf!!"), wantInvalid: true},
+		{name: "missing content type", data: []byte("!!FILE!!test.pdf!!!!\ndata"), wantName: "test.pdf", wantType: "", wantStart: 21},
 	}
 
 	for _, tt := range tests {

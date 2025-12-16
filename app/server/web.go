@@ -195,15 +195,10 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 // generateFileLinkCtrl handles file upload requests
 func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
-	maxFileSize := s.cfg.MaxFileSize
-	if maxFileSize == 0 {
-		maxFileSize = 1024 * 1024 // default 1MB
-	}
-
 	// limit request body size
-	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize+1024*10) // extra 10KB for form fields
+	r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxFileSize+10*1024) // extra 10KB for form fields
 
-	err := r.ParseMultipartForm(maxFileSize)
+	err := r.ParseMultipartForm(s.cfg.MaxFileSize)
 	if err != nil {
 		log.Printf("[WARN] failed to parse multipart form: %v", err)
 		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "file too large or invalid form")
@@ -407,6 +402,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(msg.Data)-dataStart))
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(msg.Data[dataStart:])
 		log.Printf("[INFO] accessed file message %s (%s), status 200 (success)", form.Key, filename)

@@ -82,11 +82,6 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 	// construct the base URL
 	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, canonicalDomain)
 
-	maxFileSize := s.cfg.MaxFileSize
-	if maxFileSize == 0 {
-		maxFileSize = 1024 * 1024 // default 1MB
-	}
-
 	return templateData{
 		Form:         form,
 		PinSize:      s.cfg.PinSize,
@@ -96,7 +91,7 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 		URL:          url,
 		BaseURL:      baseURL,
 		FilesEnabled: s.cfg.EnableFiles,
-		MaxFileSize:  maxFileSize,
+		MaxFileSize:  s.cfg.MaxFileSize,
 	}
 }
 
@@ -145,6 +140,12 @@ func (s Server) Run(ctx context.Context) error {
 func (s Server) routes() http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
+	// determine size limit based on whether files are enabled
+	sizeLimit := int64(64 * 1024) // 64KB default for text-only
+	if s.cfg.EnableFiles {
+		sizeLimit = s.cfg.MaxFileSize + 10*1024 // file size + 10KB for form overhead
+	}
+
 	// global middleware - applied to all routes
 	router.Use(
 		rest.RealIP,
@@ -153,7 +154,7 @@ func (s Server) routes() http.Handler {
 		Timeout(60*time.Second),
 		rest.AppInfo("secrets", "Umputun", s.version),
 		rest.Ping,
-		rest.SizeLimit(64*1024),
+		rest.SizeLimit(sizeLimit),
 		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
 	)
 
@@ -285,11 +286,6 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 // GET /params
 func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
-	maxFileSize := s.cfg.MaxFileSize
-	if maxFileSize == 0 {
-		maxFileSize = 1024 * 1024 // default 1MB
-	}
-
 	params := struct {
 		PinSize        int   `json:"pin_size"`
 		MaxPinAttempts int   `json:"max_pin_attempts"`
@@ -301,7 +297,7 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 		FilesEnabled:   s.cfg.EnableFiles,
-		MaxFileSize:    maxFileSize,
+		MaxFileSize:    s.cfg.MaxFileSize,
 	}
 	rest.RenderJSON(w, params)
 }

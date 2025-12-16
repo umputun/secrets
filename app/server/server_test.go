@@ -652,6 +652,7 @@ func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Branding:       "Safe Secrets",
+			MaxFileSize:    1048576,
 		})
 
 	require.NoError(t, err)
