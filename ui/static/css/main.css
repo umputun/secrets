@@ -325,7 +325,7 @@ button[type="submit"] {
     font-family: var(--font-display);
     font-size: var(--text-base);
     font-weight: var(--font-semibold);
-    color: var(--color-background);
+    color: #ffffff;
     background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
     border: none;
     border-radius: var(--radius-xl);
@@ -370,6 +370,15 @@ button[type="submit"]:hover::before {
 button[type="submit"]:hover {
     filter: brightness(1.1);
     box-shadow: 0 6px 20px var(--color-accent-glow);
+}
+
+a.main-btn {
+    color: #ffffff;
+    text-decoration: none;
+}
+
+a.main-btn:hover {
+    color: #ffffff;
 }
 
 .main-btn:active,
@@ -419,7 +428,7 @@ button[type="submit"]:disabled {
     font-family: var(--font-display);
     font-size: var(--text-base);
     font-weight: var(--font-semibold);
-    color: var(--color-background);
+    color: #ffffff;
     background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
     border-radius: var(--radius-xl);
     text-decoration: none;
@@ -430,7 +439,7 @@ button[type="submit"]:disabled {
 }
 
 .main-btn-link:hover {
-    color: var(--color-background);
+    color: #ffffff;
     filter: brightness(1.1);
     box-shadow: 0 6px 20px var(--color-accent-glow);
 }
