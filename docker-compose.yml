@@ -25,6 +25,9 @@ services:
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
            - DOMAIN=www.example.com # important! change to your domain(s), comma-separated
+           # uncomment to enable file upload support
+           # - ENABLE_FILES=true
+           # - MAX_FILE_SIZE=1048576
         # uncomment to expose directly without nginx proxy
         # ports:
         #  - "80:8080"

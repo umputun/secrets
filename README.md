@@ -99,6 +99,8 @@ You can also run Safesecret directly without Docker:
 - `--branding=` - application title/branding text (default: "Safe Secrets")
 - `-d, --domain=` - site domain(s) (required for generating message links, supports comma-separated list)
 - `-p, --protocol=[http|https]` - site protocol (default: https)
+- `--enable-files` - enable file upload/download support (disabled by default)
+- `--maxfilesize=` - maximum file size in bytes (default: 1048576, i.e. 1MB)
 - `--dbg` - enable debug mode
 
 **Environment Variables:**
@@ -114,6 +116,8 @@ All options can also be set via environment variables:
 - `BRANDING` - application title/branding text
 - `DOMAIN` - site domain(s), supports comma-separated list
 - `PROTOCOL` - site protocol
+- `ENABLE_FILES` - enable file upload/download support
+- `MAX_FILE_SIZE` - maximum file size in bytes
 
 **Example:**
 
@@ -129,6 +133,9 @@ All options can also be set via environment variables:
 
 # Run with custom branding
 ./secrets -k "your-secret-key" -d "example.com" --branding="Acme Corp Secrets"
+
+# Run with file upload support (max 5MB)
+./secrets -k "your-secret-key" -d "example.com" --enable-files --maxfilesize=5242880
 ```
 
 ### Technical details
@@ -216,6 +223,46 @@ Both endpoints work and return the same response. The ping middleware intercepts
     {
         "max_exp_sec": 86400,
         "max_pin_attempts": 3,
-        "pin_size": 5
+        "pin_size": 5,
+        "max_file_size": 1048576
     }
+    ```
+
+### File Upload (when enabled)
+
+File upload support is disabled by default. Enable it with `--enable-files` or `ENABLE_FILES=true`.
+
+**Save file:**
+
+`POST /api/v1/file` (multipart/form-data)
+
+- `file` - the file to upload
+- `pin` - fixed-size pin code
+- `exp` - expire in N seconds
+
+    ```
+    $ curl -X POST https://safesecret.info/api/v1/file \
+        -F "file=@document.pdf" \
+        -F "pin=12345" \
+        -F "exp=3600"
+
+    HTTP/1.1 201 Created
+
+    {
+        "exp": "2024-01-15T13:33:45.11847278-05:00",
+        "key": "f1acfe04-277f-4016-518d-16c312ab84b5"
+    }
+    ```
+
+**Download file:**
+
+`GET /api/v1/file/:key/:pin`
+
+    ```
+    $ curl -O -J https://safesecret.info/api/v1/file/f1acfe04-277f-4016-518d-16c312ab84b5/12345
+
+    HTTP/1.1 200 OK
+    Content-Disposition: attachment; filename="document.pdf"
+
+    [file contents]
     ```

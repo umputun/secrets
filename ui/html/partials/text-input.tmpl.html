@@ -1,0 +1,22 @@
+{{define "text-input"}}
+<div class="form-group">
+    <label for="message">
+        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
+            <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
+            <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Enter text for sharing
+    </label>
+    <textarea name="message" id="message"
+              placeholder="Type or paste your confidential message here..."
+              required
+              autofocus
+              {{if .Form.FieldErrors.message}}class="error-input"{{end}}>{{.Form.Message}}</textarea>
+    {{with .Form.FieldErrors.message}}
+    <span class='error'>{{.}}</span>
+    {{end}}
+</div>
+{{end}}

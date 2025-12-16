@@ -19,6 +19,11 @@ type Message struct {
 	Data    []byte
 	PinHash string
 	Errors  int
+	// file support fields
+	IsFile      bool
+	FileName    string
+	ContentType string
+	FileSize    int64
 }
 
 // Key makes store key with ts prefix

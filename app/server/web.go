@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -62,6 +64,17 @@ type templateData struct {
 	PageTitle     string // SEO-optimized page title
 	PageDesc      string // page description for meta tags
 	IsMessagePage bool   // true for message pages (should not be indexed)
+	FilesEnabled  bool   // true when file upload is enabled
+	MaxFileSize   int64  // max file size in bytes
+}
+
+type createFileForm struct {
+	FileName string
+	FileSize int64
+	Exp      int
+	MaxExp   string
+	ExpUnit  string
+	validator.Validator
 }
 
 // render renders a template
@@ -170,26 +183,9 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validatedHost := s.getValidatedHost(r)
-
-	// ensure IPv6 addresses are properly bracketed for URL construction
-	// extract host part to check if it's IPv6 (handles cases with ports)
-	host, port, err := net.SplitHostPort(validatedHost)
-	if err != nil {
-		// no port present, check if the whole string is an IPv6 address
-		if ip := net.ParseIP(validatedHost); ip != nil && ip.To4() == nil {
-			validatedHost = "[" + validatedHost + "]"
-		}
-	} else {
-		// port present, check if host part is IPv6 and needs bracketing
-		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil && !strings.HasPrefix(host, "[") {
-			validatedHost = "[" + host + "]:" + port
-		}
-	}
-
 	msgURL := (&url.URL{
 		Scheme: s.cfg.Protocol,
-		Host:   validatedHost,
+		Host:   bracketIPv6Host(s.getValidatedHost(r)),
 		Path:   path.Join("/message", msg.Key),
 	}).String()
 
@@ -405,6 +401,208 @@ func (s Server) closePopupCtrl(w http.ResponseWriter, _ *http.Request) {
 	s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
 }
 
+// textFormPartialCtrl returns the text input partial for form switching
+// GET /form/text
+func (s Server) textFormPartialCtrl(w http.ResponseWriter, r *http.Request) {
+	data := s.newTemplateData(r, createMsgForm{
+		Exp:    15,
+		MaxExp: humanDuration(s.cfg.MaxExpire),
+	})
+	s.render(w, http.StatusOK, "text-input.tmpl.html", "text-input", data)
+}
+
+// fileFormPartialCtrl returns the file input partial for form switching
+// GET /form/file
+func (s Server) fileFormPartialCtrl(w http.ResponseWriter, r *http.Request) {
+	data := s.newTemplateData(r, createFileForm{
+		Exp:    15,
+		MaxExp: humanDuration(s.cfg.MaxExpire),
+	})
+	s.render(w, http.StatusOK, "file-input.tmpl.html", "file-input", data)
+}
+
+// generateFileLinkCtrl handles file upload and generates secure link
+// POST /generate-file-link
+func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
+	// size limit is enforced by sizeLimitMiddleware
+	if err := r.ParseMultipartForm(s.cfg.MaxFileSize); err != nil {
+		log.Printf("[WARN] can't parse multipart form: %v", err)
+		form := createFileForm{MaxExp: humanDuration(s.cfg.MaxExpire)}
+		form.AddFieldError("file", "file too large or invalid form")
+		data := s.newTemplateData(r, form)
+		if r.Header.Get("HX-Request") == "true" {
+			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+		} else {
+			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		}
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		log.Printf("[WARN] no file in request: %v", err)
+		form := createFileForm{MaxExp: humanDuration(s.cfg.MaxExpire)}
+		form.AddFieldError("file", "file is required")
+		data := s.newTemplateData(r, form)
+		if r.Header.Get("HX-Request") == "true" {
+			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+		} else {
+			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		}
+		return
+	}
+	defer file.Close()
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		log.Printf("[ERROR] can't read file: %v", err)
+		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "failed to read file")
+		return
+	}
+
+	form := createFileForm{
+		FileName: header.Filename,
+		FileSize: int64(len(fileData)),
+		ExpUnit:  r.PostFormValue(expUnitKey),
+		MaxExp:   humanDuration(s.cfg.MaxExpire),
+	}
+
+	pinValues := r.Form["pin"]
+	for _, p := range pinValues {
+		if validator.Blank(p) || !validator.IsNumber(p) {
+			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+			break
+		}
+	}
+
+	exp := r.PostFormValue(expKey)
+	form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")
+	form.CheckField(validator.IsNumber(exp), expKey, "Expire must be a number")
+	form.CheckField(slices.Contains([]string{"m", "h", "d"}, form.ExpUnit), expUnitKey, "Only Minutes, Hours and Days are allowed")
+
+	expInt, err := strconv.Atoi(exp)
+	if err != nil {
+		form.AddFieldError(expKey, "Expire must be a number")
+	}
+	form.Exp = expInt
+	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
+
+	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
+
+	if !form.Valid() {
+		data := s.newTemplateData(r, form)
+		if r.Header.Get("HX-Request") == "true" {
+			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
+		} else {
+			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
+		}
+		return
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	msg, err := s.messager.MakeFileMessage(expDuration, fileData, header.Filename, contentType, strings.Join(pinValues, ""))
+	if err != nil {
+		s.render(w, http.StatusOK, "secure-link-file.tmpl.html", errorTmpl, err.Error())
+		return
+	}
+
+	msgURL := (&url.URL{
+		Scheme: s.cfg.Protocol,
+		Host:   bracketIPv6Host(s.getValidatedHost(r)),
+		Path:   path.Join("/message", msg.Key),
+	}).String()
+
+	// render with file info
+	data := struct {
+		URL      string
+		FileName string
+		FileSize string
+	}{
+		URL:      msgURL,
+		FileName: header.Filename,
+		FileSize: formatFileSize(int64(len(fileData))),
+	}
+	s.render(w, http.StatusOK, "secure-link-file.tmpl.html", "secure-link-file", data)
+	log.Printf("[INFO] created file link %s, file=%s, size=%d", msg.Key, header.Filename, len(fileData))
+}
+
+// downloadFileCtrl handles file download from web UI
+// POST /download-file
+func (s Server) downloadFileCtrl(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, err.Error())
+		return
+	}
+
+	form := showMsgForm{
+		Key: r.PostForm.Get("key"),
+	}
+
+	pinValues := r.Form["pin"]
+	for _, p := range pinValues {
+		if validator.Blank(p) || !validator.IsNumber(p) {
+			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+			break
+		}
+	}
+
+	if !form.Valid() {
+		data := s.newTemplateData(r, form)
+		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
+		return
+	}
+
+	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
+	if err != nil {
+		s.handleLoadMessageError(w, r, &form, err)
+		return
+	}
+
+	if !msg.IsFile {
+		// not a file, render as text
+		s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
+		log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
+		return
+	}
+
+	// serve file download with security headers
+	contentType := msg.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	// use mime.FormatMediaType for proper RFC 2231 encoding of filename
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": msg.FileName})
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(msg.Data)), 10))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(msg.Data); err != nil {
+		log.Printf("[WARN] failed to write file data for %s: %v", form.Key, err)
+	}
+	log.Printf("[INFO] served file %s, name=%s, size=%d", form.Key, msg.FileName, len(msg.Data))
+}
+
+// formatFileSize formats bytes to human readable string
+func formatFileSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
+	}
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
+}
+
 // newTemplateCache creates a template cache as a map
 func newTemplateCache() (map[string]*template.Template, error) {
 	cache := map[string]*template.Template{}
@@ -425,9 +623,10 @@ func newTemplateCache() (map[string]*template.Template, error) {
 		}
 
 		ts, err := template.New(name).Funcs(template.FuncMap{
-			"until":      until,
-			"add":        func(a, b int) int { return a + b },
-			"jsonEscape": jsonEscape,
+			"until":          until,
+			"add":            func(a, b int) int { return a + b },
+			"jsonEscape":     jsonEscape,
+			"formatFileSize": formatFileSize,
 		}).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err
@@ -481,6 +680,24 @@ func (s Server) getValidatedHost(r *http.Request) string {
 
 	// should not happen with required validation - fail loudly if reached
 	panic("no domains configured: validation should occur in server.New() at startup")
+}
+
+// bracketIPv6Host ensures IPv6 addresses are properly bracketed for URL construction.
+// handles both hosts with and without ports.
+func bracketIPv6Host(host string) string {
+	h, port, err := net.SplitHostPort(host)
+	if err != nil {
+		// no port present, check if the whole string is an IPv6 address
+		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+			return "[" + host + "]"
+		}
+		return host
+	}
+	// port present, check if host part is IPv6 and needs bracketing
+	if ip := net.ParseIP(h); ip != nil && ip.To4() == nil && !strings.HasPrefix(h, "[") {
+		return "[" + h + "]:" + port
+	}
+	return host
 }
 
 // jsonEscape safely escapes a string for use in JSON-LD script tags

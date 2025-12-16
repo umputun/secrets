@@ -26,6 +26,8 @@ var opts struct {
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
+	EnableFiles    bool          `long:"enable-files" env:"ENABLE_FILES" description:"enable file upload/download support"`
+	MaxFileSize    int64         `long:"maxfilesize" env:"MAX_FILE_SIZE" default:"1048576" description:"max file size in bytes"`
 }
 
 var revision string
@@ -40,7 +42,7 @@ func main() {
 
 	dataStore := getEngine(opts.Engine, opts.BoltDB)
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
-	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts}
+	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.MaxFileSize}
 
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
@@ -50,6 +52,8 @@ func main() {
 		MaxExpire:      opts.MaxExpire,
 		WebRoot:        opts.WebRoot,
 		Branding:       opts.Branding,
+		EnableFiles:    opts.EnableFiles,
+		MaxFileSize:    opts.MaxFileSize,
 	})
 
 	if err != nil {

@@ -1169,6 +1169,150 @@ button[type="submit"]:disabled {
     border-color: #047857;
 }
 
+/* ==================== Content Type Tabs ==================== */
+.content-type-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--spacing-md);
+}
+
+.tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+
+.tab-btn.active {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+    font-weight: var(--font-semibold);
+}
+
+.tab-icon {
+    width: 16px;
+    height: 16px;
+}
+
+/* ==================== File Drop Zone ==================== */
+.file-drop-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-2xl);
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--color-input-bg);
+    position: relative;
+}
+
+.file-drop-zone:hover,
+.file-drop-zone.dragover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+}
+
+.file-drop-zone.error {
+    border-color: var(--color-error);
+}
+
+.file-input-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.drop-zone-prompt {
+    color: var(--color-text-secondary);
+}
+
+.upload-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-md);
+}
+
+.file-hint {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin-top: var(--spacing-sm);
+}
+
+/* ==================== File Preview ==================== */
+.file-preview {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.file-icon {
+    width: 40px;
+    height: 40px;
+    color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.file-info {
+    flex: 1;
+    text-align: left;
+}
+
+.file-name {
+    display: block;
+    font-weight: var(--font-medium);
+    color: var(--color-text-primary);
+    word-break: break-all;
+}
+
+.file-size {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.remove-file-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--color-error);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.remove-file-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
 /* ==================== Theme Toggle ==================== */
 .theme-toggle {
     position: fixed;

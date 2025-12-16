@@ -1,0 +1,123 @@
+{{define "file-input"}}
+<div class="form-group">
+    <label>
+        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="17,8 12,3 7,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Upload a file (max {{if .MaxFileSize}}{{formatFileSize .MaxFileSize}}{{else}}1 MB{{end}})
+    </label>
+    <div class="file-drop-zone" id="drop-zone">
+        <input type="file"
+               name="file"
+               id="file-input"
+               class="file-input-hidden"
+               required />
+
+        <div id="drop-zone-content" class="drop-zone-prompt">
+            <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="17,8 12,3 7,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p>Click to select or drag and drop a file here</p>
+            <p class="file-hint">Maximum file size: {{if .MaxFileSize}}{{formatFileSize .MaxFileSize}}{{else}}1 MB{{end}}</p>
+        </div>
+
+        <div id="file-preview" class="file-preview" style="display: none;">
+            <svg class="file-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
+                <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <div class="file-info">
+                <span id="file-name" class="file-name"></span>
+                <span id="file-size" class="file-size"></span>
+            </div>
+            <button type="button" class="remove-file-btn" id="remove-file-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    {{with .Form.FieldErrors.file}}
+    <span class='error'>{{.}}</span>
+    {{end}}
+</div>
+
+<script>
+(function() {
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const dropContent = document.getElementById('drop-zone-content');
+    const filePreview = document.getElementById('file-preview');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    const removeBtn = document.getElementById('remove-file-btn');
+    const maxSize = {{if .MaxFileSize}}{{.MaxFileSize}}{{else}}1048576{{end}};
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function showPreview(file) {
+        if (file.size > maxSize) {
+            alert('File size must be less than ' + formatSize(maxSize));
+            fileInput.value = '';
+            return;
+        }
+        fileName.textContent = file.name;
+        fileSize.textContent = formatSize(file.size);
+        dropContent.style.display = 'none';
+        filePreview.style.display = 'flex';
+    }
+
+    function clearFile() {
+        fileInput.value = '';
+        dropContent.style.display = 'block';
+        filePreview.style.display = 'none';
+    }
+
+    // click to select
+    dropZone.addEventListener('click', function(e) {
+        if (e.target !== removeBtn && !removeBtn.contains(e.target)) {
+            fileInput.click();
+        }
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (this.files[0]) {
+            showPreview(this.files[0]);
+        }
+    });
+
+    removeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        clearFile();
+    });
+
+    // drag and drop
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', function() {
+        this.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        if (e.dataTransfer.files[0]) {
+            fileInput.files = e.dataTransfer.files;
+            showPreview(e.dataTransfer.files[0]);
+        }
+    });
+})();
+</script>
+{{end}}

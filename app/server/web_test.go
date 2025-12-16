@@ -70,12 +70,15 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Len(t, cache, 9)
+	assert.Len(t, cache, 12)
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
 	assert.NotNil(t, cache["show-message.tmpl.html"])
 	assert.NotNil(t, cache["decoded-message.tmpl.html"])
+	assert.NotNil(t, cache["text-input.tmpl.html"])
+	assert.NotNil(t, cache["file-input.tmpl.html"])
+	assert.NotNil(t, cache["secure-link-file.tmpl.html"])
 	assert.NotNil(t, cache["error.tmpl.html"])
 	assert.NotNil(t, cache["secure-link.tmpl.html"])
 	assert.NotNil(t, cache["popup.tmpl.html"])
@@ -1171,4 +1174,299 @@ func TestServer_CanonicalURL(t *testing.T) {
 		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/about">`)
 		assert.Contains(t, body, `<meta property="og:url" content="https://example.com/about">`)
 	})
+}
+
+func TestServer_textFormPartialCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			EnableFiles:    true,
+		})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/form/text", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	srv.textFormPartialCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	assert.Contains(t, body, "Enter text for sharing")
+	assert.Contains(t, body, `name="message"`)
+}
+
+func TestServer_fileFormPartialCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/form/file", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	srv.fileFormPartialCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	assert.Contains(t, body, "file-drop-zone")
+	assert.Contains(t, body, `name="file"`)
+}
+
+func TestServer_generateFileLinkCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Protocol:       "https",
+			Domain:         []string{"example.com"},
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	t.Run("valid file upload", func(t *testing.T) {
+		body, contentType := createMultipartFileWeb(t, "file", "test.txt", "text/plain", []byte("secret content"), "12345", "15", "m")
+		req, err := http.NewRequest("POST", ts.URL+"/generate-file-link", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("HX-Request", "true")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		respBody := make([]byte, 10240)
+		n, _ := resp.Body.Read(respBody)
+		assert.Contains(t, string(respBody[:n]), "https://example.com/message/")
+		assert.Contains(t, string(respBody[:n]), "test.txt")
+	})
+}
+
+func TestServer_downloadFileCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+		MaxFileSize:    1024 * 1024,
+	})
+	srv, err := New(msg, "1", Config{
+		Domain:         []string{"example.com"},
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
+		EnableFiles:    true,
+		MaxFileSize:    1024 * 1024,
+	})
+	require.NoError(t, err)
+
+	// create a file message directly via messager
+	fileContent := []byte("secret file content for download test")
+	fileMsg, err := msg.MakeFileMessage(time.Hour, fileContent, "download-web.txt", "text/plain", "12345")
+	require.NoError(t, err)
+
+	t.Run("valid file download", func(t *testing.T) {
+		formData := url.Values{
+			"key": {fileMsg.Key},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/download-file", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.downloadFileCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "text/plain", rr.Header().Get("Content-Type"))
+		assert.Contains(t, rr.Header().Get("Content-Disposition"), "download-web.txt")
+		assert.Equal(t, fileContent, rr.Body.Bytes())
+	})
+
+	t.Run("second download fails", func(t *testing.T) {
+		formData := url.Values{
+			"key": {fileMsg.Key},
+			"pin": {"1", "2", "3", "4", "5"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/download-file", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.downloadFileCtrl(rr, req)
+
+		// file already consumed
+		assert.Contains(t, rr.Body.String(), "error")
+	})
+
+	t.Run("wrong pin", func(t *testing.T) {
+		// create another file message
+		fileMsg2, err := msg.MakeFileMessage(time.Hour, []byte("another file"), "test2.txt", "text/plain", "12345")
+		require.NoError(t, err)
+
+		formData := url.Values{
+			"key": {fileMsg2.Key},
+			"pin": {"9", "9", "9", "9", "9"},
+		}
+
+		req := httptest.NewRequest(http.MethodPost, "/download-file", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		srv.downloadFileCtrl(rr, req)
+
+		// wrong pin - should show error
+		assert.Contains(t, rr.Body.String(), "error")
+	})
+}
+
+func TestServer_indexCtrl_WithFilesEnabled(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	srv.indexCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	// verify tab buttons are shown when files are enabled
+	assert.Contains(t, body, "Text Message")
+	assert.Contains(t, body, "File Upload")
+	assert.Contains(t, body, "content-type-tabs")
+}
+
+func TestServer_indexCtrl_WithFilesDisabled(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			EnableFiles:    false,
+		})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	srv.indexCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	// verify tabs are NOT shown when files are disabled
+	assert.NotContains(t, body, "content-type-tabs")
+}
+
+func TestServer_formatFileSize(t *testing.T) {
+	tests := []struct {
+		name     string
+		size     int64
+		expected string
+	}{
+		{name: "bytes", size: 500, expected: "500 B"},
+		{name: "kilobytes", size: 1024, expected: "1.0 KB"},
+		{name: "kilobytes fractional", size: 1536, expected: "1.5 KB"},
+		{name: "megabytes", size: 1048576, expected: "1.0 MB"},
+		{name: "megabytes fractional", size: 1572864, expected: "1.5 MB"},
+		{name: "gigabytes", size: 1073741824, expected: "1.0 GB"},
+		{name: "zero", size: 0, expected: "0 B"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatFileSize(tt.size)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func createMultipartFileWeb(t *testing.T, fieldName, fileName, contentType string, content []byte, pin, exp, expUnit string) (body *strings.Reader, ct string) {
+	t.Helper()
+	var b strings.Builder
+	boundary := "----TestBoundary7MA4YWxkTrZu0gW"
+
+	if fieldName != "" && content != nil {
+		b.WriteString("--" + boundary + "\r\n")
+		b.WriteString("Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + fileName + "\"\r\n")
+		b.WriteString("Content-Type: " + contentType + "\r\n\r\n")
+		b.Write(content)
+		b.WriteString("\r\n")
+	}
+
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Disposition: form-data; name=\"pin\"\r\n\r\n")
+	b.WriteString(pin + "\r\n")
+
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Disposition: form-data; name=\"exp\"\r\n\r\n")
+	b.WriteString(exp + "\r\n")
+
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Disposition: form-data; name=\"expUnit\"\r\n\r\n")
+	b.WriteString(expUnit + "\r\n")
+
+	b.WriteString("--" + boundary + "--\r\n")
+
+	return strings.NewReader(b.String()), "multipart/form-data; boundary=" + boundary
 }

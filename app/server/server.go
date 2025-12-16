@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +36,9 @@ type Config struct {
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
+	// file support
+	EnableFiles bool
+	MaxFileSize int64
 }
 
 // Server is a rest with store
@@ -64,6 +70,7 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 // Messager interface making and loading messages
 type Messager interface {
 	MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
+	MakeFileMessage(duration time.Duration, data []byte, fileName, contentType, pin string) (result *store.Message, err error)
 	LoadMessage(key, pin string) (msg *store.Message, err error)
 }
 
@@ -78,13 +85,15 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 	baseURL := fmt.Sprintf("%s://%s", s.cfg.Protocol, canonicalDomain)
 
 	return templateData{
-		Form:        form,
-		PinSize:     s.cfg.PinSize,
-		CurrentYear: time.Now().Year(),
-		Theme:       getTheme(r),
-		Branding:    s.cfg.Branding,
-		URL:         url,
-		BaseURL:     baseURL,
+		Form:         form,
+		PinSize:      s.cfg.PinSize,
+		CurrentYear:  time.Now().Year(),
+		Theme:        getTheme(r),
+		Branding:     s.cfg.Branding,
+		URL:          url,
+		BaseURL:      baseURL,
+		FilesEnabled: s.cfg.EnableFiles,
+		MaxFileSize:  s.cfg.MaxFileSize,
 	}
 }
 
@@ -130,6 +139,31 @@ func (s Server) Run(ctx context.Context) error {
 	return nil
 }
 
+const defaultSizeLimit = 64 * 1024 // 64KB default for non-file routes
+
+// sizeLimitMiddleware returns a middleware that applies appropriate size limits.
+// file upload routes use MaxFileSize, all other routes use defaultSizeLimit.
+func (s Server) sizeLimitMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limit := int64(defaultSizeLimit)
+
+			// use larger limit for file upload routes
+			if s.cfg.EnableFiles && r.Method == http.MethodPost {
+				path := r.URL.Path
+				if path == "/api/v1/file" || path == "/generate-file-link" {
+					limit = s.cfg.MaxFileSize + multipartFormOverhead
+				}
+			}
+
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+const multipartFormOverhead = 4096 // extra bytes for form fields in multipart requests
+
 func (s Server) routes() http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
@@ -141,7 +175,7 @@ func (s Server) routes() http.Handler {
 		Timeout(60*time.Second),
 		rest.AppInfo("secrets", "Umputun", s.version),
 		rest.Ping,
-		rest.SizeLimit(64*1024),
+		s.sizeLimitMiddleware(),
 		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
 	)
 
@@ -151,6 +185,10 @@ func (s Server) routes() http.Handler {
 		apiGroup.HandleFunc("POST /message", s.saveMessageCtrl)
 		apiGroup.HandleFunc("GET /message/{key}/{pin}", s.getMessageCtrl)
 		apiGroup.HandleFunc("GET /params", s.getParamsCtrl)
+		if s.cfg.EnableFiles {
+			apiGroup.HandleFunc("POST /file", s.saveFileCtrl)
+			apiGroup.HandleFunc("GET /file/{key}/{pin}", s.getFileCtrl)
+		}
 	})
 
 	// web routes
@@ -164,6 +202,12 @@ func (s Server) routes() http.Handler {
 		webGroup.HandleFunc("GET /close-popup", s.closePopupCtrl)
 		webGroup.HandleFunc("GET /about", s.aboutViewCtrl)
 		webGroup.HandleFunc("GET /{$}", s.indexCtrl) // exact match for root only
+		if s.cfg.EnableFiles {
+			webGroup.HandleFunc("GET /form/text", s.textFormPartialCtrl)
+			webGroup.HandleFunc("GET /form/file", s.fileFormPartialCtrl)
+			webGroup.HandleFunc("POST /generate-file-link", s.generateFileLinkCtrl)
+			webGroup.HandleFunc("POST /download-file", s.downloadFileCtrl)
+		}
 	})
 
 	// special routes without groups
@@ -273,16 +317,139 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 // GET /params
 func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
-	params := struct {
-		PinSize        int `json:"pin_size"`
-		MaxPinAttempts int `json:"max_pin_attempts"`
-		MaxExpSecs     int `json:"max_exp_sec"`
-	}{
+	type paramsResp struct {
+		PinSize        int   `json:"pin_size"`
+		MaxPinAttempts int   `json:"max_pin_attempts"`
+		MaxExpSecs     int   `json:"max_exp_sec"`
+		FilesEnabled   bool  `json:"files_enabled,omitempty"`
+		MaxFileSize    int64 `json:"max_file_size,omitempty"`
+	}
+	params := paramsResp{
 		PinSize:        s.cfg.PinSize,
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 	}
+	if s.cfg.EnableFiles {
+		params.FilesEnabled = true
+		params.MaxFileSize = s.cfg.MaxFileSize
+	}
 	rest.RenderJSON(w, params)
+}
+
+// POST /api/v1/file - save file
+func (s Server) saveFileCtrl(w http.ResponseWriter, r *http.Request) {
+	// size limit is enforced by sizeLimitMiddleware
+	if err := r.ParseMultipartForm(s.cfg.MaxFileSize); err != nil {
+		log.Printf("[WARN] can't parse multipart form: %v", err)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "file too large or invalid form")
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		log.Printf("[WARN] no file in request: %v", err)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "file required")
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		log.Printf("[ERROR] can't read file: %v", err)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusInternalServerError, err, "failed to read file")
+		return
+	}
+
+	pin := r.FormValue("pin")
+	if len(pin) != s.cfg.PinSize {
+		log.Printf("[WARN] incorrect pin size %d for file upload", len(pin))
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("incorrect pin size"), "incorrect pin size")
+		return
+	}
+
+	expStr := r.FormValue("exp")
+	exp, err := strconv.Atoi(expStr)
+	if err != nil {
+		log.Printf("[WARN] invalid expiration: %v", err)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "invalid expiration")
+		return
+	}
+	if exp <= 0 {
+		log.Printf("[WARN] expiration must be positive: %d", exp)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("expiration must be positive"), "expiration must be positive")
+		return
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	msg, err := s.messager.MakeFileMessage(time.Second*time.Duration(exp), data, header.Filename, contentType, pin)
+	if err != nil {
+		log.Printf("[WARN] can't create file message: %v", err)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create file message")
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	rest.RenderJSON(w, rest.JSON{"key": msg.Key, "exp": msg.Exp})
+	log.Printf("[INFO] created file message %s, file=%s, size=%d, exp=%s", msg.Key, header.Filename, len(data), msg.Exp.Format(time.RFC3339))
+}
+
+// GET /api/v1/file/{key}/{pin} - get file
+func (s Server) getFileCtrl(w http.ResponseWriter, r *http.Request) {
+	key, pin := r.PathValue("key"), r.PathValue("pin")
+	if key == "" || pin == "" || len(pin) != s.cfg.PinSize {
+		log.Print("[WARN] no valid key or pin in get file request")
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("no key or pin passed"), "invalid request")
+		return
+	}
+
+	serveRequest := func() (status int, msg *store.Message, errMsg string) {
+		msg, err := s.messager.LoadMessage(key, pin)
+		if err != nil {
+			log.Printf("[WARN] failed to load file key %v", key)
+			if errors.Is(err, messager.ErrBadPinAttempt) {
+				return http.StatusExpectationFailed, nil, err.Error()
+			}
+			return http.StatusBadRequest, nil, err.Error()
+		}
+		if !msg.IsFile {
+			return http.StatusBadRequest, nil, "not a file message"
+		}
+		return http.StatusOK, msg, ""
+	}
+
+	// make sure serveRequest works constant time on any branch
+	st := time.Now()
+	status, msg, errMsg := serveRequest()
+	time.Sleep(time.Millisecond*100 - time.Since(st))
+
+	if status != http.StatusOK {
+		w.WriteHeader(status)
+		rest.RenderJSON(w, rest.JSON{"error": errMsg})
+		log.Printf("[INFO] file access failed %s, status %d", key, status)
+		return
+	}
+
+	// serve the file with security headers
+	contentType := msg.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	// use mime.FormatMediaType for proper RFC 2231 encoding of filename
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": msg.FileName})
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(msg.Data)), 10))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(msg.Data); err != nil {
+		log.Printf("[WARN] failed to write file data for %s: %v", key, err)
+	}
+	log.Printf("[INFO] served file %s, name=%s, size=%d", key, msg.FileName, len(msg.Data))
 }
 
 // sitemapCtrl generates an XML sitemap for SEO

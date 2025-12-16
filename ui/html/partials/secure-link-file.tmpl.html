@@ -1,0 +1,75 @@
+{{define "title"}}Share the file{{end}}
+
+{{define "secure-link-file"}}
+
+<div id="msg-link" class="card">
+    <div class="card-header">
+        <h2 class="card-title">Secure File Link Generated</h2>
+        <p class="card-description">Your file "{{.FileName}}" ({{.FileSize}}) has been encrypted. Share this link and PIN separately.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="msg-text">Copy this link to download your encrypted file</label>
+        <textarea name="msg-link-text"
+                  id="msg-text"
+                  readonly>{{.URL}}</textarea>
+    </div>
+
+    <div class="form-row two-cols">
+        <button type="button"
+                class="main-btn"
+                id="copy-link-btn"
+                hx-post="/copy-feedback"
+                hx-vals='{"type": "Link"}'
+                hx-target="#popup"
+                hx-swap="outerHTML"
+                hx-trigger="click"
+                hx-on::before-request="
+                    const textarea = document.getElementById('msg-text');
+                    navigator.clipboard.writeText(textarea.value).then(() => {
+                        this.innerHTML = `
+                            <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                                <polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/>
+                            </svg>
+                            <span class='btn-text'>Copied!</span>
+                        `;
+                        this.style.background = 'var(--color-success)';
+                    }).catch(() => {
+                        this.innerHTML = `
+                            <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                                <line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/>
+                                <line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/>
+                            </svg>
+                            <span class='btn-text'>Error!</span>
+                        `;
+                        this.style.background = 'var(--color-error)';
+                    });
+                "
+                hx-on::after-settle="
+                    setTimeout(() => {
+                        this.innerHTML = `
+                            <svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                                <rect x='9' y='9' width='13' height='13' rx='2' ry='2' stroke='currentColor' stroke-width='2'/>
+                                <path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' stroke='currentColor' stroke-width='2'/>
+                            </svg>
+                            <span class='btn-text'>Copy Link</span>
+                        `;
+                        this.style.background = '';
+                    }, 2000);
+                ">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            <span class="btn-text">Copy Link</span>
+        </button>
+        <a class="second-btn" href="/">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <polyline points="12,6 12,12 16,14" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            Create Another
+        </a>
+    </div>
+</div>
+{{end}}

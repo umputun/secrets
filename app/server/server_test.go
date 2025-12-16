@@ -854,3 +854,361 @@ func TestServer_MultipleDomainsLinkGeneration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test message", respLoad.Message)
 }
+
+func TestServer_saveFileCtrl(t *testing.T) {
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: 5 * time.Second}
+
+	t.Run("valid file upload", func(t *testing.T) {
+		body, contentType := createMultipartFile(t, "file", "test.txt", "text/plain", []byte("secret file content"), "12345", "600")
+		req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, 201, resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		var result map[string]any
+		err = json.Unmarshal(respBody, &result)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result["key"])
+		assert.NotEmpty(t, result["exp"])
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		body, contentType := createMultipartFile(t, "", "", "", nil, "12345", "600")
+		req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 400, resp.StatusCode)
+	})
+
+	t.Run("wrong pin size", func(t *testing.T) {
+		body, contentType := createMultipartFile(t, "file", "test.txt", "text/plain", []byte("content"), "123", "600")
+		req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 400, resp.StatusCode)
+	})
+
+	t.Run("exp exceeds max", func(t *testing.T) {
+		body, contentType := createMultipartFile(t, "file", "test.txt", "text/plain", []byte("content"), "12345", "999999")
+		req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 400, resp.StatusCode)
+	})
+}
+
+func TestServer_getFileCtrl(t *testing.T) {
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: 5 * time.Second}
+
+	// upload a file first
+	fileContent := []byte("secret file content for download")
+	body, contentType := createMultipartFile(t, "file", "download-test.txt", "text/plain", fileContent, "12345", "600")
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", contentType)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, 201, resp.StatusCode)
+
+	var saveResp struct {
+		Key string
+		Exp time.Time
+	}
+	err = json.NewDecoder(resp.Body).Decode(&saveResp)
+	require.NoError(t, err)
+
+	t.Run("valid download", func(t *testing.T) {
+		url := fmt.Sprintf("%s/api/v1/file/%s/12345", ts.URL, saveResp.Key)
+		resp, err := client.Get(url)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, "text/plain", resp.Header.Get("Content-Type"))
+		assert.Contains(t, resp.Header.Get("Content-Disposition"), "download-test.txt")
+
+		downloadedContent, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, fileContent, downloadedContent)
+	})
+
+	t.Run("second download fails (one-time access)", func(t *testing.T) {
+		url := fmt.Sprintf("%s/api/v1/file/%s/12345", ts.URL, saveResp.Key)
+		resp, err := client.Get(url)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 400, resp.StatusCode)
+	})
+
+	t.Run("wrong pin", func(t *testing.T) {
+		// upload another file
+		body, contentType := createMultipartFile(t, "file", "test2.txt", "text/plain", []byte("content"), "12345", "600")
+		req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, 201, resp.StatusCode)
+
+		var resp2 struct{ Key string }
+		err = json.NewDecoder(resp.Body).Decode(&resp2)
+		require.NoError(t, err)
+
+		url := fmt.Sprintf("%s/api/v1/file/%s/00000", ts.URL, resp2.Key)
+		getResp, err := client.Get(url)
+		require.NoError(t, err)
+		defer getResp.Body.Close()
+		assert.Equal(t, 417, getResp.StatusCode) // wrong pin attempt
+	})
+
+	t.Run("non-existent key", func(t *testing.T) {
+		url := fmt.Sprintf("%s/api/v1/file/badkey/12345", ts.URL)
+		resp, err := client.Get(url)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 400, resp.StatusCode)
+	})
+}
+
+func TestServer_fileEndpointsDisabled(t *testing.T) {
+	// test that file endpoints return 404 when EnableFiles is false
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+
+	client := http.Client{Timeout: time.Second}
+
+	t.Run("POST /api/v1/file disabled", func(t *testing.T) {
+		body, contentType := createMultipartFile(t, "file", "test.txt", "text/plain", []byte("content"), "12345", "600")
+		req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 404, resp.StatusCode)
+	})
+
+	t.Run("GET /api/v1/file disabled", func(t *testing.T) {
+		resp, err := client.Get(ts.URL + "/api/v1/file/somekey/12345")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 404, resp.StatusCode)
+	})
+}
+
+func TestServer_getParamsWithFiles(t *testing.T) {
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: time.Second}
+	resp, err := client.Get(ts.URL + "/api/v1/params")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, 200, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":true,"max_file_size":1048576}`+"\n", string(body))
+}
+
+func prepTestServerWithFiles(t *testing.T) (ts *httptest.Server, teardown func()) {
+	eng := store.NewInMemory(time.Second * 30)
+
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    1024 * 1024,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			Protocol:       "https",
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			EnableFiles:    true,
+			MaxFileSize:    1024 * 1024,
+		})
+
+	require.NoError(t, err)
+
+	ts = httptest.NewServer(srv.routes())
+	return ts, ts.Close
+}
+
+func createMultipartFile(t *testing.T, fieldName, fileName, contentType string, content []byte, pin, exp string) (body *strings.Reader, ct string) {
+	t.Helper()
+	var b strings.Builder
+	boundary := "----TestBoundary7MA4YWxkTrZu0gW"
+
+	if fieldName != "" && content != nil {
+		b.WriteString("--" + boundary + "\r\n")
+		b.WriteString(fmt.Sprintf("Content-Disposition: form-data; name=%q; filename=%q\r\n", fieldName, fileName))
+		b.WriteString(fmt.Sprintf("Content-Type: %s\r\n\r\n", contentType))
+		b.Write(content)
+		b.WriteString("\r\n")
+	}
+
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Disposition: form-data; name=\"pin\"\r\n\r\n")
+	b.WriteString(pin + "\r\n")
+
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Disposition: form-data; name=\"exp\"\r\n\r\n")
+	b.WriteString(exp + "\r\n")
+
+	b.WriteString("--" + boundary + "--\r\n")
+
+	return strings.NewReader(b.String()), "multipart/form-data; boundary=" + boundary
+}
+
+func TestServer_saveFileCtrl_LargeFile(t *testing.T) {
+	// test that files larger than 64KB (global default limit) can be uploaded when files are enabled
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: 10 * time.Second}
+
+	// create a file larger than 64KB but smaller than 1MB max
+	largeContent := make([]byte, 100*1024) // 100KB
+	for i := range largeContent {
+		largeContent[i] = byte(i % 256)
+	}
+
+	body, contentType := createMultipartFile(t, "file", "large-file.bin", "application/octet-stream", largeContent, "12345", "600")
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", contentType)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, 201, resp.StatusCode, "large files (>64KB) should be accepted when files are enabled")
+	respBody, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	err = json.Unmarshal(respBody, &result)
+	require.NoError(t, err)
+	assert.NotEmpty(t, result["key"])
+}
+
+func TestServer_getFileCtrl_SpecialFilename(t *testing.T) {
+	// test that files with special characters in filename are handled correctly
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: 5 * time.Second}
+
+	// upload a file with special characters in name
+	fileContent := []byte("test content")
+	specialName := "file with spaces & special.txt"
+	body, contentType := createMultipartFile(t, "file", specialName, "text/plain", fileContent, "12345", "600")
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", contentType)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, 201, resp.StatusCode)
+
+	var saveResp struct{ Key string }
+	err = json.NewDecoder(resp.Body).Decode(&saveResp)
+	require.NoError(t, err)
+
+	// download and check headers
+	url := fmt.Sprintf("%s/api/v1/file/%s/12345", ts.URL, saveResp.Key)
+	downloadResp, err := client.Get(url)
+	require.NoError(t, err)
+	defer downloadResp.Body.Close()
+
+	assert.Equal(t, 200, downloadResp.StatusCode)
+	assert.Equal(t, "nosniff", downloadResp.Header.Get("X-Content-Type-Options"), "should have X-Content-Type-Options header")
+	assert.Contains(t, downloadResp.Header.Get("Content-Disposition"), "attachment", "should be attachment")
+	assert.Contains(t, downloadResp.Header.Get("Content-Disposition"), specialName, "should contain filename")
+}
+
+func TestServer_saveFileCtrl_InvalidExpiration(t *testing.T) {
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: 5 * time.Second}
+
+	tests := []struct {
+		name   string
+		exp    string
+		status int
+	}{
+		{name: "zero expiration", exp: "0", status: 400},
+		{name: "negative expiration", exp: "-100", status: 400},
+		{name: "non-numeric expiration", exp: "abc", status: 400},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, contentType := createMultipartFile(t, "file", "test.txt", "text/plain", []byte("content"), "12345", tt.exp)
+			req, err := http.NewRequest("POST", ts.URL+"/api/v1/file", body)
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", contentType)
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, tt.status, resp.StatusCode)
+		})
+	}
+}
+
+func TestServer_getFileCtrl_TextMessageViaFileEndpoint(t *testing.T) {
+	// test that accessing a text message via file endpoint returns error
+	ts, teardown := prepTestServerWithFiles(t)
+	defer teardown()
+
+	client := http.Client{Timeout: 5 * time.Second}
+
+	// create a text message (not a file)
+	saveBody := `{"message":"secret text","pin":"12345","exp":600}`
+	saveResp, err := client.Post(ts.URL+"/api/v1/message", "application/json", strings.NewReader(saveBody))
+	require.NoError(t, err)
+	defer saveResp.Body.Close()
+	require.Equal(t, 201, saveResp.StatusCode)
+
+	var result struct{ Key string }
+	err = json.NewDecoder(saveResp.Body).Decode(&result)
+	require.NoError(t, err)
+
+	// try to access via file endpoint
+	url := fmt.Sprintf("%s/api/v1/file/%s/12345", ts.URL, result.Key)
+	getResp, err := client.Get(url)
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+
+	assert.Equal(t, 400, getResp.StatusCode, "should reject text message via file endpoint")
+}

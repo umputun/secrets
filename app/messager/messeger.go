@@ -20,13 +20,17 @@ import (
 
 // Errors
 var (
-	ErrBadPin        = fmt.Errorf("wrong pin")
-	ErrBadPinAttempt = fmt.Errorf("wrong pin attempt")
-	ErrCrypto        = fmt.Errorf("crypto error")
-	ErrInternal      = fmt.Errorf("internal error")
-	ErrExpired       = fmt.Errorf("message expired")
-	ErrDuration      = fmt.Errorf("bad duration")
+	ErrBadPin         = fmt.Errorf("wrong pin")
+	ErrBadPinAttempt  = fmt.Errorf("wrong pin attempt")
+	ErrCrypto         = fmt.Errorf("crypto error")
+	ErrInternal       = fmt.Errorf("internal error")
+	ErrExpired        = fmt.Errorf("message expired")
+	ErrDuration       = fmt.Errorf("bad duration")
+	ErrFileTooLarge   = fmt.Errorf("file too large")
+	ErrFileNameLength = fmt.Errorf("filename too long")
 )
+
+const maxFileNameLength = 255 // max filename length in bytes
 
 // MessageProc creates and save messages and retrieve per key
 type MessageProc struct {
@@ -39,6 +43,7 @@ type MessageProc struct {
 type Params struct {
 	MaxDuration    time.Duration
 	MaxPinAttempts int
+	MaxFileSize    int64
 }
 
 // Crypter interface wraps crypt methods
@@ -106,6 +111,62 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		log.Printf("[ERROR] failed to encrypt, %v", err)
 		return nil, ErrCrypto
 	}
+	err = p.engine.Save(result)
+	return result, err
+}
+
+// MakeFileMessage creates encrypted file message with metadata, saves to engine.
+func (p MessageProc) MakeFileMessage(duration time.Duration, data []byte, fileName, contentType, pin string) (result *store.Message, err error) {
+	if pin == "" {
+		log.Printf("[WARN] file save rejected, empty pin")
+		return nil, ErrBadPin
+	}
+
+	if len(fileName) > maxFileNameLength {
+		log.Printf("[WARN] file save rejected, filename too long: %d > %d", len(fileName), maxFileNameLength)
+		return nil, ErrFileNameLength
+	}
+
+	if p.MaxFileSize > 0 && int64(len(data)) > p.MaxFileSize {
+		log.Printf("[WARN] file save rejected, size %d > max %d", len(data), p.MaxFileSize)
+		return nil, ErrFileTooLarge
+	}
+
+	pinHash, err := p.makeHash(pin)
+	if err != nil {
+		log.Printf("[ERROR] can't hash pin for file, %v", err)
+		return nil, ErrInternal
+	}
+
+	if duration <= 0 {
+		log.Printf("[ERROR] can't use non-positive duration for file: %v", duration)
+		return nil, ErrDuration
+	}
+
+	if duration > p.MaxDuration {
+		log.Printf("[ERROR] can't use duration for file, %v > %v", duration, p.MaxDuration)
+		return nil, ErrDuration
+	}
+
+	key := uuid.New().String()
+	exp := time.Now().Add(duration)
+
+	result = &store.Message{
+		Key:         store.Key(exp, key),
+		Exp:         exp,
+		PinHash:     pinHash,
+		IsFile:      true,
+		FileName:    fileName,
+		ContentType: contentType,
+		FileSize:    int64(len(data)),
+	}
+
+	result.Data, err = p.crypt.Encrypt(Request{Data: data, Pin: pin})
+	if err != nil {
+		log.Printf("[ERROR] failed to encrypt file, %v", err)
+		return nil, ErrCrypto
+	}
+
 	err = p.engine.Save(result)
 	return result, err
 }
