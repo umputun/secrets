@@ -256,8 +256,7 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create message")
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	rest.RenderJSON(w, rest.JSON{"key": msg.Key, "exp": msg.Exp})
+	_ = rest.EncodeJSON(w, http.StatusCreated, rest.JSON{"key": msg.Key, "exp": msg.Exp})
 	log.Printf("[INFO] created message %s exp %s", msg.Key, msg.Exp.Format(time.RFC3339))
 }
 
@@ -291,8 +290,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	st := time.Now()
 	status, res := serveRequest()
 	time.Sleep(time.Millisecond*100 - time.Since(st))
-	w.WriteHeader(status)
-	rest.RenderJSON(w, res)
+	_ = rest.EncodeJSON(w, status, res)
 
 	var statusText string
 	switch status {
