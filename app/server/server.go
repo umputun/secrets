@@ -36,6 +36,9 @@ type Config struct {
 	// file upload settings
 	EnableFiles bool
 	MaxFileSize int64 // bytes, 0 means use default (1MB)
+	// authentication (optional)
+	AuthHash   string        // bcrypt hash of password, empty disables auth
+	SessionTTL time.Duration // session lifetime, defaults to 24h
 }
 
 // Server is a rest with store
@@ -166,6 +169,13 @@ func (s Server) routes() http.Handler {
 		apiGroup.HandleFunc("GET /params", s.getParamsCtrl)
 	})
 
+	// auth routes (only if auth enabled)
+	if s.cfg.AuthHash != "" {
+		router.HandleFunc("POST /login", s.loginCtrl)
+		router.HandleFunc("GET /logout", s.logoutCtrl)
+		router.HandleFunc("GET /login-popup", s.loginPopupCtrl)
+	}
+
 	// web routes
 	router.Group().Route(func(webGroup *routegroup.Bundle) {
 		webGroup.Use(Logger(log.Default()), StripSlashes)
@@ -216,6 +226,13 @@ func (s Server) routes() http.Handler {
 }
 
 func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
+	// check basic auth if auth is enabled
+	if s.cfg.AuthHash != "" && !s.checkBasicAuth(r) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="secrets"`)
+		rest.SendErrorJSON(w, r, log.Default(), http.StatusUnauthorized, errors.New("unauthorized"), "authentication required")
+		return
+	}
+
 	request := struct {
 		Message string
 		Exp     int

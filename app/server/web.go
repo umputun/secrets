@@ -126,6 +126,15 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 // For file uploads (multipart/form-data):
 //   - "file" (file): The file to upload
 func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
+	// check auth if enabled
+	if s.cfg.AuthHash != "" && !s.isAuthenticated(r) {
+		s.render(w, http.StatusUnauthorized, "login-popup.tmpl.html", "login-popup", struct {
+			Error string
+			Theme string
+		}{Error: "", Theme: getTheme(r)})
+		return
+	}
+
 	contentType := r.Header.Get("Content-Type")
 	isMultipart := strings.HasPrefix(contentType, "multipart/form-data")
 

@@ -21,7 +21,9 @@
           hx-swap="outerHTML"
           hx-indicator="#form-spinner"
           hx-target-400="#form-card"
-          hx-target-500="#notifications">
+          hx-target-401="#popup"
+          hx-target-500="#notifications"
+          hx-trigger="submit, submitSecretForm from:body">
 
         <div id="content-input">
             {{template "text-input" .}}

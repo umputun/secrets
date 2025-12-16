@@ -137,6 +137,8 @@ Key configuration via environment variables or flags:
 - `PROTOCOL` - http or https (default: https)
 - `FILES_ENABLED` - Enable file uploads (default: false)
 - `FILES_MAX_SIZE` - Maximum file size in bytes (default: 1MB)
+- `AUTH_HASH` - bcrypt hash of password (enables auth for link generation if set)
+- `AUTH_SESSION_TTL` - Session lifetime (default: 168h / 7 days)
 
 ## Testing Approach
 
@@ -221,6 +223,11 @@ Core libraries used:
 - 404: Resource not found (expired/missing messages)
 - HTMX requests return appropriate status codes, non-HTMX fallback to 200 with error template
 
+### Dynamic Content Patterns
+- **Autofocus on HTMX-loaded content**: `autofocus` attribute doesn't work on dynamically loaded content. Use inline `<script>setTimeout(function(){document.getElementById('field')?.focus();},50);</script>` after the element. 50ms delay needed for DOM to render.
+- **Form state preservation after popup**: `HX-Refresh: true` causes full page reload, losing form data. Better pattern: return `HX-Trigger: eventName` header + on form use `hx-trigger="submit, eventName from:body"` to re-submit with preserved data (works with multipart file uploads too).
+- **HX-Trigger event targeting**: Events from `HX-Trigger` header dispatch to the *target* element. To catch on other elements, use `hx-trigger="eventName from:body"` syntax.
+
 ### Template Data Pattern
 - `templateData` struct wraps all template variables with consistent fields:
   - Form: Contains form-specific data and validation
@@ -266,3 +273,4 @@ Core libraries used:
 - Tests may fail locally if port is occupied but pass in CI
 - Build binary embeds UI assets, no need for `--web` flag after building
 - Run formatter, goimports, and unfuck-ai-comments before committing
+- **AUTH_HASH in environment**: When testing without auth, use `--auth.hash=""` explicitly - the env may have AUTH_HASH set which overrides the default

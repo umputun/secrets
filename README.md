@@ -1,31 +1,30 @@
-# Safe Secrets - safe(r) and easy way to transfer passwords
+# Safe Secrets - safe(r) and easy way to transfer sensitive data
 
 [![Build Status](https://github.com/umputun/secrets/workflows/build/badge.svg)](https://github.com/umputun/secrets/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/umputun/secrets)](https://goreportcard.com/report/github.com/umputun/secrets) [![Coverage Status](https://coveralls.io/repos/github/umputun/secrets/badge.svg?branch=master)](https://coveralls.io/github/umputun/secrets?branch=master) [![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/umputun/secrets/)
 
-The primary use-case is sharing sensitive data by making the information self-destructed, accessible only once and protected
-by easy-to-share PIN code. I just needed a simple and better alternative to the most popular way of passing passwords,
-which is why this project was created. Doing this by email always made me concerned about the usual "security" of sending user
-and password info in two different emails - which is just a joke.
+The primary use case is sharing sensitive data securely - messages that self-destruct, can only be accessed once, and are protected by an easy-to-share PIN code. I got tired of the usual "security" approach of sending username and password in two separate emails - that's just a joke. So I built this as a simple and better alternative to passing passwords around.
 
-## Usage
+## Quick Start
 
-It runs on **[safesecret.info](https://safesecret.info)** for real. Feel free to use it if you are crazy enough to trust me,
-or just run your own from prepared docker image. And of course, you can build from sources as well.
+```bash
+# run with docker
+docker run -p 8080:8080 -e SIGN_KEY=your-random-secret-key -e DOMAIN=localhost -e PROTOCOL=http umputun/secrets
 
-Create a **safesecret** link to your message by entering 3 things:
+# or build and run locally
+cd app && go build -o secrets && ./secrets -k "your-secret-key" -d localhost -p http
+```
 
-- Content of your secret message (text or file)
-- Expiration time of your secret message
-- Secret PIN
+Then open http://localhost:8080 in your browser.
 
- This will give you a link which you can send by email, chat or share by using any other means.
+## How It Works
 
-### File Sharing
+1. Enter your secret message (or upload a file)
+2. Set expiration time and a PIN
+3. Get a one-time link to share
 
-When file uploads are enabled, you can also share files securely. Files are encrypted with your PIN just like text messages and self-destruct after being downloaded once. The file name is preserved but stored separately from the encrypted content.
- As soon as your recipient opens the link they will be asked for the secret PIN and see your secret message.
- The PIN is (typically) numeric and easy to pass by a voice call or text message.
- Each link can be opened only **once** and the number of attempts to enter a wrong PIN is limited to 3 times by default.
+Your recipient opens the link, enters the PIN, and sees the message. That's it. The message is deleted immediately after reading, and wrong PIN attempts are limited (default: 3 tries).
+
+**Try it live:** [safesecret.info](https://safesecret.info) - feel free to use it if you're crazy enough to trust me, or run your own instance.
 
 <details>
 <summary><b>Screenshots</b> (click to expand)</summary>
@@ -47,188 +46,213 @@ When file uploads are enabled, you can also share files securely. Files are encr
 
 </details>
 
-## How safe is this thing
+## How Safe Is This Thing
 
-- It doesn't keep your original message or PIN anywhere, but encrypts your message with PIN (hashed as well)
-- It doesn't keep any sensitive info in any logs
-- It doesn't keep anything on a disk in any form (in case of default engine)
-- As soon as a message is read or expired it will be deleted and destroyed permanently
-- In order to steal your message, bad guys would need access to your link as well as PIN code
+- Messages are encrypted with your PIN (which is also hashed) - the original is never stored
+- Nothing sensitive in logs
+- Nothing on disk by default (in-memory storage)
+- Messages are permanently destroyed after reading or expiration
+- An attacker would need both the link AND the PIN to access anything
 
 _Feel free to suggest any other ways to make the process safer._
 
 ## Installation
 
-### Docker Deployment (Recommended)
+### Docker (Recommended)
 
-1. Download `docker-compose.yml` and `secrets-nginx.conf`
-1. Adjust your local `docker-compose.yml` with:
-    - TZ - your local time zone
-    - SIGN_KEY - something long and random
-    - MAX_EXPIRE - maximum lifetime period, default 24h
-    - PIN_SIZE - size (in characters) of the pin, default 5
-    - PIN_ATTEMPTS - maximum number of failed attempts to enter pin, default 3
-    - DOMAIN - your domain name(s) (e.g., example.com or "example.com,alt.example.com" for multiple)
-    - PROTOCOL - http or https
-1. Setup SSL:
-    - The system can make valid certificates for you automatically with integrated [nginx-le](https://github.com/umputun/nginx-le). Just set:
-        - LETSENCRYPT=true
-        - LE_EMAIL=name@example.com
-        - LE_FQDN=www.example.com
-    - In case you have your own certificates, copy them to `etc/ssl` and set:
-        - SSL_CERT - SSL certificate (file name, not path)
-        - SSL_KEY - SSL key (file name, not path)
-1. Run the system with `docker-compose up -d`. This will download a prepared image from docker hub and start all components.
-1. if you want to build it from sources - `docker-compose build` will do it, and then `docker-compose up -d`.
-
-_See [docker-compose.yml](https://github.com/umputun/secrets/blob/master/docker-compose.yml) for more details_
-
-### Stand-alone Deployment
-
-You can also run Safesecret directly without Docker:
+**Simple setup:**
 
 ```bash
-./secrets [OPTIONS]
+docker run -p 8080:8080 \
+  -e SIGN_KEY=your-long-random-secret \
+  -e DOMAIN=example.com \
+  -e PROTOCOL=https \
+  umputun/secrets
 ```
 
-**Available Options:**
+**Production setup with docker-compose:**
 
-- `-e, --engine=[MEMORY|BOLT]` - storage engine (default: MEMORY)
-- `-k, --key=` - sign key (required for security)
-- `--pinsize=` - pin size in characters (default: 5)
-- `--expire=` - max lifetime for messages (default: 24h)
-- `--pinattempts=` - max attempts to enter pin (default: 3)
-- `--bolt=` - path to boltdb file when using BOLT engine (default: /tmp/secrets.bd)
-- `--web=` - web UI static files location (development only, uses embedded files if not set)
-- `--branding=` - application title/branding text (default: "Safe Secrets")
-- `-d, --domain=` - site domain(s) (required for generating message links, supports comma-separated list)
-- `-p, --protocol=[http|https]` - site protocol (default: https)
-- `--dbg` - enable debug mode
-- `--files.enabled` - enable file uploads (default: false)
-- `--files.max-size` - maximum file size in bytes (default: 1048576, i.e., 1MB)
+1. Download `docker-compose.yml` from this repo
+2. Configure environment variables (see Configuration section below)
+3. Run `docker-compose up -d`
 
-**Environment Variables:**
+For SSL termination, put a reverse proxy in front (e.g., [reproxy](https://github.com/umputun/reproxy), nginx, or traefik).
 
-All options can also be set via environment variables:
-- `ENGINE` - storage engine
-- `SIGN_KEY` - sign key
-- `PIN_SIZE` - pin size
-- `MAX_EXPIRE` - max lifetime
-- `PIN_ATTEMPTS` - max pin attempts
-- `BOLT_FILE` - boltdb file path
-- `WEB` - web UI location (development only, uses embedded files if not set)
-- `BRANDING` - application title/branding text
-- `DOMAIN` - site domain(s), supports comma-separated list
-- `PROTOCOL` - site protocol
-- `FILES_ENABLED` - enable file uploads
-- `FILES_MAX_SIZE` - maximum file size in bytes
+_See [docker-compose.yml](https://github.com/umputun/secrets/blob/master/docker-compose.yml) for a complete example._
 
-**Example:**
+### Binary
+
+Download from releases or build from source:
 
 ```bash
-# Run with in-memory storage
+cd app && go build -o secrets
 ./secrets -k "your-secret-key" -d "example.com" -p https
-
-# Run with multiple domains
-./secrets -k "your-secret-key" -d "example.com,alt.example.com" -p https
-
-# Run with persistent storage (BoltDB)
-./secrets -e BOLT --bolt=/var/lib/secrets/data.db -k "your-secret-key" -d "example.com"
-
-# Run with custom branding
-./secrets -k "your-secret-key" -d "example.com" --branding="Acme Corp Secrets"
-
-# Run with file uploads enabled (5MB max)
-./secrets -k "your-secret-key" -d "example.com" --files.enabled --files.max-size=5242880
 ```
 
-### Technical details
+## Configuration
 
-**Safesecret** usually deployed via docker-compose and has two containers in:
+All options work as both CLI flags and environment variables. The app listens on port **8080** by default.
 
-- application `secrets` container providing both backend (API) and frontend (UI)
-- nginx-le container with nginx proxy and let's encrypt SSL support
+### Core Options
 
-Application container is fully functional without nginx proxy and can be used in stand-alone mode. You may want such setup
-in case you run **safesecret** behind different proxy, i.e. haproxy, AWS ELB/ALB and so on.
+| Flag | Env Variable | Default | Description |
+|------|--------------|---------|-------------|
+| `-k, --key` | `SIGN_KEY` | *required* | Signing key for encryption |
+| `-d, --domain` | `DOMAIN` | *required* | Site domain(s), comma-separated for multiple |
+| `-p, --protocol` | `PROTOCOL` | `https` | Site protocol (http/https) |
+| `--branding` | `BRANDING` | `Safe Secrets` | Application title |
+| `--dbg` | - | `false` | Enable debug mode |
+
+### Message Settings
+
+| Flag | Env Variable | Default | Description |
+|------|--------------|---------|-------------|
+| `--pinsize` | `PIN_SIZE` | `5` | PIN length in characters |
+| `--expire` | `MAX_EXPIRE` | `24h` | Maximum message lifetime |
+| `--pinattempts` | `PIN_ATTEMPTS` | `3` | Max wrong PIN attempts |
+
+### Storage
+
+| Flag | Env Variable | Default | Description |
+|------|--------------|---------|-------------|
+| `-e, --engine` | `ENGINE` | `MEMORY` | Storage engine: MEMORY or BOLT |
+| `--bolt` | `BOLT_FILE` | `/tmp/secrets.bd` | BoltDB file path |
+
+### File Uploads
+
+Share files securely - they're encrypted with your PIN just like text messages and self-destruct after download. The filename is preserved but stored encrypted.
+
+| Flag | Env Variable | Default | Description |
+|------|--------------|---------|-------------|
+| `--files.enabled` | `FILES_ENABLED` | `false` | Enable file uploads |
+| `--files.max-size` | `FILES_MAX_SIZE` | `1048576` | Max file size in bytes (1MB) |
+
+### Authentication
+
+Optional password protection for creating secrets. When enabled, users must log in before they can generate links. Viewing/consuming secrets remains anonymous - no login required to open a link with the correct PIN.
+
+| Flag | Env Variable | Default | Description |
+|------|--------------|---------|-------------|
+| `--auth.hash` | `AUTH_HASH` | *disabled* | bcrypt hash to enable auth |
+| `--auth.session-ttl` | `AUTH_SESSION_TTL` | `168h` | Session lifetime (7 days) |
+
+**Generate a bcrypt hash:**
+
+```bash
+# htpasswd (Apache utils)
+htpasswd -bnBC 10 "" yourpassword | tr -d ':'
+
+# mkpasswd (apt install whois)
+mkpasswd -m bcrypt yourpassword
+
+# Docker
+docker run --rm caddy caddy hash-password --plaintext yourpassword
+```
+
+**Web UI:** Login popup appears when creating a secret. Sessions stored in cookies.
+
+**API:** Requires HTTP Basic Auth with username `secrets` and your password.
+
+### Examples
+
+```bash
+# basic usage
+./secrets -k "secret-key" -d "example.com"
+
+# multiple domains
+./secrets -k "secret-key" -d "example.com,alt.example.com"
+
+# persistent storage
+./secrets -k "secret-key" -d "example.com" -e BOLT --bolt=/data/secrets.db
+
+# with file uploads (5MB limit)
+./secrets -k "secret-key" -d "example.com" --files.enabled --files.max-size=5242880
+
+# with authentication
+./secrets -k "secret-key" -d "example.com" --auth.hash='$2a$10$...'
+```
+
+## Architecture
+
+**Safesecret** is a single binary with embedded web UI. Typical production setup:
+
+- `secrets` container - handles API and serves the web interface (port 8080)
+- reverse proxy - SSL termination ([reproxy](https://github.com/umputun/reproxy), nginx, traefik, etc.)
+
+The app works fine without a proxy for development or if you're running behind a load balancer (AWS ALB, haproxy, etc.).
 
 ## Integrations
 
-* [Raycast Extension](https://www.raycast.com/melonamin/safe-secret) - quickly share any text with Safesecret from Raycast
-* [Shortcut](https://www.icloud.com/shortcuts/1d0a8d22c3884c8d80341ccffb502931) - a shortcut for [Shortcuts](https://support.apple.com/guide/shortcuts/welcome/ios) app on Apple platforms. Adds integration with Safesecret to Share menu on iOS and to Share menu and Services menu on macOS
+- [Raycast Extension](https://www.raycast.com/melonamin/safe-secret) - share text quickly from Raycast
+- [Apple Shortcut](https://www.icloud.com/shortcuts/1d0a8d22c3884c8d80341ccffb502931) - adds Safesecret to Share menu on iOS/macOS
 
 ## API
 
-**Safesecret** provides trivial REST to save and load messages.
+Simple REST API for programmatic access.
 
-### Save message
+### Health Check
 
-`POST /api/v1/message`, body - `{"message":"some top secret info", "exp": 120, "pin": "12345"}`
+```
+GET /ping
+```
 
-- `exp` expire in N seconds
-- `pin` fixed-size pin code
-    ```
-        $ http POST https://safesecret.info/api/v1/message pin=12345 message=testtest-12345678 exp:=1000
+```bash
+$ curl https://safesecret.info/ping
+pong
+```
 
-        HTTP/1.1 201 Created
+### Create Secret
 
-        {
-            "exp": "2016-06-25T13:33:45.11847278-05:00",
-            "key": "f1acfe04-277f-4016-518d-16c312ab84b5"
-        }
-    ```
+```
+POST /api/v1/message
+```
 
-### Load message
+Body: `{"message": "secret text", "exp": 3600, "pin": "12345"}`
 
-`GET /api/v1/message/:key/:pin`
+- `exp` - expiration in seconds
+- `pin` - PIN code (must match configured length)
+- Requires Basic Auth when authentication is enabled (user: `secrets`)
 
-    ```
-        $ http GET https://safesecret.info/api/v1/message/6ceab760-3059-4a52-5670-649509b128fc/12345
+```bash
+$ curl -X POST https://safesecret.info/api/v1/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "my secret", "exp": 3600, "pin": "12345"}'
 
-        HTTP/1.1 200 OK
+{
+  "exp": "2024-01-15T10:30:00Z",
+  "key": "f1acfe04-277f-4016-518d-16c312ab84b5"
+}
+```
 
-        {
-            "key": "6ceab760-3059-4a52-5670-649509b128fc",
-            "message": "testtest-12345678"
-        }
-    ```
+### Retrieve Secret
 
-### ping
+```
+GET /api/v1/message/:key/:pin
+```
 
-`GET /ping` or `GET /api/v1/ping`
+```bash
+$ curl https://safesecret.info/api/v1/message/f1acfe04-277f-4016-518d-16c312ab84b5/12345
 
-Both endpoints work and return the same response. The ping middleware intercepts any path ending with `/ping`.
+{
+  "key": "f1acfe04-277f-4016-518d-16c312ab84b5",
+  "message": "my secret"
+}
+```
 
-    ```
-    $ http https://safesecret.info/ping
+### Get Configuration
 
-    HTTP/1.1 200 OK
+```
+GET /api/v1/params
+```
 
-    pong
-    ```
+```bash
+$ curl https://safesecret.info/api/v1/params
 
-    ```
-    $ http https://safesecret.info/api/v1/ping
-
-    HTTP/1.1 200 OK
-
-    pong
-    ```
-
-### Get params
-
-`GET /api/v1/params`
-
-    ```
-    $ http https://safesecret.info/api/v1/params
-
-    HTTP/1.1 200 OK
-
-    {
-        "max_exp_sec": 86400,
-        "max_pin_attempts": 3,
-        "pin_size": 5,
-        "files_enabled": true,
-        "max_file_size": 1048576
-    }
-    ```
+{
+  "max_exp_sec": 86400,
+  "max_pin_attempts": 3,
+  "pin_size": 5,
+  "files_enabled": true,
+  "max_file_size": 1048576
+}
+```
