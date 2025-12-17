@@ -9,7 +9,6 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/go-pkgz/notify"
@@ -18,22 +17,12 @@ import (
 //go:embed email.tmpl.html
 var defaultEmailTemplate string
 
-//go:generate moq -out mocks/sender_mock.go -pkg mocks -skip-ensure -fmt goimports . Sender
-
-// Sender defines interface for sending emails with secret links
-type Sender interface {
-	Send(ctx context.Context, req Request) error
-	RenderBody(link, fromName string) (string, error)
-	GetDefaultFromName() string
-}
-
 // Request contains all parameters for sending an email
 type Request struct {
-	To       []string // recipient email addresses
-	CC       []string // CC email addresses
-	Subject  string   // email subject
-	FromName string   // display name for From header
-	Link     string   // the secret link to include in email body
+	To       string // recipient email address
+	Subject  string // email subject
+	FromName string // display name for From header
+	Link     string // the secret link to include in email body
 }
 
 // Config contains SMTP configuration
@@ -49,8 +38,8 @@ type Config struct {
 	Template string // path to custom template file (optional)
 }
 
-// sender implements Sender using go-pkgz/notify
-type sender struct {
+// Sender sends emails with secret links using go-pkgz/notify
+type Sender struct {
 	notifier        *notify.Email
 	cfg             Config
 	branding        string
@@ -59,7 +48,7 @@ type sender struct {
 }
 
 // NewSender creates a new email sender with the given configuration
-func NewSender(cfg Config, branding string) (Sender, error) {
+func NewSender(cfg Config, branding string) (*Sender, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -105,7 +94,7 @@ func NewSender(cfg Config, branding string) (Sender, error) {
 		return nil, fmt.Errorf("failed to parse email template: %w", err)
 	}
 
-	s := &sender{
+	s := &Sender{
 		notifier: notifier,
 		cfg:      cfg,
 		branding: branding,
@@ -117,34 +106,23 @@ func NewSender(cfg Config, branding string) (Sender, error) {
 }
 
 // Send sends an email with the secret link
-func (s *sender) Send(ctx context.Context, req Request) error {
-	// render the email body
+func (s *Sender) Send(ctx context.Context, req Request) error {
 	body, err := s.RenderBody(req.Link, req.FromName)
 	if err != nil {
 		return fmt.Errorf("failed to render email body: %w", err)
 	}
 
-	// build the from address with display name
 	fromAddr := s.buildFromAddress(req.FromName)
+	destination := s.buildMailtoDestination(req.To, req.Subject, fromAddr)
 
-	// build all recipient addresses (To + CC)
-	allRecipients := make([]string, 0, len(req.To)+len(req.CC))
-	allRecipients = append(allRecipients, req.To...)
-	allRecipients = append(allRecipients, req.CC...)
-
-	// build mailto destination with all recipients
-	destination := s.buildMailtoDestination(allRecipients, req.Subject, fromAddr)
-
-	// send the email
 	if err := s.notifier.Send(ctx, destination, body); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
-
 	return nil
 }
 
 // RenderBody renders the email body with the given link and from name
-func (s *sender) RenderBody(link, fromName string) (string, error) {
+func (s *Sender) RenderBody(link, fromName string) (string, error) {
 	data := struct {
 		Link     string
 		From     string
@@ -164,7 +142,7 @@ func (s *sender) RenderBody(link, fromName string) (string, error) {
 }
 
 // buildFromAddress builds the From header value with display name
-func (s *sender) buildFromAddress(displayName string) string {
+func (s *Sender) buildFromAddress(displayName string) string {
 	// extract email from configured From (might be "Name <email>" or just "email")
 	emailAddr := s.extractEmail(s.cfg.From)
 
@@ -178,7 +156,7 @@ func (s *sender) buildFromAddress(displayName string) string {
 }
 
 // extractEmail extracts just the email address from a From string
-func (s *sender) extractEmail(from string) string {
+func (s *Sender) extractEmail(from string) string {
 	addr, err := mail.ParseAddress(from)
 	if err != nil {
 		// assume it's already just an email address
@@ -188,7 +166,7 @@ func (s *sender) extractEmail(from string) string {
 }
 
 // computeDefaultFromName computes the default from name from config or branding
-func (s *sender) computeDefaultFromName() string {
+func (s *Sender) computeDefaultFromName() string {
 	addr, err := mail.ParseAddress(s.cfg.From)
 	if err == nil && addr.Name != "" {
 		return addr.Name
@@ -197,15 +175,14 @@ func (s *sender) computeDefaultFromName() string {
 }
 
 // GetDefaultFromName returns the cached default from name
-func (s *sender) GetDefaultFromName() string {
+func (s *Sender) GetDefaultFromName() string {
 	return s.defaultFromName
 }
 
 // buildMailtoDestination builds the mailto URL for go-pkgz/notify
-func (s *sender) buildMailtoDestination(recipients []string, subject, from string) string {
-	mailto := "mailto:" + strings.Join(recipients, ",")
+func (s *Sender) buildMailtoDestination(recipient, subject, from string) string {
+	mailto := "mailto:" + recipient
 
-	// add query params
 	params := url.Values{}
 	if subject != "" {
 		params.Set("subject", subject)
@@ -217,7 +194,6 @@ func (s *sender) buildMailtoDestination(recipients []string, subject, from strin
 	if len(params) > 0 {
 		mailto += "?" + params.Encode()
 	}
-
 	return mailto
 }
 

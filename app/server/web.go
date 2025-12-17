@@ -64,7 +64,6 @@ type emailPopupData struct {
 	Preview  string
 	Error    string
 	To       string // preserved on validation error
-	CC       string // preserved on validation error
 }
 
 type templateData struct {
@@ -632,7 +631,8 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 	preview, err := s.emailSender.RenderBody(link, defaultFromName)
 	if err != nil {
 		log.Printf("[WARN] failed to render email preview: %v", err)
-		preview = "preview not available"
+		http.Error(w, "failed to render email preview", http.StatusInternalServerError)
+		return
 	}
 	// strip HTML for preview display (simple approach - show as text summary)
 	preview = extractEmailPreviewText(preview)
@@ -673,12 +673,12 @@ func (s Server) emailPreviewCtrl(w http.ResponseWriter, r *http.Request) {
 	preview, err := s.emailSender.RenderBody(link, fromName)
 	if err != nil {
 		log.Printf("[WARN] failed to render email preview: %v", err)
-		preview = "preview not available"
+		http.Error(w, "failed to render email preview", http.StatusInternalServerError)
+		return
 	}
-	preview = extractEmailPreviewText(preview)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, preview)
+	fmt.Fprint(w, extractEmailPreviewText(preview))
 }
 
 // sendEmailCtrl sends the email with the secret link
@@ -698,34 +698,33 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	subject := r.FormValue("subject")
 	fromName := r.FormValue("from_name")
 	to := strings.TrimSpace(r.FormValue("to"))
-	cc := strings.TrimSpace(r.FormValue("cc"))
 
 	// validate required fields
 	if link == "" || to == "" || subject == "" {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "please fill in all required fields",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: "please fill in all required fields",
 		})
 		return
 	}
 
-	// validate field lengths to prevent email header issues
+	// validate field lengths
 	if len(subject) > 200 {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "subject is too long (max 200 characters)",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: "subject is too long (max 200 characters)",
 		})
 		return
 	}
 	if len(fromName) > 100 {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "from name is too long (max 100 characters)",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: "from name is too long (max 100 characters)",
 		})
 		return
 	}
 
-	// validate the link points to this server to prevent phishing relay
+	// validate the link points to this server
 	if !s.isValidSecretLink(link) {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "invalid link",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: "invalid link",
 		})
 		return
 	}
@@ -733,38 +732,16 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	// validate email format
 	if !email.IsValidEmail(to) {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "invalid email address",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: "invalid email address",
 		})
 		return
 	}
 
-	// build recipients list
-	toList := []string{to}
-	var ccList []string
-	if cc != "" {
-		if !email.IsValidEmail(cc) {
-			s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-				Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "invalid CC email address",
-			})
-			return
-		}
-		ccList = []string{cc}
-	}
-
-	// send email
-	req := email.Request{
-		To:       toList,
-		CC:       ccList,
-		Subject:  subject,
-		FromName: fromName,
-		Link:     link,
-	}
-
-	ctx := r.Context()
-	if err := s.emailSender.Send(ctx, req); err != nil {
-		log.Printf("[ERROR] failed to send email: %v", err)
+	req := email.Request{To: to, Subject: subject, FromName: fromName, Link: link}
+	if err := s.emailSender.Send(r.Context(), req); err != nil {
+		log.Printf("[WARN] failed to send email: %v", err)
 		s.render(w, http.StatusInternalServerError, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "failed to send email, please try again",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: "failed to send email, please try again",
 		})
 		return
 	}

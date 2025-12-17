@@ -10,12 +10,12 @@ import (
 	"github.com/umputun/secrets/app/email"
 )
 
-// SenderMock is a mock implementation of email.Sender.
+// EmailSenderMock is a mock implementation of server.EmailSender.
 //
-//	func TestSomethingThatUsesSender(t *testing.T) {
+//	func TestSomethingThatUsesEmailSender(t *testing.T) {
 //
-//		// make and configure a mocked email.Sender
-//		mockedSender := &SenderMock{
+//		// make and configure a mocked server.EmailSender
+//		mockedEmailSender := &EmailSenderMock{
 //			GetDefaultFromNameFunc: func() string {
 //				panic("mock out the GetDefaultFromName method")
 //			},
@@ -27,11 +27,11 @@ import (
 //			},
 //		}
 //
-//		// use mockedSender in code that requires email.Sender
+//		// use mockedEmailSender in code that requires server.EmailSender
 //		// and then make assertions.
 //
 //	}
-type SenderMock struct {
+type EmailSenderMock struct {
 	// GetDefaultFromNameFunc mocks the GetDefaultFromName method.
 	GetDefaultFromNameFunc func() string
 
@@ -67,9 +67,9 @@ type SenderMock struct {
 }
 
 // GetDefaultFromName calls GetDefaultFromNameFunc.
-func (mock *SenderMock) GetDefaultFromName() string {
+func (mock *EmailSenderMock) GetDefaultFromName() string {
 	if mock.GetDefaultFromNameFunc == nil {
-		panic("SenderMock.GetDefaultFromNameFunc: method is nil but Sender.GetDefaultFromName was just called")
+		panic("EmailSenderMock.GetDefaultFromNameFunc: method is nil but EmailSender.GetDefaultFromName was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -82,8 +82,8 @@ func (mock *SenderMock) GetDefaultFromName() string {
 // GetDefaultFromNameCalls gets all the calls that were made to GetDefaultFromName.
 // Check the length with:
 //
-//	len(mockedSender.GetDefaultFromNameCalls())
-func (mock *SenderMock) GetDefaultFromNameCalls() []struct {
+//	len(mockedEmailSender.GetDefaultFromNameCalls())
+func (mock *EmailSenderMock) GetDefaultFromNameCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -94,9 +94,9 @@ func (mock *SenderMock) GetDefaultFromNameCalls() []struct {
 }
 
 // RenderBody calls RenderBodyFunc.
-func (mock *SenderMock) RenderBody(link string, fromName string) (string, error) {
+func (mock *EmailSenderMock) RenderBody(link string, fromName string) (string, error) {
 	if mock.RenderBodyFunc == nil {
-		panic("SenderMock.RenderBodyFunc: method is nil but Sender.RenderBody was just called")
+		panic("EmailSenderMock.RenderBodyFunc: method is nil but EmailSender.RenderBody was just called")
 	}
 	callInfo := struct {
 		Link     string
@@ -114,8 +114,8 @@ func (mock *SenderMock) RenderBody(link string, fromName string) (string, error)
 // RenderBodyCalls gets all the calls that were made to RenderBody.
 // Check the length with:
 //
-//	len(mockedSender.RenderBodyCalls())
-func (mock *SenderMock) RenderBodyCalls() []struct {
+//	len(mockedEmailSender.RenderBodyCalls())
+func (mock *EmailSenderMock) RenderBodyCalls() []struct {
 	Link     string
 	FromName string
 } {
@@ -130,9 +130,9 @@ func (mock *SenderMock) RenderBodyCalls() []struct {
 }
 
 // Send calls SendFunc.
-func (mock *SenderMock) Send(ctx context.Context, req email.Request) error {
+func (mock *EmailSenderMock) Send(ctx context.Context, req email.Request) error {
 	if mock.SendFunc == nil {
-		panic("SenderMock.SendFunc: method is nil but Sender.Send was just called")
+		panic("EmailSenderMock.SendFunc: method is nil but EmailSender.Send was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
@@ -150,8 +150,8 @@ func (mock *SenderMock) Send(ctx context.Context, req email.Request) error {
 // SendCalls gets all the calls that were made to Send.
 // Check the length with:
 //
-//	len(mockedSender.SendCalls())
-func (mock *SenderMock) SendCalls() []struct {
+//	len(mockedEmailSender.SendCalls())
+func (mock *EmailSenderMock) SendCalls() []struct {
 	Ctx context.Context
 	Req email.Request
 } {

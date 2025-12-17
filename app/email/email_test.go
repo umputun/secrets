@@ -67,7 +67,7 @@ func TestSender_RenderBody(t *testing.T) {
 }
 
 func TestSender_extractEmail(t *testing.T) {
-	sndr := &sender{}
+	sndr := &Sender{}
 
 	tests := []struct {
 		name     string
@@ -103,7 +103,7 @@ func TestSender_computeDefaultFromName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sndr := &sender{cfg: Config{From: tt.from}, branding: tt.branding}
+			sndr := &Sender{cfg: Config{From: tt.from}, branding: tt.branding}
 			result := sndr.computeDefaultFromName()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -124,7 +124,7 @@ func TestSender_buildFromAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sndr := &sender{cfg: Config{From: tt.configFrom}}
+			sndr := &Sender{cfg: Config{From: tt.configFrom}}
 			result := sndr.buildFromAddress(tt.displayName)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -132,43 +132,25 @@ func TestSender_buildFromAddress(t *testing.T) {
 }
 
 func TestSender_buildMailtoDestination(t *testing.T) {
-	sndr := &sender{}
+	sndr := &Sender{}
 
-	t.Run("single recipient", func(t *testing.T) {
-		result := sndr.buildMailtoDestination(
-			[]string{"user@example.com"},
-			"Test Subject",
-			`"Sender" <sender@example.com>`,
-		)
-		assert.Contains(t, result, "mailto:")
-		assert.Contains(t, result, "user@example.com")
+	t.Run("with subject and from", func(t *testing.T) {
+		result := sndr.buildMailtoDestination("user@example.com", "Test Subject", `"Sender" <sender@example.com>`)
+		assert.Contains(t, result, "mailto:user@example.com")
 		assert.Contains(t, result, "subject=")
 		assert.Contains(t, result, "from=")
 	})
 
-	t.Run("multiple recipients", func(t *testing.T) {
-		result := sndr.buildMailtoDestination(
-			[]string{"user1@example.com", "user2@example.com"},
-			"Test Subject",
-			`"Sender" <sender@example.com>`,
-		)
-		assert.Contains(t, result, "user1@example.com")
-		assert.Contains(t, result, "user2@example.com")
-	})
-
 	t.Run("empty subject", func(t *testing.T) {
-		result := sndr.buildMailtoDestination(
-			[]string{"user@example.com"},
-			"",
-			`"Sender" <sender@example.com>`,
-		)
+		result := sndr.buildMailtoDestination("user@example.com", "", `"Sender" <sender@example.com>`)
 		assert.NotContains(t, result, "subject=")
+		assert.Contains(t, result, "from=")
 	})
 }
 
 func TestSender_GetDefaultFromName(t *testing.T) {
 	t.Run("returns cached display name from config", func(t *testing.T) {
-		sndr := &sender{
+		sndr := &Sender{
 			cfg:             Config{From: `"Safe Secrets" <noreply@example.com>`},
 			branding:        "Fallback Brand",
 			defaultFromName: "Safe Secrets", // cached value
@@ -178,7 +160,7 @@ func TestSender_GetDefaultFromName(t *testing.T) {
 	})
 
 	t.Run("returns cached branding when no display name", func(t *testing.T) {
-		sndr := &sender{
+		sndr := &Sender{
 			cfg:             Config{From: "noreply@example.com"},
 			branding:        "Fallback Brand",
 			defaultFromName: "Fallback Brand", // cached value

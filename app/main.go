@@ -70,7 +70,7 @@ func main() {
 	}
 
 	// create email sender if enabled
-	var emailSender email.Sender
+	var emailSender *email.Sender
 	if opts.Email.Enabled {
 		log.Printf("[INFO]  email sharing enabled (host: %s, from: %s)", opts.Email.Host, opts.Email.From)
 		var emailErr error

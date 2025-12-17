@@ -44,10 +44,19 @@ type Config struct {
 	EmailEnabled bool
 }
 
+//go:generate moq -out mocks/email_sender_mock.go -pkg mocks -skip-ensure -fmt goimports . EmailSender
+
+// EmailSender defines the interface for sending emails (consumer-side interface)
+type EmailSender interface {
+	Send(ctx context.Context, req email.Request) error
+	RenderBody(link, fromName string) (string, error)
+	GetDefaultFromName() string
+}
+
 // Server is a rest with store
 type Server struct {
 	messager      Messager
-	emailSender   email.Sender
+	emailSender   EmailSender
 	cfg           Config
 	version       string
 	templateCache map[string]*template.Template
@@ -73,7 +82,7 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 }
 
 // WithEmail sets the email sender for the server
-func (s Server) WithEmail(sender email.Sender) Server {
+func (s Server) WithEmail(sender EmailSender) Server {
 	s.emailSender = sender
 	return s
 }
