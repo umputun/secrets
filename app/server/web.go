@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"net/mail"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -617,6 +616,12 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// validate the link points to this server to prevent phishing relay
+	if !s.isValidSecretLink(link) {
+		http.Error(w, "invalid link", http.StatusBadRequest)
+		return
+	}
+
 	// get default from name from email sender
 	defaultFromName := s.emailSender.GetDefaultFromName()
 
@@ -653,7 +658,7 @@ func (s Server) emailPreviewCtrl(w http.ResponseWriter, r *http.Request) {
 	link := r.FormValue("link")
 	fromName := r.FormValue("from_name")
 	if fromName == "" {
-		fromName = s.cfg.Branding
+		fromName = s.emailSender.GetDefaultFromName()
 	}
 
 	preview, err := s.emailSender.RenderBody(link, fromName)
@@ -690,6 +695,14 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	if link == "" || to == "" || subject == "" {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
 			Link: link, Subject: subject, FromName: fromName, Error: "please fill in all required fields",
+		})
+		return
+	}
+
+	// validate the link points to this server to prevent phishing relay
+	if !s.isValidSecretLink(link) {
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, Error: "invalid link",
 		})
 		return
 	}
@@ -785,14 +798,42 @@ func removeHTMLTags(s string) string {
 	return strings.Join(strings.Fields(result.String()), " ")
 }
 
-// isValidEmail performs email validation using RFC 5322 parsing
-func isValidEmail(email string) bool {
-	addr, err := mail.ParseAddress(email)
+// isValidSecretLink validates that a link points to a message on this server
+func (s Server) isValidSecretLink(link string) bool {
+	parsed, err := url.Parse(link)
 	if err != nil {
 		return false
 	}
-	// ensure the parsed address matches the input (no display name was provided)
-	return addr.Address == email
+
+	// check protocol matches
+	if parsed.Scheme != s.cfg.Protocol {
+		return false
+	}
+
+	// check host matches one of configured domains
+	linkHost := parsed.Hostname()
+	validHost := false
+	for _, domain := range s.cfg.Domain {
+		// extract hostname without port for comparison
+		domainHost := domain
+		if h, _, err := net.SplitHostPort(domain); err == nil {
+			domainHost = h
+		}
+		if strings.EqualFold(linkHost, domainHost) {
+			validHost = true
+			break
+		}
+	}
+	if !validHost {
+		return false
+	}
+
+	// check path starts with /message/
+	if !strings.HasPrefix(parsed.Path, "/message/") {
+		return false
+	}
+
+	return true
 }
 
 // newTemplateCache creates a template cache as a map

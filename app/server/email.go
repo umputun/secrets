@@ -34,17 +34,15 @@ type EmailRequest struct {
 
 // EmailConfig contains SMTP configuration
 type EmailConfig struct {
-	Enabled     bool
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	From        string // format: "Display Name <email>" or just "email"
-	TLS         bool
-	Timeout     time.Duration
-	ContentType string
-	Charset     string
-	Template    string // path to custom template file (optional)
+	Enabled  bool
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string // format: "Display Name <email>" or just "email"
+	TLS      bool
+	Timeout  time.Duration
+	Template string // path to custom template file (optional)
 }
 
 // emailSender implements EmailSender using go-pkgz/notify
@@ -127,20 +125,14 @@ func NewEmailSender(cfg EmailConfig, branding string) (EmailSender, error) {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second
 	}
-	if cfg.ContentType == "" {
-		cfg.ContentType = "text/html"
-	}
-	if cfg.Charset == "" {
-		cfg.Charset = "UTF-8"
-	}
 
-	// create notifier
+	// create notifier with HTML content type
 	notifier := notify.NewEmail(notify.SMTPParams{
 		Host:        cfg.Host,
 		Port:        cfg.Port,
 		TLS:         cfg.TLS,
-		ContentType: cfg.ContentType,
-		Charset:     cfg.Charset,
+		ContentType: "text/html",
+		Charset:     "UTF-8",
 		Username:    cfg.Username,
 		Password:    cfg.Password,
 		TimeOut:     cfg.Timeout,
@@ -275,4 +267,14 @@ func (e *emailSender) buildMailtoDestination(recipients []string, subject, from 
 	}
 
 	return mailto
+}
+
+// isValidEmail performs email validation using RFC 5322 parsing
+func isValidEmail(email string) bool {
+	addr, err := mail.ParseAddress(email)
+	if err != nil {
+		return false
+	}
+	// ensure the parsed address matches the input (no display name was provided)
+	return addr.Address == email
 }

@@ -1767,3 +1767,177 @@ func TestServer_emailPreviewCtrl(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "email content")
 	})
 }
+
+func TestServer_isValidSecretLink(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+
+	t.Run("single domain", func(t *testing.T) {
+		srv, err := New(msg, "test", Config{
+			Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour,
+		})
+		require.NoError(t, err)
+
+		tests := []struct {
+			name  string
+			link  string
+			valid bool
+		}{
+			{"valid link", "https://example.com/message/abc123", true},
+			{"valid with port", "https://example.com:443/message/abc123", true},
+			{"wrong protocol", "http://example.com/message/abc123", false},
+			{"wrong domain", "https://evil.com/message/abc123", false},
+			{"wrong path", "https://example.com/other/abc123", false},
+			{"no path", "https://example.com", false},
+			{"invalid url", "not-a-url", false},
+			{"empty", "", false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				assert.Equal(t, tt.valid, srv.isValidSecretLink(tt.link))
+			})
+		}
+	})
+
+	t.Run("multiple domains", func(t *testing.T) {
+		srv, err := New(msg, "test", Config{
+			Domain: []string{"example.com", "alt.example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour,
+		})
+		require.NoError(t, err)
+
+		assert.True(t, srv.isValidSecretLink("https://example.com/message/abc123"))
+		assert.True(t, srv.isValidSecretLink("https://alt.example.com/message/abc123"))
+		assert.False(t, srv.isValidSecretLink("https://other.com/message/abc123"))
+	})
+
+	t.Run("domain with port", func(t *testing.T) {
+		srv, err := New(msg, "test", Config{
+			Domain: []string{"localhost:8080"}, Protocol: "http", PinSize: 5, MaxExpire: 10 * time.Hour,
+		})
+		require.NoError(t, err)
+
+		assert.True(t, srv.isValidSecretLink("http://localhost/message/abc123"))
+		assert.True(t, srv.isValidSecretLink("http://localhost:8080/message/abc123"))
+		assert.False(t, srv.isValidSecretLink("https://localhost/message/abc123"))
+	})
+}
+
+func TestServer_sendEmailCtrl_withCC(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+
+	var capturedReq EmailRequest
+	mock := &EmailSenderMock{
+		SendFunc: func(ctx context.Context, req EmailRequest) error {
+			capturedReq = req
+			return nil
+		},
+	}
+	srv.emailSender = mock
+
+	form := url.Values{
+		"link":      {"https://example.com/message/123"},
+		"to":        {"user@example.com"},
+		"cc":        {"cc@example.com"},
+		"subject":   {"Test Subject"},
+		"from_name": {"Test Sender"},
+	}
+	req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	srv.sendEmailCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, []string{"user@example.com"}, capturedReq.To)
+	assert.Equal(t, []string{"cc@example.com"}, capturedReq.CC)
+	assert.Equal(t, "Test Subject", capturedReq.Subject)
+	assert.Equal(t, "Test Sender", capturedReq.FromName)
+}
+
+func TestServer_emailPopupCtrl_invalidLink(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+	srv.emailSender = &EmailSenderMock{
+		GetDefaultFromNameFunc: func() string { return "Test" },
+	}
+
+	req := httptest.NewRequest("GET", "/email-popup?link=https://evil.com/phishing", http.NoBody)
+	rr := httptest.NewRecorder()
+	srv.emailPopupCtrl(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "invalid link")
+}
+
+func TestServer_sendEmailCtrl_invalidLink(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+	srv.emailSender = &EmailSenderMock{}
+
+	form := url.Values{
+		"link":    {"https://evil.com/phishing"},
+		"to":      {"user@example.com"},
+		"subject": {"Test"},
+	}
+	req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	srv.sendEmailCtrl(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "invalid link")
+}
+
+func TestServer_WithEmail(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, EmailEnabled: true,
+	})
+	require.NoError(t, err)
+
+	// verify no email sender initially
+	assert.Nil(t, srv.emailSender)
+
+	// add email sender using WithEmail
+	mock := &EmailSenderMock{
+		GetDefaultFromNameFunc: func() string { return "Test Sender" },
+		RenderBodyFunc:         func(link, fromName string) (string, error) { return "<p>preview</p>", nil },
+	}
+	srvWithEmail := srv.WithEmail(mock)
+
+	// verify email sender is set
+	assert.NotNil(t, srvWithEmail.emailSender)
+
+	// verify original server unchanged (value receiver)
+	assert.Nil(t, srv.emailSender)
+
+	// verify the handler works with WithEmail-configured sender
+	req := httptest.NewRequest("GET", "/email-popup?link=https://example.com/message/123", http.NoBody)
+	rr := httptest.NewRecorder()
+	srvWithEmail.emailPopupCtrl(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
