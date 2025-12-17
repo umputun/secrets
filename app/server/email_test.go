@@ -1,9 +1,7 @@
 package server
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,82 +185,6 @@ func TestEmailSender_GetDefaultFromName(t *testing.T) {
 	})
 }
 
-func TestEmailRequest(t *testing.T) {
-	req := EmailRequest{
-		To:       []string{"user@example.com"},
-		CC:       []string{"cc@example.com"},
-		Subject:  "Test Subject",
-		FromName: "Test Sender",
-		Link:     "https://example.com/secret/123",
-	}
-
-	assert.Equal(t, []string{"user@example.com"}, req.To)
-	assert.Equal(t, []string{"cc@example.com"}, req.CC)
-	assert.Equal(t, "Test Subject", req.Subject)
-	assert.Equal(t, "Test Sender", req.FromName)
-	assert.Equal(t, "https://example.com/secret/123", req.Link)
-}
-
-func TestEmailConfig(t *testing.T) {
-	cfg := EmailConfig{
-		Enabled:     true,
-		Host:        "smtp.example.com",
-		Port:        587,
-		Username:    "user",
-		Password:    "pass",
-		From:        "noreply@example.com",
-		TLS:         true,
-		Timeout:     30 * time.Second,
-		ContentType: "text/html",
-		Charset:     "UTF-8",
-		Template:    "/path/to/template.html",
-	}
-
-	assert.True(t, cfg.Enabled)
-	assert.Equal(t, "smtp.example.com", cfg.Host)
-	assert.Equal(t, 587, cfg.Port)
-	assert.Equal(t, "user", cfg.Username)
-	assert.Equal(t, "pass", cfg.Password)
-	assert.Equal(t, "noreply@example.com", cfg.From)
-	assert.True(t, cfg.TLS)
-	assert.Equal(t, 30*time.Second, cfg.Timeout)
-}
-
-// mockEmailSender implements EmailSender for testing
-type mockEmailSender struct {
-	sendCalled bool
-	lastReq    EmailRequest
-	sendErr    error
-}
-
-func (m *mockEmailSender) Send(ctx context.Context, req EmailRequest) error {
-	m.sendCalled = true
-	m.lastReq = req
-	return m.sendErr
-}
-
-func (m *mockEmailSender) RenderBody(link, fromName string) (string, error) {
-	return "rendered body with " + link + " from " + fromName, nil
-}
-
-func TestMockEmailSender(t *testing.T) {
-	mock := &mockEmailSender{}
-
-	body, err := mock.RenderBody("https://example.com/link", "Sender")
-	require.NoError(t, err)
-	assert.Contains(t, body, "https://example.com/link")
-	assert.Contains(t, body, "Sender")
-
-	err = mock.Send(context.Background(), EmailRequest{
-		To:      []string{"user@example.com"},
-		Subject: "Test",
-		Link:    "https://example.com/link",
-	})
-	require.NoError(t, err)
-	assert.True(t, mock.sendCalled)
-	assert.Equal(t, "Test", mock.lastReq.Subject)
-}
-
 func TestDefaultEmailTemplate(t *testing.T) {
 	// verify template contains expected placeholders and structure
 	assert.Contains(t, defaultEmailTemplate, "{{.Link}}")
@@ -270,4 +192,31 @@ func TestDefaultEmailTemplate(t *testing.T) {
 	assert.Contains(t, defaultEmailTemplate, "{{.Branding}}")
 	assert.Contains(t, defaultEmailTemplate, "View Secure Message")
 	assert.Contains(t, defaultEmailTemplate, "<!DOCTYPE html>")
+}
+
+func TestIsValidEmail(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string
+		valid bool
+	}{
+		{"valid simple email", "user@example.com", true},
+		{"valid with subdomain", "user@mail.example.com", true},
+		{"valid with plus", "user+tag@example.com", true},
+		{"invalid no at", "userexample.com", false},
+		{"invalid no domain", "user@", false},
+		{"invalid no local", "@example.com", false},
+		{"invalid double at", "user@@example.com", false},
+		{"invalid trailing dot", "user@example.", false},
+		{"invalid with display name", "John Doe <john@example.com>", false},
+		{"invalid empty", "", false},
+		{"invalid spaces", "user @example.com", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidEmail(tt.email)
+			assert.Equal(t, tt.valid, result)
+		})
+	}
 }

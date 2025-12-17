@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -53,6 +54,15 @@ type showMsgForm struct {
 	Key     string
 	Message string
 	validator.Validator
+}
+
+// emailPopupData contains data for email popup template rendering
+type emailPopupData struct {
+	Link     string
+	Subject  string
+	FromName string
+	Preview  string
+	Error    string
 }
 
 type templateData struct {
@@ -608,10 +618,7 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// get default from name from email sender
-	defaultFromName := s.cfg.Branding
-	if es, ok := s.emailSender.(*emailSender); ok {
-		defaultFromName = es.GetDefaultFromName()
-	}
+	defaultFromName := s.emailSender.GetDefaultFromName()
 
 	// render email body preview
 	preview, err := s.emailSender.RenderBody(link, defaultFromName)
@@ -622,20 +629,12 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 	// strip HTML for preview display (simple approach - show as text summary)
 	preview = extractEmailPreviewText(preview)
 
-	data := struct {
-		Link     string
-		Subject  string
-		FromName string
-		Preview  string
-		Error    string
-	}{
+	s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 		Link:     link,
 		Subject:  "Someone shared a secret with you",
 		FromName: defaultFromName,
 		Preview:  preview,
-	}
-
-	s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", data)
+	})
 }
 
 // emailPreviewCtrl renders just the email preview for HTMX updates
@@ -689,37 +688,17 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate required fields
 	if link == "" || to == "" || subject == "" {
-		data := struct {
-			Link     string
-			Subject  string
-			FromName string
-			Preview  string
-			Error    string
-		}{
-			Link:     link,
-			Subject:  subject,
-			FromName: fromName,
-			Error:    "please fill in all required fields",
-		}
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", data)
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, Error: "please fill in all required fields",
+		})
 		return
 	}
 
 	// validate email format
 	if !isValidEmail(to) {
-		data := struct {
-			Link     string
-			Subject  string
-			FromName string
-			Preview  string
-			Error    string
-		}{
-			Link:     link,
-			Subject:  subject,
-			FromName: fromName,
-			Error:    "invalid email address",
-		}
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", data)
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, Error: "invalid email address",
+		})
 		return
 	}
 
@@ -728,19 +707,9 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	var ccList []string
 	if cc != "" {
 		if !isValidEmail(cc) {
-			data := struct {
-				Link     string
-				Subject  string
-				FromName string
-				Preview  string
-				Error    string
-			}{
-				Link:     link,
-				Subject:  subject,
-				FromName: fromName,
-				Error:    "invalid CC email address",
-			}
-			s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", data)
+			s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+				Link: link, Subject: subject, FromName: fromName, Error: "invalid CC email address",
+			})
 			return
 		}
 		ccList = []string{cc}
@@ -758,19 +727,9 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := s.emailSender.Send(ctx, req); err != nil {
 		log.Printf("[ERROR] failed to send email: %v", err)
-		data := struct {
-			Link     string
-			Subject  string
-			FromName string
-			Preview  string
-			Error    string
-		}{
-			Link:     link,
-			Subject:  subject,
-			FromName: fromName,
-			Error:    "failed to send email, please try again",
-		}
-		s.render(w, http.StatusInternalServerError, "email-popup.tmpl.html", "email-popup", data)
+		s.render(w, http.StatusInternalServerError, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, Error: "failed to send email, please try again",
+		})
 		return
 	}
 
@@ -826,21 +785,14 @@ func removeHTMLTags(s string) string {
 	return strings.Join(strings.Fields(result.String()), " ")
 }
 
-// isValidEmail performs basic email validation
+// isValidEmail performs email validation using RFC 5322 parsing
 func isValidEmail(email string) bool {
-	// basic validation - contains @ and has domain part
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
+	addr, err := mail.ParseAddress(email)
+	if err != nil {
 		return false
 	}
-	if parts[0] == "" || parts[1] == "" {
-		return false
-	}
-	// check domain has at least one dot
-	if !strings.Contains(parts[1], ".") {
-		return false
-	}
-	return true
+	// ensure the parsed address matches the input (no display name was provided)
+	return addr.Address == email
 }
 
 // newTemplateCache creates a template cache as a map
@@ -867,6 +819,7 @@ func newTemplateCache() (map[string]*template.Template, error) {
 			"add":        func(a, b int) int { return a + b },
 			"jsonEscape": jsonEscape,
 			"formatSize": formatSize,
+			"urlquery":   url.QueryEscape,
 		}).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err

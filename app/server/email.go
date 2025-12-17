@@ -14,10 +14,13 @@ import (
 	"github.com/go-pkgz/notify"
 )
 
+//go:generate moq -out email_sender_mock.go -fmt goimports . EmailSender
+
 // EmailSender defines interface for sending emails with secret links
 type EmailSender interface {
 	Send(ctx context.Context, req EmailRequest) error
 	RenderBody(link, fromName string) (string, error)
+	GetDefaultFromName() string
 }
 
 // EmailRequest contains all parameters for sending an email
@@ -143,21 +146,16 @@ func NewEmailSender(cfg EmailConfig, branding string) (EmailSender, error) {
 		TimeOut:     cfg.Timeout,
 	})
 
-	// load template
-	var tmpl *template.Template
-	var err error
-
+	// load template - use default unless custom template is configured
+	tmplContent := defaultEmailTemplate
 	if cfg.Template != "" {
-		// load custom template from file
-		tmplContent, readErr := os.ReadFile(cfg.Template)
+		content, readErr := os.ReadFile(cfg.Template)
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read email template file: %w", readErr)
 		}
-		tmpl, err = template.New("email").Parse(string(tmplContent))
-	} else {
-		// use default embedded template
-		tmpl, err = template.New("email").Parse(defaultEmailTemplate)
+		tmplContent = string(content)
 	}
+	tmpl, err := template.New("email").Parse(tmplContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse email template: %w", err)
 	}
@@ -261,13 +259,7 @@ func (e *emailSender) GetDefaultFromName() string {
 
 // buildMailtoDestination builds the mailto URL for go-pkgz/notify
 func (e *emailSender) buildMailtoDestination(recipients []string, subject, from string) string {
-	// format recipients
-	formattedRecipients := make([]string, 0, len(recipients))
-	for _, r := range recipients {
-		formattedRecipients = append(formattedRecipients, fmt.Sprintf("%q<%s>", r, r))
-	}
-
-	mailto := "mailto:" + strings.Join(formattedRecipients, ",")
+	mailto := "mailto:" + strings.Join(recipients, ",")
 
 	// add query params
 	params := url.Values{}

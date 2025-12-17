@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"mime/multipart"
 	"net"
@@ -1619,4 +1620,150 @@ func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.Contains(t, rr.Body.String(), "file downloads disabled")
+}
+
+func TestServer_emailPopupCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+
+	t.Run("email not configured returns 503", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/email-popup?link=https://example.com/message/123", http.NoBody)
+		rr := httptest.NewRecorder()
+		srv.emailPopupCtrl(rr, req)
+		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	})
+
+	t.Run("missing link returns 400", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test Sender" },
+			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
+		}
+		req := httptest.NewRequest("GET", "/email-popup", http.NoBody)
+		rr := httptest.NewRecorder()
+		srvWithEmail.emailPopupCtrl(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("success renders popup", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test Sender" },
+			RenderBodyFunc:         func(link, fromName string) (string, error) { return "<p>preview</p>", nil },
+		}
+		req := httptest.NewRequest("GET", "/email-popup?link=https://example.com/message/123", http.NoBody)
+		rr := httptest.NewRecorder()
+		srvWithEmail.emailPopupCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Send via Email")
+	})
+}
+
+func TestServer_sendEmailCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+
+	t.Run("email not configured returns 503", func(t *testing.T) {
+		form := url.Values{"link": {"https://example.com/message/123"}, "to": {"user@example.com"}, "subject": {"Test"}}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srv.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	})
+
+	t.Run("missing required fields returns 400", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
+		}
+		form := url.Values{"link": {"https://example.com/message/123"}}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "fill in all required fields")
+	})
+
+	t.Run("invalid email returns 400", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
+		}
+		form := url.Values{"link": {"https://example.com/message/123"}, "to": {"invalid-email"}, "subject": {"Test"}}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "invalid email address")
+	})
+
+	t.Run("success sends email", func(t *testing.T) {
+		mock := &EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
+			SendFunc:               func(ctx context.Context, req EmailRequest) error { return nil },
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Len(t, mock.SendCalls(), 1)
+		assert.Equal(t, "user@example.com", mock.SendCalls()[0].Req.To[0])
+	})
+}
+
+func TestServer_emailPreviewCtrl(t *testing.T) {
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+
+	t.Run("email not configured returns 503", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/email-preview", http.NoBody)
+		rr := httptest.NewRecorder()
+		srv.emailPreviewCtrl(rr, req)
+		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	})
+
+	t.Run("success renders preview", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &EmailSenderMock{
+			RenderBodyFunc: func(link, fromName string) (string, error) { return "<p>email content</p>", nil },
+		}
+		form := url.Values{"link": {"https://example.com/message/123"}, "from_name": {"Test Sender"}}
+		req := httptest.NewRequest("POST", "/email-preview", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.emailPreviewCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "email content")
+	})
 }
