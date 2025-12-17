@@ -790,14 +790,7 @@ func extractEmailPreviewText(htmlBody string) string {
 	// remove style and script tags
 	preview = removeHTMLTags(preview)
 
-	// trim and limit length (use runes to avoid cutting multi-byte UTF-8 characters)
-	preview = strings.TrimSpace(preview)
-	runes := []rune(preview)
-	if len(runes) > 300 {
-		preview = string(runes[:300]) + "..."
-	}
-
-	return preview
+	return strings.TrimSpace(preview)
 }
 
 // removeHTMLTags is a simple HTML tag stripper
