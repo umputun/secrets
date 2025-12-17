@@ -1,4 +1,4 @@
-package server
+package email
 
 import (
 	"testing"
@@ -7,38 +7,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewEmailSender(t *testing.T) {
+func TestNewSender(t *testing.T) {
 	t.Run("disabled returns nil", func(t *testing.T) {
-		sender, err := NewEmailSender(EmailConfig{Enabled: false}, "Test Brand")
+		sndr, err := NewSender(Config{Enabled: false}, "Test Brand")
 		require.NoError(t, err)
-		assert.Nil(t, sender)
+		assert.Nil(t, sndr)
 	})
 
 	t.Run("enabled without host fails", func(t *testing.T) {
-		_, err := NewEmailSender(EmailConfig{Enabled: true, From: "test@example.com"}, "Test Brand")
+		_, err := NewSender(Config{Enabled: true, From: "test@example.com"}, "Test Brand")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "host is required")
 	})
 
 	t.Run("enabled without from fails", func(t *testing.T) {
-		_, err := NewEmailSender(EmailConfig{Enabled: true, Host: "smtp.example.com"}, "Test Brand")
+		_, err := NewSender(Config{Enabled: true, Host: "smtp.example.com"}, "Test Brand")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "from address is required")
 	})
 
 	t.Run("enabled with valid config succeeds", func(t *testing.T) {
-		sender, err := NewEmailSender(EmailConfig{
+		sndr, err := NewSender(Config{
 			Enabled: true,
 			Host:    "smtp.example.com",
 			Port:    587,
 			From:    "noreply@example.com",
 		}, "Test Brand")
 		require.NoError(t, err)
-		assert.NotNil(t, sender)
+		assert.NotNil(t, sndr)
 	})
 
 	t.Run("invalid template file fails", func(t *testing.T) {
-		_, err := NewEmailSender(EmailConfig{
+		_, err := NewSender(Config{
 			Enabled:  true,
 			Host:     "smtp.example.com",
 			From:     "noreply@example.com",
@@ -49,15 +49,15 @@ func TestNewEmailSender(t *testing.T) {
 	})
 }
 
-func TestEmailSender_RenderBody(t *testing.T) {
-	sender, err := NewEmailSender(EmailConfig{
+func TestSender_RenderBody(t *testing.T) {
+	sndr, err := NewSender(Config{
 		Enabled: true,
 		Host:    "smtp.example.com",
 		From:    "noreply@example.com",
 	}, "Safe Secrets")
 	require.NoError(t, err)
 
-	body, err := sender.RenderBody("https://example.com/message/abc123", "John Doe")
+	body, err := sndr.RenderBody("https://example.com/message/abc123", "John Doe")
 	require.NoError(t, err)
 
 	assert.Contains(t, body, "https://example.com/message/abc123")
@@ -66,8 +66,8 @@ func TestEmailSender_RenderBody(t *testing.T) {
 	assert.Contains(t, body, "View Secure Message")
 }
 
-func TestEmailSender_extractEmail(t *testing.T) {
-	sender := &emailSender{}
+func TestSender_extractEmail(t *testing.T) {
+	sndr := &sender{}
 
 	tests := []struct {
 		name     string
@@ -82,34 +82,35 @@ func TestEmailSender_extractEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sender.extractEmail(tt.from)
+			result := sndr.extractEmail(tt.from)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestEmailSender_extractDisplayName(t *testing.T) {
+func TestSender_computeDefaultFromName(t *testing.T) {
 	tests := []struct {
 		name     string
 		from     string
+		branding string
 		expected string
 	}{
-		{"plain email", "test@example.com", ""},
-		{"with display name", `"John Doe" <john@example.com>`, "John Doe"},
-		{"name without quotes", "John Doe <john@example.com>", "John Doe"},
-		{"angle brackets only", "<noreply@example.com>", ""},
+		{"plain email returns branding", "test@example.com", "TestBrand", "TestBrand"},
+		{"with display name returns it", `"John Doe" <john@example.com>`, "TestBrand", "John Doe"},
+		{"name without quotes returns it", "John Doe <john@example.com>", "TestBrand", "John Doe"},
+		{"angle brackets only returns branding", "<noreply@example.com>", "TestBrand", "TestBrand"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := &emailSender{cfg: EmailConfig{From: tt.from}}
-			result := sender.extractDisplayName()
+			sndr := &sender{cfg: Config{From: tt.from}, branding: tt.branding}
+			result := sndr.computeDefaultFromName()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestEmailSender_buildFromAddress(t *testing.T) {
+func TestSender_buildFromAddress(t *testing.T) {
 	tests := []struct {
 		name        string
 		configFrom  string
@@ -123,18 +124,18 @@ func TestEmailSender_buildFromAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := &emailSender{cfg: EmailConfig{From: tt.configFrom}}
-			result := sender.buildFromAddress(tt.displayName)
+			sndr := &sender{cfg: Config{From: tt.configFrom}}
+			result := sndr.buildFromAddress(tt.displayName)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestEmailSender_buildMailtoDestination(t *testing.T) {
-	sender := &emailSender{}
+func TestSender_buildMailtoDestination(t *testing.T) {
+	sndr := &sender{}
 
 	t.Run("single recipient", func(t *testing.T) {
-		result := sender.buildMailtoDestination(
+		result := sndr.buildMailtoDestination(
 			[]string{"user@example.com"},
 			"Test Subject",
 			`"Sender" <sender@example.com>`,
@@ -146,7 +147,7 @@ func TestEmailSender_buildMailtoDestination(t *testing.T) {
 	})
 
 	t.Run("multiple recipients", func(t *testing.T) {
-		result := sender.buildMailtoDestination(
+		result := sndr.buildMailtoDestination(
 			[]string{"user1@example.com", "user2@example.com"},
 			"Test Subject",
 			`"Sender" <sender@example.com>`,
@@ -156,7 +157,7 @@ func TestEmailSender_buildMailtoDestination(t *testing.T) {
 	})
 
 	t.Run("empty subject", func(t *testing.T) {
-		result := sender.buildMailtoDestination(
+		result := sndr.buildMailtoDestination(
 			[]string{"user@example.com"},
 			"",
 			`"Sender" <sender@example.com>`,
@@ -165,23 +166,35 @@ func TestEmailSender_buildMailtoDestination(t *testing.T) {
 	})
 }
 
-func TestEmailSender_GetDefaultFromName(t *testing.T) {
-	t.Run("returns display name from config", func(t *testing.T) {
-		sender := &emailSender{
-			cfg:      EmailConfig{From: `"Safe Secrets" <noreply@example.com>`},
-			branding: "Fallback Brand",
+func TestSender_GetDefaultFromName(t *testing.T) {
+	t.Run("returns cached display name from config", func(t *testing.T) {
+		sndr := &sender{
+			cfg:             Config{From: `"Safe Secrets" <noreply@example.com>`},
+			branding:        "Fallback Brand",
+			defaultFromName: "Safe Secrets", // cached value
 		}
-		result := sender.GetDefaultFromName()
+		result := sndr.GetDefaultFromName()
 		assert.Equal(t, "Safe Secrets", result)
 	})
 
-	t.Run("returns branding when no display name", func(t *testing.T) {
-		sender := &emailSender{
-			cfg:      EmailConfig{From: "noreply@example.com"},
-			branding: "Fallback Brand",
+	t.Run("returns cached branding when no display name", func(t *testing.T) {
+		sndr := &sender{
+			cfg:             Config{From: "noreply@example.com"},
+			branding:        "Fallback Brand",
+			defaultFromName: "Fallback Brand", // cached value
 		}
-		result := sender.GetDefaultFromName()
+		result := sndr.GetDefaultFromName()
 		assert.Equal(t, "Fallback Brand", result)
+	})
+
+	t.Run("via NewSender caches correctly", func(t *testing.T) {
+		sndr, err := NewSender(Config{
+			Enabled: true,
+			Host:    "smtp.example.com",
+			From:    `"Test App" <test@example.com>`,
+		}, "Branding")
+		require.NoError(t, err)
+		assert.Equal(t, "Test App", sndr.GetDefaultFromName())
 	})
 }
 
@@ -215,7 +228,7 @@ func TestIsValidEmail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isValidEmail(tt.email)
+			result := IsValidEmail(tt.email)
 			assert.Equal(t, tt.valid, result)
 		})
 	}

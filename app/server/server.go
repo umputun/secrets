@@ -17,6 +17,7 @@ import (
 	"github.com/go-pkgz/rest"
 	"github.com/go-pkgz/routegroup"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/store"
 	"github.com/umputun/secrets/ui"
@@ -46,7 +47,7 @@ type Config struct {
 // Server is a rest with store
 type Server struct {
 	messager      Messager
-	emailSender   EmailSender
+	emailSender   email.Sender
 	cfg           Config
 	version       string
 	templateCache map[string]*template.Template
@@ -72,7 +73,7 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 }
 
 // WithEmail sets the email sender for the server
-func (s Server) WithEmail(sender EmailSender) Server {
+func (s Server) WithEmail(sender email.Sender) Server {
 	s.emailSender = sender
 	return s
 }
@@ -198,10 +199,12 @@ func (s Server) routes() http.Handler {
 		webGroup.HandleFunc("GET /about", s.aboutViewCtrl)
 		webGroup.HandleFunc("GET /{$}", s.indexCtrl) // exact match for root only
 
-		// email routes (only work if email is configured)
-		webGroup.HandleFunc("GET /email-popup", s.emailPopupCtrl)
-		webGroup.HandleFunc("POST /email-preview", s.emailPreviewCtrl)
-		webGroup.HandleFunc("POST /send-email", s.sendEmailCtrl)
+		// email routes (only if email is enabled)
+		if s.cfg.EmailEnabled {
+			webGroup.HandleFunc("GET /email-popup", s.emailPopupCtrl)
+			webGroup.HandleFunc("POST /email-preview", s.emailPreviewCtrl)
+			webGroup.HandleFunc("POST /send-email", s.sendEmailCtrl)
+		}
 	})
 
 	// special routes without groups

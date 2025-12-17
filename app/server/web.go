@@ -20,6 +20,7 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/server/validator"
 	"github.com/umputun/secrets/app/store"
@@ -62,6 +63,8 @@ type emailPopupData struct {
 	FromName string
 	Preview  string
 	Error    string
+	To       string // preserved on validation error
+	CC       string // preserved on validation error
 }
 
 type templateData struct {
@@ -661,6 +664,12 @@ func (s Server) emailPreviewCtrl(w http.ResponseWriter, r *http.Request) {
 		fromName = s.emailSender.GetDefaultFromName()
 	}
 
+	// validate the link points to this server to prevent misuse
+	if link != "" && !s.isValidSecretLink(link) {
+		http.Error(w, "invalid link", http.StatusBadRequest)
+		return
+	}
+
 	preview, err := s.emailSender.RenderBody(link, fromName)
 	if err != nil {
 		log.Printf("[WARN] failed to render email preview: %v", err)
@@ -694,7 +703,21 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	// validate required fields
 	if link == "" || to == "" || subject == "" {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, Error: "please fill in all required fields",
+			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "please fill in all required fields",
+		})
+		return
+	}
+
+	// validate field lengths to prevent email header issues
+	if len(subject) > 200 {
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "subject is too long (max 200 characters)",
+		})
+		return
+	}
+	if len(fromName) > 100 {
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "from name is too long (max 100 characters)",
 		})
 		return
 	}
@@ -702,15 +725,15 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	// validate the link points to this server to prevent phishing relay
 	if !s.isValidSecretLink(link) {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, Error: "invalid link",
+			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "invalid link",
 		})
 		return
 	}
 
 	// validate email format
-	if !isValidEmail(to) {
+	if !email.IsValidEmail(to) {
 		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, Error: "invalid email address",
+			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "invalid email address",
 		})
 		return
 	}
@@ -719,9 +742,9 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	toList := []string{to}
 	var ccList []string
 	if cc != "" {
-		if !isValidEmail(cc) {
+		if !email.IsValidEmail(cc) {
 			s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
-				Link: link, Subject: subject, FromName: fromName, Error: "invalid CC email address",
+				Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "invalid CC email address",
 			})
 			return
 		}
@@ -729,7 +752,7 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// send email
-	req := EmailRequest{
+	req := email.Request{
 		To:       toList,
 		CC:       ccList,
 		Subject:  subject,
@@ -741,7 +764,7 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	if err := s.emailSender.Send(ctx, req); err != nil {
 		log.Printf("[ERROR] failed to send email: %v", err)
 		s.render(w, http.StatusInternalServerError, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, Error: "failed to send email, please try again",
+			Link: link, Subject: subject, FromName: fromName, To: to, CC: cc, Error: "failed to send email, please try again",
 		})
 		return
 	}
@@ -767,10 +790,11 @@ func extractEmailPreviewText(htmlBody string) string {
 	// remove style and script tags
 	preview = removeHTMLTags(preview)
 
-	// trim and limit length
+	// trim and limit length (use runes to avoid cutting multi-byte UTF-8 characters)
 	preview = strings.TrimSpace(preview)
-	if len(preview) > 300 {
-		preview = preview[:300] + "..."
+	runes := []rune(preview)
+	if len(runes) > 300 {
+		preview = string(runes[:300]) + "..."
 	}
 
 	return preview

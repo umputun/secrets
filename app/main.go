@@ -9,6 +9,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/server"
 	"github.com/umputun/secrets/app/store"
@@ -69,11 +70,11 @@ func main() {
 	}
 
 	// create email sender if enabled
-	var emailSender server.EmailSender
+	var emailSender email.Sender
 	if opts.Email.Enabled {
 		log.Printf("[INFO]  email sharing enabled (host: %s, from: %s)", opts.Email.Host, opts.Email.From)
 		var emailErr error
-		emailSender, emailErr = server.NewEmailSender(server.EmailConfig{
+		emailSender, emailErr = email.NewSender(email.Config{
 			Enabled:  opts.Email.Enabled,
 			Host:     opts.Email.Host,
 			Port:     opts.Email.Port,

@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/umputun/secrets/app/email"
+	"github.com/umputun/secrets/app/email/mocks"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/store"
 )
@@ -1641,7 +1643,7 @@ func TestServer_emailPopupCtrl(t *testing.T) {
 
 	t.Run("missing link returns 400", func(t *testing.T) {
 		srvWithEmail := srv
-		srvWithEmail.emailSender = &EmailSenderMock{
+		srvWithEmail.emailSender = &mocks.SenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test Sender" },
 			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 		}
@@ -1653,7 +1655,7 @@ func TestServer_emailPopupCtrl(t *testing.T) {
 
 	t.Run("success renders popup", func(t *testing.T) {
 		srvWithEmail := srv
-		srvWithEmail.emailSender = &EmailSenderMock{
+		srvWithEmail.emailSender = &mocks.SenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test Sender" },
 			RenderBodyFunc:         func(link, fromName string) (string, error) { return "<p>preview</p>", nil },
 		}
@@ -1686,7 +1688,7 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 
 	t.Run("missing required fields returns 400", func(t *testing.T) {
 		srvWithEmail := srv
-		srvWithEmail.emailSender = &EmailSenderMock{
+		srvWithEmail.emailSender = &mocks.SenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
 			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 		}
@@ -1701,7 +1703,7 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 
 	t.Run("invalid email returns 400", func(t *testing.T) {
 		srvWithEmail := srv
-		srvWithEmail.emailSender = &EmailSenderMock{
+		srvWithEmail.emailSender = &mocks.SenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
 			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 		}
@@ -1715,10 +1717,10 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 	})
 
 	t.Run("success sends email", func(t *testing.T) {
-		mock := &EmailSenderMock{
+		mock := &mocks.SenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
 			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
-			SendFunc:               func(ctx context.Context, req EmailRequest) error { return nil },
+			SendFunc:               func(ctx context.Context, req email.Request) error { return nil },
 		}
 		srvWithEmail := srv
 		srvWithEmail.emailSender = mock
@@ -1733,6 +1735,38 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Len(t, mock.SendCalls(), 1)
 		assert.Equal(t, "user@example.com", mock.SendCalls()[0].Req.To[0])
+	})
+
+	t.Run("subject too long returns 400", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &mocks.SenderMock{}
+		longSubject := strings.Repeat("a", 201)
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {longSubject}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "subject is too long")
+	})
+
+	t.Run("from name too long returns 400", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &mocks.SenderMock{}
+		longFromName := strings.Repeat("b", 101)
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test"}, "from_name": {longFromName},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "from name is too long")
 	})
 }
 
@@ -1755,7 +1789,7 @@ func TestServer_emailPreviewCtrl(t *testing.T) {
 
 	t.Run("success renders preview", func(t *testing.T) {
 		srvWithEmail := srv
-		srvWithEmail.emailSender = &EmailSenderMock{
+		srvWithEmail.emailSender = &mocks.SenderMock{
 			RenderBodyFunc: func(link, fromName string) (string, error) { return "<p>email content</p>", nil },
 		}
 		form := url.Values{"link": {"https://example.com/message/123"}, "from_name": {"Test Sender"}}
@@ -1765,6 +1799,18 @@ func TestServer_emailPreviewCtrl(t *testing.T) {
 		srvWithEmail.emailPreviewCtrl(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "email content")
+	})
+
+	t.Run("invalid link returns 400", func(t *testing.T) {
+		srvWithEmail := srv
+		srvWithEmail.emailSender = &mocks.SenderMock{}
+		form := url.Values{"link": {"https://evil.com/phishing"}, "from_name": {"Test"}}
+		req := httptest.NewRequest("POST", "/email-preview", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.emailPreviewCtrl(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "invalid link")
 	})
 }
 
@@ -1835,9 +1881,9 @@ func TestServer_sendEmailCtrl_withCC(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var capturedReq EmailRequest
-	mock := &EmailSenderMock{
-		SendFunc: func(ctx context.Context, req EmailRequest) error {
+	var capturedReq email.Request
+	mock := &mocks.SenderMock{
+		SendFunc: func(ctx context.Context, req email.Request) error {
 			capturedReq = req
 			return nil
 		},
@@ -1872,7 +1918,7 @@ func TestServer_emailPopupCtrl_invalidLink(t *testing.T) {
 		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
 	})
 	require.NoError(t, err)
-	srv.emailSender = &EmailSenderMock{
+	srv.emailSender = &mocks.SenderMock{
 		GetDefaultFromNameFunc: func() string { return "Test" },
 	}
 
@@ -1893,7 +1939,7 @@ func TestServer_sendEmailCtrl_invalidLink(t *testing.T) {
 		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
 	})
 	require.NoError(t, err)
-	srv.emailSender = &EmailSenderMock{}
+	srv.emailSender = &mocks.SenderMock{}
 
 	form := url.Values{
 		"link":    {"https://evil.com/phishing"},
@@ -1923,7 +1969,7 @@ func TestServer_WithEmail(t *testing.T) {
 	assert.Nil(t, srv.emailSender)
 
 	// add email sender using WithEmail
-	mock := &EmailSenderMock{
+	mock := &mocks.SenderMock{
 		GetDefaultFromNameFunc: func() string { return "Test Sender" },
 		RenderBodyFunc:         func(link, fromName string) (string, error) { return "<p>preview</p>", nil },
 	}
