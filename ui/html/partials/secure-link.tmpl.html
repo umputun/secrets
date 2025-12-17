@@ -34,7 +34,7 @@
                   readonly>{{.URL}}</textarea>
     </div>
 
-    <div class="form-row two-cols">
+    <div class="form-row {{if .EmailEnabled}}three-cols{{else}}two-cols{{end}}">
         <button type="button"
                 class="main-btn"
                 id="copy-link-btn"
@@ -59,6 +59,19 @@
             </svg>
             <span class="btn-text">Copy Link</span>
         </button>
+        {{if .EmailEnabled}}
+        <button type="button"
+                class="second-btn"
+                hx-get="/email-popup?link={{.URL}}"
+                hx-target="#popup"
+                hx-swap="outerHTML">
+            <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="btn-text">Send Email</span>
+        </button>
+        {{end}}
         <a class="second-btn" href="/">
             <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>

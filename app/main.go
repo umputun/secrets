@@ -36,6 +36,18 @@ var opts struct {
 		Hash       string        `long:"hash" env:"HASH" description:"bcrypt hash of password (enables auth if set)"`
 		SessionTTL time.Duration `long:"session-ttl" env:"SESSION_TTL" default:"168h" description:"session lifetime"`
 	} `group:"auth" namespace:"auth" env-namespace:"AUTH"`
+
+	Email struct {
+		Enabled  bool          `long:"enabled" env:"ENABLED" description:"enable email sharing"`
+		Host     string        `long:"host" env:"HOST" description:"SMTP server host"`
+		Port     int           `long:"port" env:"PORT" default:"587" description:"SMTP server port"`
+		Username string        `long:"username" env:"USERNAME" description:"SMTP auth username"`
+		Password string        `long:"password" env:"PASSWORD" description:"SMTP auth password"`
+		From     string        `long:"from" env:"FROM" description:"sender address, format: 'Display Name <email>' or just 'email'"`
+		TLS      bool          `long:"tls" env:"TLS" description:"use TLS (not STARTTLS)"`
+		Timeout  time.Duration `long:"timeout" env:"TIMEOUT" default:"30s" description:"connection timeout"`
+		Template string        `long:"template" env:"TEMPLATE" description:"path to custom email template file"`
+	} `group:"email" namespace:"email" env-namespace:"EMAIL"`
 }
 
 var revision string
@@ -56,6 +68,27 @@ func main() {
 		log.Printf("[INFO]  authentication enabled (session TTL: %v)", opts.Auth.SessionTTL)
 	}
 
+	// create email sender if enabled
+	var emailSender server.EmailSender
+	if opts.Email.Enabled {
+		log.Printf("[INFO]  email sharing enabled (host: %s, from: %s)", opts.Email.Host, opts.Email.From)
+		var emailErr error
+		emailSender, emailErr = server.NewEmailSender(server.EmailConfig{
+			Enabled:  opts.Email.Enabled,
+			Host:     opts.Email.Host,
+			Port:     opts.Email.Port,
+			Username: opts.Email.Username,
+			Password: opts.Email.Password,
+			From:     opts.Email.From,
+			TLS:      opts.Email.TLS,
+			Timeout:  opts.Email.Timeout,
+			Template: opts.Email.Template,
+		}, opts.Branding)
+		if emailErr != nil {
+			log.Fatalf("[ERROR] can't create email sender, %v", emailErr)
+		}
+	}
+
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
 		Protocol:       opts.Protocol,
@@ -68,10 +101,13 @@ func main() {
 		MaxFileSize:    opts.Files.MaxSize,
 		AuthHash:       opts.Auth.Hash,
 		SessionTTL:     opts.Auth.SessionTTL,
+		EmailEnabled:   opts.Email.Enabled,
 	})
-
 	if err != nil {
 		log.Fatalf("[ERROR] can't create server, %v", err)
+	}
+	if emailSender != nil {
+		srv = srv.WithEmail(emailSender)
 	}
 
 	if err = srv.Run(context.Background()); err != nil {

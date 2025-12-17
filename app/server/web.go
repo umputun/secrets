@@ -325,15 +325,17 @@ func (s Server) renderSecureLink(w http.ResponseWriter, r *http.Request, key str
 
 	// pass form data for file info display in template
 	data := struct {
-		URL      string
-		IsFile   bool
-		FileName string
-		FileSize int64
+		URL          string
+		IsFile       bool
+		FileName     string
+		FileSize     int64
+		EmailEnabled bool
 	}{
-		URL:      msgURL,
-		IsFile:   form.IsFile,
-		FileName: form.FileName,
-		FileSize: form.FileSize,
+		URL:          msgURL,
+		IsFile:       form.IsFile,
+		FileName:     form.FileName,
+		FileSize:     form.FileSize,
+		EmailEnabled: s.cfg.EmailEnabled && s.emailSender != nil,
 	}
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", data)
@@ -591,6 +593,256 @@ func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
 // GET /close-popup
 func (s Server) closePopupCtrl(w http.ResponseWriter, _ *http.Request) {
 	s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
+}
+
+// emailPopupCtrl renders the email popup with preview
+// GET /email-popup?link=...
+func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
+	if s.emailSender == nil {
+		http.Error(w, "email not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	link := r.URL.Query().Get("link")
+	if link == "" {
+		http.Error(w, "link parameter required", http.StatusBadRequest)
+		return
+	}
+
+	// get default from name from email sender
+	defaultFromName := s.cfg.Branding
+	if es, ok := s.emailSender.(*emailSender); ok {
+		defaultFromName = es.GetDefaultFromName()
+	}
+
+	// render email body preview
+	preview, err := s.emailSender.RenderBody(link, defaultFromName)
+	if err != nil {
+		log.Printf("[WARN] failed to render email preview: %v", err)
+		preview = "preview not available"
+	}
+	// strip HTML for preview display (simple approach - show as text summary)
+	preview = extractEmailPreviewText(preview)
+
+	data := struct {
+		Link     string
+		Subject  string
+		FromName string
+		Preview  string
+		Error    string
+	}{
+		Link:     link,
+		Subject:  "Someone shared a secret with you",
+		FromName: defaultFromName,
+		Preview:  preview,
+	}
+
+	s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", data)
+}
+
+// emailPreviewCtrl renders just the email preview for HTMX updates
+// POST /email-preview
+func (s Server) emailPreviewCtrl(w http.ResponseWriter, r *http.Request) {
+	if s.emailSender == nil {
+		http.Error(w, "email not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	link := r.FormValue("link")
+	fromName := r.FormValue("from_name")
+	if fromName == "" {
+		fromName = s.cfg.Branding
+	}
+
+	preview, err := s.emailSender.RenderBody(link, fromName)
+	if err != nil {
+		log.Printf("[WARN] failed to render email preview: %v", err)
+		preview = "preview not available"
+	}
+	preview = extractEmailPreviewText(preview)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, preview)
+}
+
+// sendEmailCtrl sends the email with the secret link
+// POST /send-email
+func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
+	if s.emailSender == nil {
+		http.Error(w, "email not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	link := r.FormValue("link")
+	subject := r.FormValue("subject")
+	fromName := r.FormValue("from_name")
+	to := strings.TrimSpace(r.FormValue("to"))
+	cc := strings.TrimSpace(r.FormValue("cc"))
+
+	// validate required fields
+	if link == "" || to == "" || subject == "" {
+		data := struct {
+			Link     string
+			Subject  string
+			FromName string
+			Preview  string
+			Error    string
+		}{
+			Link:     link,
+			Subject:  subject,
+			FromName: fromName,
+			Error:    "please fill in all required fields",
+		}
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", data)
+		return
+	}
+
+	// validate email format
+	if !isValidEmail(to) {
+		data := struct {
+			Link     string
+			Subject  string
+			FromName string
+			Preview  string
+			Error    string
+		}{
+			Link:     link,
+			Subject:  subject,
+			FromName: fromName,
+			Error:    "invalid email address",
+		}
+		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", data)
+		return
+	}
+
+	// build recipients list
+	toList := []string{to}
+	var ccList []string
+	if cc != "" {
+		if !isValidEmail(cc) {
+			data := struct {
+				Link     string
+				Subject  string
+				FromName string
+				Preview  string
+				Error    string
+			}{
+				Link:     link,
+				Subject:  subject,
+				FromName: fromName,
+				Error:    "invalid CC email address",
+			}
+			s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", data)
+			return
+		}
+		ccList = []string{cc}
+	}
+
+	// send email
+	req := EmailRequest{
+		To:       toList,
+		CC:       ccList,
+		Subject:  subject,
+		FromName: fromName,
+		Link:     link,
+	}
+
+	ctx := r.Context()
+	if err := s.emailSender.Send(ctx, req); err != nil {
+		log.Printf("[ERROR] failed to send email: %v", err)
+		data := struct {
+			Link     string
+			Subject  string
+			FromName string
+			Preview  string
+			Error    string
+		}{
+			Link:     link,
+			Subject:  subject,
+			FromName: fromName,
+			Error:    "failed to send email, please try again",
+		}
+		s.render(w, http.StatusInternalServerError, "email-popup.tmpl.html", "email-popup", data)
+		return
+	}
+
+	log.Printf("[INFO] email sent to %s", to)
+
+	// render success
+	data := struct {
+		To string
+	}{
+		To: to,
+	}
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "3s"}`)
+	s.render(w, http.StatusOK, "email-sent.tmpl.html", "email-sent", data)
+}
+
+// extractEmailPreviewText extracts a simple text preview from HTML email body
+func extractEmailPreviewText(htmlBody string) string {
+	// simple extraction - look for the key message parts
+	// in practice this strips most HTML and keeps the essence
+	preview := htmlBody
+
+	// remove style and script tags
+	preview = removeHTMLTags(preview)
+
+	// trim and limit length
+	preview = strings.TrimSpace(preview)
+	if len(preview) > 300 {
+		preview = preview[:300] + "..."
+	}
+
+	return preview
+}
+
+// removeHTMLTags is a simple HTML tag stripper
+func removeHTMLTags(s string) string {
+	var result strings.Builder
+	inTag := false
+	for _, r := range s {
+		if r == '<' {
+			inTag = true
+			continue
+		}
+		if r == '>' {
+			inTag = false
+			result.WriteRune(' ')
+			continue
+		}
+		if !inTag {
+			result.WriteRune(r)
+		}
+	}
+	// collapse multiple spaces
+	return strings.Join(strings.Fields(result.String()), " ")
+}
+
+// isValidEmail performs basic email validation
+func isValidEmail(email string) bool {
+	// basic validation - contains @ and has domain part
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return false
+	}
+	if parts[0] == "" || parts[1] == "" {
+		return false
+	}
+	// check domain has at least one dot
+	if !strings.Contains(parts[1], ".") {
+		return false
+	}
+	return true
 }
 
 // newTemplateCache creates a template cache as a map

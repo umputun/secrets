@@ -1,0 +1,23 @@
+{{define "email-sent"}}
+<div id="popup" class="popup active">
+    <div class="popup-content">
+        <div class="popup-header">
+            <div></div>
+            <button hx-get="/close-popup"
+                    hx-target="#popup"
+                    hx-swap="outerHTML"
+                    class="close-popup">
+                <img src="/static/img/close.svg" alt="close" />
+            </button>
+        </div>
+        <div class="popup-text email-sent-success">
+            <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <polyline points="8,12 11,15 16,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <strong>Email sent successfully!</strong>
+            <span>The secure link has been sent to {{.To}}</span>
+        </div>
+    </div>
+</div>
+{{end}}

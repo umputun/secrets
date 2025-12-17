@@ -39,11 +39,14 @@ type Config struct {
 	// authentication (optional)
 	AuthHash   string        // bcrypt hash of password, empty disables auth
 	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
+	// email sharing (optional)
+	EmailEnabled bool
 }
 
 // Server is a rest with store
 type Server struct {
 	messager      Messager
+	emailSender   EmailSender
 	cfg           Config
 	version       string
 	templateCache map[string]*template.Template
@@ -59,12 +62,19 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 	if err != nil {
 		return Server{}, fmt.Errorf("can't create template cache: %w", err)
 	}
+
 	return Server{
 		messager:      m,
 		cfg:           cfg,
 		version:       version,
 		templateCache: cache,
 	}, nil
+}
+
+// WithEmail sets the email sender for the server
+func (s Server) WithEmail(sender EmailSender) Server {
+	s.emailSender = sender
+	return s
 }
 
 // Messager interface making and loading messages
@@ -187,6 +197,11 @@ func (s Server) routes() http.Handler {
 		webGroup.HandleFunc("GET /close-popup", s.closePopupCtrl)
 		webGroup.HandleFunc("GET /about", s.aboutViewCtrl)
 		webGroup.HandleFunc("GET /{$}", s.indexCtrl) // exact match for root only
+
+		// email routes (only work if email is configured)
+		webGroup.HandleFunc("GET /email-popup", s.emailPopupCtrl)
+		webGroup.HandleFunc("POST /email-preview", s.emailPreviewCtrl)
+		webGroup.HandleFunc("POST /send-email", s.sendEmailCtrl)
 	})
 
 	// special routes without groups
