@@ -576,7 +576,7 @@ func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		s.render(w, http.StatusOK, "popup-closed", "popup-closed", nil)
+		s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
 		return
 	}
 
@@ -746,7 +746,7 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[INFO] email sent to %s", to)
+	log.Printf("[INFO] email sent successfully")
 
 	// render success
 	data := struct {

@@ -1,10 +1,14 @@
 package email
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/secrets/app/email/mocks"
 )
 
 func TestNewSender(t *testing.T) {
@@ -214,4 +218,83 @@ func TestIsValidEmail(t *testing.T) {
 			assert.Equal(t, tt.valid, result)
 		})
 	}
+}
+
+func TestSender_Send(t *testing.T) {
+	t.Run("success sends email with correct parameters", func(t *testing.T) {
+		mockNotifier := &mocks.NotifierMock{
+			SendFunc: func(_ context.Context, _, _ string) error { return nil },
+		}
+
+		sndr, err := NewSender(Config{
+			Enabled: true,
+			Host:    "smtp.example.com",
+			From:    "noreply@example.com",
+		}, "Test Brand", WithNotifier(mockNotifier))
+		require.NoError(t, err)
+
+		req := Request{
+			To:       "recipient@example.com",
+			Subject:  "Test Subject",
+			FromName: "Sender Name",
+			Link:     "https://example.com/message/abc123",
+		}
+		err = sndr.Send(context.Background(), req)
+		require.NoError(t, err)
+
+		// verify notifier was called once
+		calls := mockNotifier.SendCalls()
+		require.Len(t, calls, 1)
+
+		// verify destination contains recipient email
+		assert.Contains(t, calls[0].Destination, "mailto:recipient@example.com")
+		assert.Contains(t, calls[0].Destination, "subject=")
+		assert.Contains(t, calls[0].Destination, "from=")
+
+		// verify body contains link and from name
+		assert.Contains(t, calls[0].Text, "https://example.com/message/abc123")
+		assert.Contains(t, calls[0].Text, "Sender Name")
+		assert.Contains(t, calls[0].Text, "Test Brand")
+	})
+
+	t.Run("notifier error is propagated", func(t *testing.T) {
+		mockNotifier := &mocks.NotifierMock{
+			SendFunc: func(_ context.Context, _, _ string) error { return errors.New("smtp connection failed") },
+		}
+
+		sndr, err := NewSender(Config{
+			Enabled: true,
+			Host:    "smtp.example.com",
+			From:    "noreply@example.com",
+		}, "Test Brand", WithNotifier(mockNotifier))
+		require.NoError(t, err)
+
+		req := Request{To: "recipient@example.com", Subject: "Test", FromName: "Test", Link: "https://example.com/message/abc"}
+		err = sndr.Send(context.Background(), req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send email")
+		assert.Contains(t, err.Error(), "smtp connection failed")
+	})
+
+	t.Run("empty from name uses default", func(t *testing.T) {
+		mockNotifier := &mocks.NotifierMock{
+			SendFunc: func(_ context.Context, _, _ string) error { return nil },
+		}
+
+		sndr, err := NewSender(Config{
+			Enabled: true,
+			Host:    "smtp.example.com",
+			From:    `"Default Sender" <noreply@example.com>`,
+		}, "Fallback Brand", WithNotifier(mockNotifier))
+		require.NoError(t, err)
+
+		req := Request{To: "recipient@example.com", Subject: "Test", FromName: "", Link: "https://example.com/message/abc"}
+		err = sndr.Send(context.Background(), req)
+		require.NoError(t, err)
+
+		calls := mockNotifier.SendCalls()
+		require.Len(t, calls, 1)
+		// when FromName is empty, buildFromAddress uses original From config
+		assert.Contains(t, calls[0].Destination, "from=")
+	})
 }

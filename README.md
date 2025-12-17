@@ -153,6 +153,24 @@ docker run --rm caddy caddy hash-password --plaintext yourpassword
 
 **API:** Requires HTTP Basic Auth with username `secrets` and your password.
 
+### Email Sharing
+
+Send secret links directly via email. Recipients receive a nicely formatted email with the link - they still need the PIN (share it separately for security).
+
+| Flag | Env Variable | Default | Description |
+|------|--------------|---------|-------------|
+| `--email.enabled` | `EMAIL_ENABLED` | `false` | Enable email sharing |
+| `--email.host` | `EMAIL_HOST` | *required* | SMTP server host |
+| `--email.port` | `EMAIL_PORT` | `587` | SMTP server port |
+| `--email.username` | `EMAIL_USERNAME` | - | SMTP auth username |
+| `--email.password` | `EMAIL_PASSWORD` | - | SMTP auth password |
+| `--email.from` | `EMAIL_FROM` | *required* | Sender address (e.g., `"App Name <noreply@example.com>"`) |
+| `--email.tls` | `EMAIL_TLS` | `false` | Use TLS (not STARTTLS) |
+| `--email.timeout` | `EMAIL_TIMEOUT` | `30s` | Connection timeout |
+| `--email.template` | `EMAIL_TEMPLATE` | *built-in* | Custom email template path |
+
+When enabled, a "Send Email" button appears after creating a secret link. The email includes a preview of the message body (customizable via template).
+
 ### Examples
 
 ```bash
@@ -170,6 +188,11 @@ docker run --rm caddy caddy hash-password --plaintext yourpassword
 
 # with authentication
 ./secrets -k "secret-key" -d "example.com" --auth.hash='$2a$10$...'
+
+# with email sharing
+./secrets -k "secret-key" -d "example.com" \
+  --email.enabled --email.host=smtp.example.com \
+  --email.from="Safe Secrets <noreply@example.com>"
 ```
 
 ## Architecture

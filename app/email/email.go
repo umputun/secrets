@@ -38,17 +38,34 @@ type Config struct {
 	Template string // path to custom template file (optional)
 }
 
+//go:generate moq -out mocks/notifier_mock.go -pkg mocks -skip-ensure -fmt goimports . Notifier
+
+// Notifier defines the interface for sending email notifications
+type Notifier interface {
+	Send(ctx context.Context, destination, text string) error
+}
+
 // Sender sends emails with secret links using go-pkgz/notify
 type Sender struct {
-	notifier        *notify.Email
+	notifier        Notifier
 	cfg             Config
 	branding        string
 	tmpl            *template.Template
 	defaultFromName string // cached default from name
 }
 
+// SenderOption is a functional option for configuring Sender
+type SenderOption func(*Sender)
+
+// WithNotifier sets a custom notifier for testing
+func WithNotifier(n Notifier) SenderOption {
+	return func(s *Sender) {
+		s.notifier = n
+	}
+}
+
 // NewSender creates a new email sender with the given configuration
-func NewSender(cfg Config, branding string) (*Sender, error) {
+func NewSender(cfg Config, branding string, opts ...SenderOption) (*Sender, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -68,18 +85,6 @@ func NewSender(cfg Config, branding string) (*Sender, error) {
 		cfg.Timeout = 30 * time.Second
 	}
 
-	// create notifier with HTML content type
-	notifier := notify.NewEmail(notify.SMTPParams{
-		Host:        cfg.Host,
-		Port:        cfg.Port,
-		TLS:         cfg.TLS,
-		ContentType: "text/html",
-		Charset:     "UTF-8",
-		Username:    cfg.Username,
-		Password:    cfg.Password,
-		TimeOut:     cfg.Timeout,
-	})
-
 	// load template - use default unless custom template is configured
 	tmplContent := defaultEmailTemplate
 	if cfg.Template != "" {
@@ -95,11 +100,30 @@ func NewSender(cfg Config, branding string) (*Sender, error) {
 	}
 
 	s := &Sender{
-		notifier: notifier,
 		cfg:      cfg,
 		branding: branding,
 		tmpl:     tmpl,
 	}
+
+	// apply options (allows injecting mock notifier for tests)
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	// create default notifier if not provided via options
+	if s.notifier == nil {
+		s.notifier = notify.NewEmail(notify.SMTPParams{
+			Host:        cfg.Host,
+			Port:        cfg.Port,
+			TLS:         cfg.TLS,
+			ContentType: "text/html",
+			Charset:     "UTF-8",
+			Username:    cfg.Username,
+			Password:    cfg.Password,
+			TimeOut:     cfg.Timeout,
+		})
+	}
+
 	// cache the default from name at construction time
 	s.defaultFromName = s.computeDefaultFromName()
 	return s, nil
