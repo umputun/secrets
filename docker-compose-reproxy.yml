@@ -1,0 +1,58 @@
+services:
+
+  secrets:
+    build: .
+    image: umputun/secrets:latest
+    container_name: secrets
+    hostname: secrets
+    restart: always
+
+    logging: &default_logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    volumes:
+      - ./var:/data
+
+    environment:
+      - SIGN_KEY=change-this-to-smth-random
+      - ENGINE=MEMORY
+      - PIN_SIZE=5
+      - BOLT_FILE=/data/secrets.bd
+      - PIN_ATTEMPTS=3
+      - MAX_EXPIRE=24h
+      - DOMAIN=secrets.example.com
+
+    labels:
+      - "reproxy.server=secrets.example.com"
+      - "reproxy.route=^/(.*)"
+      - "reproxy.dest=/$1"
+      - "reproxy.port=8080"
+
+  reproxy:
+    image: umputun/reproxy:latest
+    container_name: reproxy
+    hostname: reproxy
+    restart: always
+    logging: *default_logging
+
+    depends_on:
+      - secrets
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./var/acme:/var/acme
+
+    ports:
+      - "80:8080"
+      - "443:8443"
+
+    environment:
+      - TZ=America/Chicago
+      - DOCKER_ENABLED=true
+      - SSL_TYPE=auto
+      - SSL_ACME_LOCATION=/var/acme
+      - SSL_ACME_EMAIL=admin@example.com
+      - SSL_FQDN=secrets.example.com
