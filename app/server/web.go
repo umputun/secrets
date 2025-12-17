@@ -582,11 +582,9 @@ func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
 		CopyType: copyType,
 	}
 
-	// render popup with message and auto-close after 2 seconds
+	// trigger auto-close using HX-Trigger header
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": true}`)
 	s.render(w, http.StatusOK, "popup.tmpl.html", "popup", data)
-
-	// trigger auto-close after 2 seconds using HX-Trigger header
-	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "2s"}`)
 }
 
 // closePopupCtrl closes the popup
@@ -784,7 +782,7 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	}{
 		To: to,
 	}
-	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "3s"}`)
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": true}`)
 	s.render(w, http.StatusOK, "email-sent.tmpl.html", "email-sent", data)
 }
 
