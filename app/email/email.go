@@ -27,15 +27,18 @@ type Request struct {
 
 // Config contains SMTP configuration
 type Config struct {
-	Enabled  bool
-	Host     string
-	Port     int
-	Username string
-	Password string
-	From     string // format: "Display Name <email>" or just "email"
-	TLS      bool
-	Timeout  time.Duration
-	Template string // path to custom template file (optional)
+	Enabled            bool
+	Host               string
+	Port               int
+	Username           string
+	Password           string
+	From               string // format: "Display Name <email>" or just "email"
+	TLS                bool   // implicit TLS (port 465)
+	StartTLS           bool   // STARTTLS upgrade (port 587)
+	InsecureSkipVerify bool   // skip certificate verification
+	LoginAuth          bool   // use LOGIN auth instead of PLAIN
+	Timeout            time.Duration
+	Template           string // path to custom template file (optional)
 }
 
 //go:generate moq -out mocks/notifier_mock.go -pkg mocks -skip-ensure -fmt goimports . Notifier
@@ -113,14 +116,17 @@ func NewSender(cfg Config, branding string, opts ...SenderOption) (*Sender, erro
 	// create default notifier if not provided via options
 	if s.notifier == nil {
 		s.notifier = notify.NewEmail(notify.SMTPParams{
-			Host:        cfg.Host,
-			Port:        cfg.Port,
-			TLS:         cfg.TLS,
-			ContentType: "text/html",
-			Charset:     "UTF-8",
-			Username:    cfg.Username,
-			Password:    cfg.Password,
-			TimeOut:     cfg.Timeout,
+			Host:               cfg.Host,
+			Port:               cfg.Port,
+			TLS:                cfg.TLS,
+			StartTLS:           cfg.StartTLS,
+			InsecureSkipVerify: cfg.InsecureSkipVerify,
+			LoginAuth:          cfg.LoginAuth,
+			ContentType:        "text/html",
+			Charset:            "UTF-8",
+			Username:           cfg.Username,
+			Password:           cfg.Password,
+			TimeOut:            cfg.Timeout,
 		})
 	}
 

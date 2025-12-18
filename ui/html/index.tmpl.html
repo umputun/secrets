@@ -158,10 +158,10 @@
             htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
         });
         
-        // handle backdrop clicks on popup
+        // handle backdrop clicks on popup (except email popup)
         document.body.addEventListener('click', function(evt) {
             const popup = evt.target.closest('#popup');
-            if (popup && evt.target === popup) {
+            if (popup && evt.target === popup && !popup.querySelector('.email-popup')) {
                 htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
             }
         });

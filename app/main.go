@@ -39,15 +39,18 @@ var opts struct {
 	} `group:"auth" namespace:"auth" env-namespace:"AUTH"`
 
 	Email struct {
-		Enabled  bool          `long:"enabled" env:"ENABLED" description:"enable email sharing"`
-		Host     string        `long:"host" env:"HOST" description:"SMTP server host"`
-		Port     int           `long:"port" env:"PORT" default:"587" description:"SMTP server port"`
-		Username string        `long:"username" env:"USERNAME" description:"SMTP auth username"`
-		Password string        `long:"password" env:"PASSWORD" description:"SMTP auth password"`
-		From     string        `long:"from" env:"FROM" description:"sender address, format: 'Display Name <email>' or just 'email'"`
-		TLS      bool          `long:"tls" env:"TLS" description:"use TLS (not STARTTLS)"`
-		Timeout  time.Duration `long:"timeout" env:"TIMEOUT" default:"30s" description:"connection timeout"`
-		Template string        `long:"template" env:"TEMPLATE" description:"path to custom email template file"`
+		Enabled            bool          `long:"enabled" env:"ENABLED" description:"enable email sharing"`
+		Host               string        `long:"host" env:"HOST" description:"SMTP server host"`
+		Port               int           `long:"port" env:"PORT" default:"587" description:"SMTP server port"`
+		Username           string        `long:"username" env:"USERNAME" description:"SMTP auth username"`
+		Password           string        `long:"password" env:"PASSWORD" description:"SMTP auth password"`
+		From               string        `long:"from" env:"FROM" description:"sender address, format: 'Display Name <email>' or just 'email'"`
+		TLS                bool          `long:"tls" env:"TLS" description:"use implicit TLS (port 465)"`
+		StartTLS           bool          `long:"starttls" env:"STARTTLS" description:"use STARTTLS (port 587)"`
+		InsecureSkipVerify bool          `long:"insecure" env:"INSECURE_SKIP_VERIFY" description:"skip certificate verification"`
+		LoginAuth          bool          `long:"loginauth" env:"LOGIN_AUTH" description:"use LOGIN auth instead of PLAIN"`
+		Timeout            time.Duration `long:"timeout" env:"TIMEOUT" default:"30s" description:"connection timeout"`
+		Template           string        `long:"template" env:"TEMPLATE" description:"path to custom email template file"`
 	} `group:"email" namespace:"email" env-namespace:"EMAIL"`
 }
 
@@ -75,15 +78,18 @@ func main() {
 		log.Printf("[INFO]  email sharing enabled (host: %s, from: %s)", opts.Email.Host, opts.Email.From)
 		var emailErr error
 		emailSender, emailErr = email.NewSender(email.Config{
-			Enabled:  opts.Email.Enabled,
-			Host:     opts.Email.Host,
-			Port:     opts.Email.Port,
-			Username: opts.Email.Username,
-			Password: opts.Email.Password,
-			From:     opts.Email.From,
-			TLS:      opts.Email.TLS,
-			Timeout:  opts.Email.Timeout,
-			Template: opts.Email.Template,
+			Enabled:            opts.Email.Enabled,
+			Host:               opts.Email.Host,
+			Port:               opts.Email.Port,
+			Username:           opts.Email.Username,
+			Password:           opts.Email.Password,
+			From:               opts.Email.From,
+			TLS:                opts.Email.TLS,
+			StartTLS:           opts.Email.StartTLS,
+			InsecureSkipVerify: opts.Email.InsecureSkipVerify,
+			LoginAuth:          opts.Email.LoginAuth,
+			Timeout:            opts.Email.Timeout,
+			Template:           opts.Email.Template,
 		}, opts.Branding)
 		if emailErr != nil {
 			log.Fatalf("[ERROR] can't create email sender, %v", emailErr)

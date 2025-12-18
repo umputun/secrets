@@ -211,7 +211,6 @@ func (s Server) routes() http.Handler {
 		// email routes (only if email is enabled)
 		if s.cfg.EmailEnabled {
 			webGroup.HandleFunc("GET /email-popup", s.emailPopupCtrl)
-			webGroup.HandleFunc("POST /email-preview", s.emailPreviewCtrl)
 			webGroup.HandleFunc("POST /send-email", s.sendEmailCtrl)
 		}
 	})

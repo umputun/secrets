@@ -1686,7 +1686,7 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	})
 
-	t.Run("missing required fields returns 400", func(t *testing.T) {
+	t.Run("missing required fields shows error", func(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
@@ -1697,11 +1697,11 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rr := httptest.NewRecorder()
 		srvWithEmail.sendEmailCtrl(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
 		assert.Contains(t, rr.Body.String(), "fill in all required fields")
 	})
 
-	t.Run("invalid email returns 400", func(t *testing.T) {
+	t.Run("invalid email shows error", func(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
@@ -1712,7 +1712,7 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rr := httptest.NewRecorder()
 		srvWithEmail.sendEmailCtrl(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
 		assert.Contains(t, rr.Body.String(), "invalid email address")
 	})
 
@@ -1737,7 +1737,7 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		assert.Equal(t, "user@example.com", mock.SendCalls()[0].Req.To)
 	})
 
-	t.Run("subject too long returns 400", func(t *testing.T) {
+	t.Run("subject too long shows error", func(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{}
 		longSubject := strings.Repeat("a", 201)
@@ -1749,11 +1749,11 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rr := httptest.NewRecorder()
 		srvWithEmail.sendEmailCtrl(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
 		assert.Contains(t, rr.Body.String(), "subject is too long")
 	})
 
-	t.Run("from name too long returns 400", func(t *testing.T) {
+	t.Run("from name too long shows error", func(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{}
 		longFromName := strings.Repeat("b", 101)
@@ -1765,52 +1765,8 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rr := httptest.NewRecorder()
 		srvWithEmail.sendEmailCtrl(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
 		assert.Contains(t, rr.Body.String(), "from name is too long")
-	})
-}
-
-func TestServer_emailPreviewCtrl(t *testing.T) {
-	eng := store.NewInMemory(time.Second * 30)
-	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
-		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
-	})
-	srv, err := New(msg, "test", Config{
-		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
-	})
-	require.NoError(t, err)
-
-	t.Run("email not configured returns 503", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/email-preview", http.NoBody)
-		rr := httptest.NewRecorder()
-		srv.emailPreviewCtrl(rr, req)
-		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
-	})
-
-	t.Run("success renders preview", func(t *testing.T) {
-		srvWithEmail := srv
-		srvWithEmail.emailSender = &mocks.EmailSenderMock{
-			RenderBodyFunc: func(link, fromName string) (string, error) { return "<p>email content</p>", nil },
-		}
-		form := url.Values{"link": {"https://example.com/message/123"}, "from_name": {"Test Sender"}}
-		req := httptest.NewRequest("POST", "/email-preview", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rr := httptest.NewRecorder()
-		srvWithEmail.emailPreviewCtrl(rr, req)
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "email content")
-	})
-
-	t.Run("invalid link returns 400", func(t *testing.T) {
-		srvWithEmail := srv
-		srvWithEmail.emailSender = &mocks.EmailSenderMock{}
-		form := url.Values{"link": {"https://evil.com/phishing"}, "from_name": {"Test"}}
-		req := httptest.NewRequest("POST", "/email-preview", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		rr := httptest.NewRecorder()
-		srvWithEmail.emailPreviewCtrl(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "invalid link")
 	})
 }
 
@@ -1913,7 +1869,7 @@ func TestServer_sendEmailCtrl_invalidLink(t *testing.T) {
 	rr := httptest.NewRecorder()
 	srv.sendEmailCtrl(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
 	assert.Contains(t, rr.Body.String(), "invalid link")
 }
 

@@ -171,6 +171,9 @@ Send secret links directly via email. Recipients receive a nicely formatted emai
 
 When enabled, a "Send Email" button appears after creating a secret link. The email includes a preview of the message body (customizable via template).
 
+> [!WARNING]
+> **Do not enable email sharing on public instances without authentication (`--auth.hash`).** Without auth, anyone can use your SMTP server to send emails to arbitrary addresses, which can be abused for spam or phishing. Always require authentication when email sharing is enabled on publicly accessible instances.
+
 ### Examples
 
 ```bash

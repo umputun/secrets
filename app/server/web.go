@@ -61,7 +61,6 @@ type emailPopupData struct {
 	Link     string
 	Subject  string
 	FromName string
-	Preview  string
 	Error    string
 	To       string // preserved on validation error
 }
@@ -627,58 +626,11 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 	// get default from name from email sender
 	defaultFromName := s.emailSender.GetDefaultFromName()
 
-	// render email body preview
-	preview, err := s.emailSender.RenderBody(link, defaultFromName)
-	if err != nil {
-		log.Printf("[WARN] failed to render email preview: %v", err)
-		http.Error(w, "failed to render email preview", http.StatusInternalServerError)
-		return
-	}
-	// strip HTML for preview display (simple approach - show as text summary)
-	preview = extractEmailPreviewText(preview)
-
 	s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 		Link:     link,
 		Subject:  "Someone shared a secret with you",
 		FromName: defaultFromName,
-		Preview:  preview,
 	})
-}
-
-// emailPreviewCtrl renders just the email preview for HTMX updates
-// POST /email-preview
-func (s Server) emailPreviewCtrl(w http.ResponseWriter, r *http.Request) {
-	if s.emailSender == nil {
-		http.Error(w, "email not configured", http.StatusServiceUnavailable)
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form data", http.StatusBadRequest)
-		return
-	}
-
-	link := r.FormValue("link")
-	fromName := r.FormValue("from_name")
-	if fromName == "" {
-		fromName = s.emailSender.GetDefaultFromName()
-	}
-
-	// validate the link points to this server to prevent misuse
-	if link != "" && !s.isValidSecretLink(link) {
-		http.Error(w, "invalid link", http.StatusBadRequest)
-		return
-	}
-
-	preview, err := s.emailSender.RenderBody(link, fromName)
-	if err != nil {
-		log.Printf("[WARN] failed to render email preview: %v", err)
-		http.Error(w, "failed to render email preview", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, extractEmailPreviewText(preview))
 }
 
 // sendEmailCtrl sends the email with the secret link
@@ -699,9 +651,9 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	fromName := r.FormValue("from_name")
 	to := strings.TrimSpace(r.FormValue("to"))
 
-	// validate required fields
+	// validate required fields - return 200 so HTMX processes the response
 	if link == "" || to == "" || subject == "" {
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 			Link: link, Subject: subject, FromName: fromName, To: to, Error: "please fill in all required fields",
 		})
 		return
@@ -709,13 +661,13 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate field lengths
 	if len(subject) > 200 {
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 			Link: link, Subject: subject, FromName: fromName, To: to, Error: "subject is too long (max 200 characters)",
 		})
 		return
 	}
 	if len(fromName) > 100 {
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 			Link: link, Subject: subject, FromName: fromName, To: to, Error: "from name is too long (max 100 characters)",
 		})
 		return
@@ -723,7 +675,7 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate the link points to this server
 	if !s.isValidSecretLink(link) {
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 			Link: link, Subject: subject, FromName: fromName, To: to, Error: "invalid link",
 		})
 		return
@@ -731,7 +683,7 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate email format
 	if !email.IsValidEmail(to) {
-		s.render(w, http.StatusBadRequest, "email-popup.tmpl.html", "email-popup", emailPopupData{
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
 			Link: link, Subject: subject, FromName: fromName, To: to, Error: "invalid email address",
 		})
 		return
@@ -740,8 +692,22 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	req := email.Request{To: to, Subject: subject, FromName: fromName, Link: link}
 	if err := s.emailSender.Send(r.Context(), req); err != nil {
 		log.Printf("[WARN] failed to send email: %v", err)
-		s.render(w, http.StatusInternalServerError, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: "failed to send email, please try again",
+		// extract user-friendly error message
+		errMsg := "failed to send email"
+		errStr := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(errStr, "535") || strings.Contains(errStr, "501") || strings.Contains(errStr, "auth"):
+			errMsg = "email authentication failed - check SMTP config"
+		case strings.Contains(errStr, "connection refused") || strings.Contains(errStr, "no such host"):
+			errMsg = "cannot connect to email server"
+		case strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline"):
+			errMsg = "email server timeout - try again later"
+		case strings.Contains(errStr, "tls") || strings.Contains(errStr, "certificate"):
+			errMsg = "email server TLS/SSL error"
+		}
+		// return 200 so HTMX processes the response (shows error in popup)
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: errMsg,
 		})
 		return
 	}
@@ -756,40 +722,6 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": true}`)
 	s.render(w, http.StatusOK, "email-sent.tmpl.html", "email-sent", data)
-}
-
-// extractEmailPreviewText extracts a simple text preview from HTML email body
-func extractEmailPreviewText(htmlBody string) string {
-	// simple extraction - look for the key message parts
-	// in practice this strips most HTML and keeps the essence
-	preview := htmlBody
-
-	// remove style and script tags
-	preview = removeHTMLTags(preview)
-
-	return strings.TrimSpace(preview)
-}
-
-// removeHTMLTags is a simple HTML tag stripper
-func removeHTMLTags(s string) string {
-	var result strings.Builder
-	inTag := false
-	for _, r := range s {
-		if r == '<' {
-			inTag = true
-			continue
-		}
-		if r == '>' {
-			inTag = false
-			result.WriteRune(' ')
-			continue
-		}
-		if !inTag {
-			result.WriteRune(r)
-		}
-	}
-	// collapse multiple spaces
-	return strings.Join(strings.Fields(result.String()), " ")
 }
 
 // isValidSecretLink validates that a link points to a message on this server

@@ -633,6 +633,9 @@ button[type="submit"]:disabled {
 .form-row {
     display: grid;
     gap: var(--spacing-lg);
+}
+
+.form-row:not(:last-child) {
     margin-bottom: var(--spacing-xl);
 }
 
@@ -962,12 +965,14 @@ button[type="submit"]:disabled {
     filter: invert(1);
 }
 
-/* Login popup */
-.login-popup {
+/* Form popups (login, email) */
+.login-popup,
+.email-popup {
     text-align: left;
 }
 
-.login-popup .popup-header {
+.login-popup .popup-header,
+.email-popup .popup-header {
     position: relative;
     top: 0;
     right: 0;
@@ -1029,17 +1034,8 @@ button[type="submit"]:disabled {
 
 /* Email popup */
 .email-popup {
-    text-align: left;
     max-width: 500px;
     width: 90vw;
-}
-
-.email-popup .popup-header {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-lg);
 }
 
 .email-form {

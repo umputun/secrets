@@ -16,10 +16,13 @@
                                 You've received a secure message
                             </h1>
                             <p style="margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;">
-                                <strong>{{.From}}</strong> has shared a secure message with you using {{.Branding}}.
+                                <strong>{{.From}}</strong> has shared a secure message with you.
                             </p>
-                            <p style="margin: 0 0 32px 0; color: #475569; font-size: 16px; line-height: 1.6;">
-                                Click the button below to access the message. Note that this link can only be used once and will expire after viewing.
+                            <p style="margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                                Click the button below to access the message. This link can only be used once and will expire after viewing.
+                            </p>
+                            <p style="margin: 0 0 32px 0; padding: 16px; background-color: #fef3c7; border-radius: 8px; color: #92400e; font-size: 14px; line-height: 1.5;">
+                                <strong>Important:</strong> You'll need a PIN to open this message. The sender should share it with you separately (e.g., via text message or phone call).
                             </p>
                             <table role="presentation" style="margin: 0 0 32px 0;">
                                 <tr>
@@ -38,7 +41,7 @@
                             </p>
                             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
                             <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.5;">
-                                This email was sent by {{.Branding}}. The sender will need to provide you with the PIN separately to access the message.
+                                This email was sent via <a href="https://safesecret.info" style="color: #14b8a6; text-decoration: none;">{{.Branding}}</a>.
                             </p>
                         </td>
                     </tr>
