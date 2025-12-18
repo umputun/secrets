@@ -24,6 +24,7 @@ var opts struct {
 	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
 	WebRoot        string        `long:"web" env:"WEB" description:"web ui location (dev mode, uses embedded files if not set)"`
 	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
+	BrandingURL    string        `long:"branding-url" env:"BRANDING_URL" default:"https://safesecret.info" description:"branding link URL for emails"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
@@ -90,7 +91,9 @@ func main() {
 			LoginAuth:          opts.Email.LoginAuth,
 			Timeout:            opts.Email.Timeout,
 			Template:           opts.Email.Template,
-		}, opts.Branding)
+			Branding:           opts.Branding,
+			BrandingURL:        opts.BrandingURL,
+		})
 		if emailErr != nil {
 			log.Fatalf("[ERROR] can't create email sender, %v", emailErr)
 		}

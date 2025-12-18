@@ -13,30 +13,31 @@ import (
 
 func TestNewSender(t *testing.T) {
 	t.Run("disabled returns nil", func(t *testing.T) {
-		sndr, err := NewSender(Config{Enabled: false}, "Test Brand")
+		sndr, err := NewSender(Config{Enabled: false, Branding: "Test Brand"})
 		require.NoError(t, err)
 		assert.Nil(t, sndr)
 	})
 
 	t.Run("enabled without host fails", func(t *testing.T) {
-		_, err := NewSender(Config{Enabled: true, From: "test@example.com"}, "Test Brand")
+		_, err := NewSender(Config{Enabled: true, From: "test@example.com", Branding: "Test Brand"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "host is required")
 	})
 
 	t.Run("enabled without from fails", func(t *testing.T) {
-		_, err := NewSender(Config{Enabled: true, Host: "smtp.example.com"}, "Test Brand")
+		_, err := NewSender(Config{Enabled: true, Host: "smtp.example.com", Branding: "Test Brand"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "from address is required")
 	})
 
 	t.Run("enabled with valid config succeeds", func(t *testing.T) {
 		sndr, err := NewSender(Config{
-			Enabled: true,
-			Host:    "smtp.example.com",
-			Port:    587,
-			From:    "noreply@example.com",
-		}, "Test Brand")
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			Port:     587,
+			From:     "noreply@example.com",
+			Branding: "Test Brand",
+		})
 		require.NoError(t, err)
 		assert.NotNil(t, sndr)
 	})
@@ -47,7 +48,8 @@ func TestNewSender(t *testing.T) {
 			Host:     "smtp.example.com",
 			From:     "noreply@example.com",
 			Template: "/nonexistent/path/template.html",
-		}, "Test Brand")
+			Branding: "Test Brand",
+		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read email template")
 	})
@@ -55,10 +57,12 @@ func TestNewSender(t *testing.T) {
 
 func TestSender_RenderBody(t *testing.T) {
 	sndr, err := NewSender(Config{
-		Enabled: true,
-		Host:    "smtp.example.com",
-		From:    "noreply@example.com",
-	}, "Safe Secrets")
+		Enabled:     true,
+		Host:        "smtp.example.com",
+		From:        "noreply@example.com",
+		Branding:    "Safe Secrets",
+		BrandingURL: "https://safesecret.info",
+	})
 	require.NoError(t, err)
 
 	body, err := sndr.RenderBody("https://example.com/message/abc123", "John Doe")
@@ -67,6 +71,7 @@ func TestSender_RenderBody(t *testing.T) {
 	assert.Contains(t, body, "https://example.com/message/abc123")
 	assert.Contains(t, body, "John Doe")
 	assert.Contains(t, body, "Safe Secrets")
+	assert.Contains(t, body, "https://safesecret.info")
 	assert.Contains(t, body, "View Secure Message")
 }
 
@@ -107,7 +112,7 @@ func TestSender_computeDefaultFromName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sndr := &Sender{cfg: Config{From: tt.from}, branding: tt.branding}
+			sndr := &Sender{cfg: Config{From: tt.from, Branding: tt.branding}}
 			result := sndr.computeDefaultFromName()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -155,8 +160,7 @@ func TestSender_buildMailtoDestination(t *testing.T) {
 func TestSender_GetDefaultFromName(t *testing.T) {
 	t.Run("returns cached display name from config", func(t *testing.T) {
 		sndr := &Sender{
-			cfg:             Config{From: `"Safe Secrets" <noreply@example.com>`},
-			branding:        "Fallback Brand",
+			cfg:             Config{From: `"Safe Secrets" <noreply@example.com>`, Branding: "Fallback Brand"},
 			defaultFromName: "Safe Secrets", // cached value
 		}
 		result := sndr.GetDefaultFromName()
@@ -165,8 +169,7 @@ func TestSender_GetDefaultFromName(t *testing.T) {
 
 	t.Run("returns cached branding when no display name", func(t *testing.T) {
 		sndr := &Sender{
-			cfg:             Config{From: "noreply@example.com"},
-			branding:        "Fallback Brand",
+			cfg:             Config{From: "noreply@example.com", Branding: "Fallback Brand"},
 			defaultFromName: "Fallback Brand", // cached value
 		}
 		result := sndr.GetDefaultFromName()
@@ -175,10 +178,11 @@ func TestSender_GetDefaultFromName(t *testing.T) {
 
 	t.Run("via NewSender caches correctly", func(t *testing.T) {
 		sndr, err := NewSender(Config{
-			Enabled: true,
-			Host:    "smtp.example.com",
-			From:    `"Test App" <test@example.com>`,
-		}, "Branding")
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     `"Test App" <test@example.com>`,
+			Branding: "Branding",
+		})
 		require.NoError(t, err)
 		assert.Equal(t, "Test App", sndr.GetDefaultFromName())
 	})
@@ -189,6 +193,7 @@ func TestDefaultEmailTemplate(t *testing.T) {
 	assert.Contains(t, defaultEmailTemplate, "{{.Link}}")
 	assert.Contains(t, defaultEmailTemplate, "{{.From}}")
 	assert.Contains(t, defaultEmailTemplate, "{{.Branding}}")
+	assert.Contains(t, defaultEmailTemplate, "{{.BrandingURL}}")
 	assert.Contains(t, defaultEmailTemplate, "View Secure Message")
 	assert.Contains(t, defaultEmailTemplate, "<!DOCTYPE html>")
 }
@@ -227,10 +232,12 @@ func TestSender_Send(t *testing.T) {
 		}
 
 		sndr, err := NewSender(Config{
-			Enabled: true,
-			Host:    "smtp.example.com",
-			From:    "noreply@example.com",
-		}, "Test Brand", WithNotifier(mockNotifier))
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     "noreply@example.com",
+			Branding: "Test Brand",
+			Notifier: mockNotifier,
+		})
 		require.NoError(t, err)
 
 		req := Request{
@@ -263,10 +270,12 @@ func TestSender_Send(t *testing.T) {
 		}
 
 		sndr, err := NewSender(Config{
-			Enabled: true,
-			Host:    "smtp.example.com",
-			From:    "noreply@example.com",
-		}, "Test Brand", WithNotifier(mockNotifier))
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     "noreply@example.com",
+			Branding: "Test Brand",
+			Notifier: mockNotifier,
+		})
 		require.NoError(t, err)
 
 		req := Request{To: "recipient@example.com", Subject: "Test", FromName: "Test", Link: "https://example.com/message/abc"}
@@ -282,10 +291,12 @@ func TestSender_Send(t *testing.T) {
 		}
 
 		sndr, err := NewSender(Config{
-			Enabled: true,
-			Host:    "smtp.example.com",
-			From:    `"Default Sender" <noreply@example.com>`,
-		}, "Fallback Brand", WithNotifier(mockNotifier))
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     `"Default Sender" <noreply@example.com>`,
+			Branding: "Fallback Brand",
+			Notifier: mockNotifier,
+		})
 		require.NoError(t, err)
 
 		req := Request{To: "recipient@example.com", Subject: "Test", FromName: "", Link: "https://example.com/message/abc"}

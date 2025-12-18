@@ -101,6 +101,7 @@ All options work as both CLI flags and environment variables. The app listens on
 | `-d, --domain` | `DOMAIN` | *required* | Site domain(s), comma-separated for multiple |
 | `-p, --protocol` | `PROTOCOL` | `https` | Site protocol (http/https) |
 | `--branding` | `BRANDING` | `Safe Secrets` | Application title |
+| `--branding-url` | `BRANDING_URL` | `https://safesecret.info` | Branding link URL for emails |
 | `--dbg` | - | `false` | Enable debug mode |
 
 ### Message Settings

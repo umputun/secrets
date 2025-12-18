@@ -25,6 +25,13 @@ type Request struct {
 	Link     string // the secret link to include in email body
 }
 
+//go:generate moq -out mocks/notifier_mock.go -pkg mocks -skip-ensure -fmt goimports . Notifier
+
+// Notifier defines the interface for sending email notifications
+type Notifier interface {
+	Send(ctx context.Context, destination, text string) error
+}
+
 // Config contains SMTP configuration
 type Config struct {
 	Enabled            bool
@@ -38,37 +45,22 @@ type Config struct {
 	InsecureSkipVerify bool   // skip certificate verification
 	LoginAuth          bool   // use LOGIN auth instead of PLAIN
 	Timeout            time.Duration
-	Template           string // path to custom template file (optional)
-}
-
-//go:generate moq -out mocks/notifier_mock.go -pkg mocks -skip-ensure -fmt goimports . Notifier
-
-// Notifier defines the interface for sending email notifications
-type Notifier interface {
-	Send(ctx context.Context, destination, text string) error
+	Template           string   // path to custom template file (optional)
+	Branding           string   // application name for email footer
+	BrandingURL        string   // link URL for branding in email footer
+	Notifier           Notifier // optional, for testing; if nil, creates default SMTP notifier
 }
 
 // Sender sends emails with secret links using go-pkgz/notify
 type Sender struct {
 	notifier        Notifier
 	cfg             Config
-	branding        string
 	tmpl            *template.Template
 	defaultFromName string // cached default from name
 }
 
-// SenderOption is a functional option for configuring Sender
-type SenderOption func(*Sender)
-
-// WithNotifier sets a custom notifier for testing
-func WithNotifier(n Notifier) SenderOption {
-	return func(s *Sender) {
-		s.notifier = n
-	}
-}
-
 // NewSender creates a new email sender with the given configuration
-func NewSender(cfg Config, branding string, opts ...SenderOption) (*Sender, error) {
+func NewSender(cfg Config) (*Sender, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -103,18 +95,14 @@ func NewSender(cfg Config, branding string, opts ...SenderOption) (*Sender, erro
 	}
 
 	s := &Sender{
-		cfg:      cfg,
-		branding: branding,
-		tmpl:     tmpl,
+		cfg:  cfg,
+		tmpl: tmpl,
 	}
 
-	// apply options (allows injecting mock notifier for tests)
-	for _, opt := range opts {
-		opt(s)
-	}
-
-	// create default notifier if not provided via options
-	if s.notifier == nil {
+	// create default notifier if not provided in config
+	if cfg.Notifier != nil {
+		s.notifier = cfg.Notifier
+	} else {
 		s.notifier = notify.NewEmail(notify.SMTPParams{
 			Host:               cfg.Host,
 			Port:               cfg.Port,
@@ -154,13 +142,15 @@ func (s *Sender) Send(ctx context.Context, req Request) error {
 // RenderBody renders the email body with the given link and from name
 func (s *Sender) RenderBody(link, fromName string) (string, error) {
 	data := struct {
-		Link     string
-		From     string
-		Branding string
+		Link        string
+		From        string
+		Branding    string
+		BrandingURL string
 	}{
-		Link:     link,
-		From:     fromName,
-		Branding: s.branding,
+		Link:        link,
+		From:        fromName,
+		Branding:    s.cfg.Branding,
+		BrandingURL: s.cfg.BrandingURL,
 	}
 
 	var buf bytes.Buffer
@@ -201,7 +191,7 @@ func (s *Sender) computeDefaultFromName() string {
 	if err == nil && addr.Name != "" {
 		return addr.Name
 	}
-	return s.branding
+	return s.cfg.Branding
 }
 
 // GetDefaultFromName returns the cached default from name
