@@ -1,5 +1,5 @@
-// Package ui provides embedded static files
-package ui
+// Package assets provides embedded static files and templates
+package assets
 
 import "embed"
 

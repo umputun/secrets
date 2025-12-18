@@ -21,8 +21,8 @@ import (
 
 	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
+	"github.com/umputun/secrets/app/server/assets"
 	"github.com/umputun/secrets/app/store"
-	"github.com/umputun/secrets/ui"
 )
 
 // Config is a configuration for the server
@@ -246,7 +246,7 @@ func (s Server) routes() http.Handler {
 	// static file handling
 	if _, err := os.Stat(s.cfg.WebRoot); os.IsNotExist(err) || s.cfg.WebRoot == "" {
 		// use embedded file system
-		staticFS, err := fs.Sub(ui.Files, "static")
+		staticFS, err := fs.Sub(assets.Files, "static")
 		if err != nil {
 			log.Fatalf("[ERROR] can't create embedded file server %v", err)
 		}

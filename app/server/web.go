@@ -22,9 +22,9 @@ import (
 
 	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
+	"github.com/umputun/secrets/app/server/assets"
 	"github.com/umputun/secrets/app/server/validator"
 	"github.com/umputun/secrets/app/store"
-	"github.com/umputun/secrets/ui"
 )
 
 const (
@@ -765,7 +765,7 @@ func (s Server) isValidSecretLink(link string) bool {
 func newTemplateCache() (map[string]*template.Template, error) {
 	cache := map[string]*template.Template{}
 
-	pages, err := fs.Glob(ui.Files, "html/*/*.tmpl.html")
+	pages, err := fs.Glob(assets.Files, "html/*/*.tmpl.html")
 
 	if err != nil {
 		return nil, err
@@ -786,7 +786,7 @@ func newTemplateCache() (map[string]*template.Template, error) {
 			"jsonEscape": jsonEscape,
 			"formatSize": formatSize,
 			"urlquery":   url.QueryEscape,
-		}).ParseFS(ui.Files, patterns...)
+		}).ParseFS(assets.Files, patterns...)
 		if err != nil {
 			return nil, err
 		}

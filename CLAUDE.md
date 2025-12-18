@@ -62,7 +62,7 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 - **app/store/** - Storage layer implementations
   - `Engine` interface with `Save`, `Load`, `IncErr`, and `Remove` methods
   - Two implementations: InMemory (with TTL cleanup) and BoltDB
-- **ui/** - Frontend assets embedded via Go 1.16+ embed
+- **app/server/assets/** - Frontend assets embedded via Go 1.16+ embed
   - Static HTML/CSS/JS for web interface
   - Templates for dynamic content rendering
 
@@ -162,7 +162,7 @@ Core libraries used:
 
 ### Template System
 - Go html/template with modular structure: base template (`index.tmpl.html`) + named blocks
-- Partials in `ui/html/partials/` for reusable components (`decoded-message.tmpl.html`, `secure-link.tmpl.html`)
+- Partials in `app/server/assets/html/partials/` for reusable components (`decoded-message.tmpl.html`, `secure-link.tmpl.html`)
 - HTMX integration for dynamic updates without page reloads
 - Template inheritance pattern with `{{define "base"}}` and `{{template "main" .}}`
 
@@ -184,7 +184,7 @@ Core libraries used:
 - Default protocol is HTTPS, must override for local development
 - Link generation uses request domain if allowed, falls back to first configured domain
 - Multiple domains supported via comma-separated list: `--domain="example.com,alt.example.com"`
-- **Embedded assets require rebuild**: UI assets (CSS, JS, templates) are embedded via `//go:embed`. Changes to `ui/` files require rebuilding and restarting the server. After killing the server, verify it stopped with `curl http://localhost:8080/ping` before restarting.
+- **Embedded assets require rebuild**: UI assets (CSS, JS, templates) are embedded via `//go:embed`. Changes to `app/server/assets/` files require rebuilding and restarting the server. After killing the server, verify it stopped with `curl http://localhost:8080/ping` before restarting.
 
 ## HTMX Implementation
 
