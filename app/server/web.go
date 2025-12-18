@@ -20,6 +20,7 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/server/validator"
 	"github.com/umputun/secrets/app/store"
@@ -53,6 +54,15 @@ type showMsgForm struct {
 	Key     string
 	Message string
 	validator.Validator
+}
+
+// emailPopupData contains data for email popup template rendering
+type emailPopupData struct {
+	Link     string
+	Subject  string
+	FromName string
+	Error    string
+	To       string // preserved on validation error
 }
 
 type templateData struct {
@@ -325,15 +335,17 @@ func (s Server) renderSecureLink(w http.ResponseWriter, r *http.Request, key str
 
 	// pass form data for file info display in template
 	data := struct {
-		URL      string
-		IsFile   bool
-		FileName string
-		FileSize int64
+		URL          string
+		IsFile       bool
+		FileName     string
+		FileSize     int64
+		EmailEnabled bool
 	}{
-		URL:      msgURL,
-		IsFile:   form.IsFile,
-		FileName: form.FileName,
-		FileSize: form.FileSize,
+		URL:          msgURL,
+		IsFile:       form.IsFile,
+		FileName:     form.FileName,
+		FileSize:     form.FileSize,
+		EmailEnabled: s.cfg.EmailEnabled && s.emailSender != nil,
 	}
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", data)
@@ -534,12 +546,12 @@ func getTheme(r *http.Request) string {
 func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 	currentTheme := getTheme(r)
 
-	// toggle between explicit light/dark only (auto -> light -> dark -> light)
+	// toggle between light and dark themes
 	var nextTheme string
 	switch currentTheme {
 	case "light":
 		nextTheme = "dark"
-	default: // "dark" or "auto"
+	default: // "dark" or "auto" (first visit)
 		nextTheme = "light"
 	}
 
@@ -563,7 +575,7 @@ func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		s.render(w, http.StatusOK, "popup-closed", "popup-closed", nil)
+		s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
 		return
 	}
 
@@ -580,17 +592,173 @@ func (s Server) copyFeedbackCtrl(w http.ResponseWriter, r *http.Request) {
 		CopyType: copyType,
 	}
 
-	// render popup with message and auto-close after 2 seconds
+	// trigger auto-close using HX-Trigger header
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": true}`)
 	s.render(w, http.StatusOK, "popup.tmpl.html", "popup", data)
-
-	// trigger auto-close after 2 seconds using HX-Trigger header
-	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": "2s"}`)
 }
 
 // closePopupCtrl closes the popup
 // GET /close-popup
 func (s Server) closePopupCtrl(w http.ResponseWriter, _ *http.Request) {
 	s.render(w, http.StatusOK, "popup.tmpl.html", "popup-closed", nil)
+}
+
+// emailPopupCtrl renders the email popup with preview
+// GET /email-popup?link=...
+func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
+	if s.emailSender == nil {
+		http.Error(w, "email not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	link := r.URL.Query().Get("link")
+	if link == "" {
+		http.Error(w, "link parameter required", http.StatusBadRequest)
+		return
+	}
+
+	// validate the link points to this server to prevent phishing relay
+	if !s.isValidSecretLink(link) {
+		http.Error(w, "invalid link", http.StatusBadRequest)
+		return
+	}
+
+	// get default from name from email sender
+	defaultFromName := s.emailSender.GetDefaultFromName()
+
+	s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
+		Link:     link,
+		Subject:  "Someone shared a secret with you",
+		FromName: defaultFromName,
+	})
+}
+
+// sendEmailCtrl sends the email with the secret link
+// POST /send-email
+func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
+	if s.emailSender == nil {
+		http.Error(w, "email not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	link := r.FormValue("link")
+	subject := r.FormValue("subject")
+	fromName := r.FormValue("from_name")
+	to := strings.TrimSpace(r.FormValue("to"))
+
+	// helper to render validation error (returns 200 so HTMX processes the response)
+	renderError := func(errMsg string) {
+		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: errMsg,
+		})
+	}
+
+	// validate required fields
+	if link == "" || to == "" || subject == "" {
+		renderError("please fill in all required fields")
+		return
+	}
+
+	// validate field lengths
+	if len(subject) > 200 {
+		renderError("subject is too long (max 200 characters)")
+		return
+	}
+	if len(fromName) > 100 {
+		renderError("from name is too long (max 100 characters)")
+		return
+	}
+
+	// validate the link points to this server
+	if !s.isValidSecretLink(link) {
+		renderError("invalid link")
+		return
+	}
+
+	// validate email format
+	if !email.IsValidEmail(to) {
+		renderError("invalid email address")
+		return
+	}
+
+	req := email.Request{To: to, Subject: subject, FromName: fromName, Link: link}
+	if err := s.emailSender.Send(r.Context(), req); err != nil {
+		log.Printf("[WARN] failed to send email: %v", err)
+		// extract user-friendly error message
+		errMsg := "failed to send email"
+		errStr := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(errStr, "535") || strings.Contains(errStr, "501") || strings.Contains(errStr, "auth"):
+			errMsg = "email authentication failed - check SMTP config"
+		case strings.Contains(errStr, "connection refused") || strings.Contains(errStr, "no such host"):
+			errMsg = "cannot connect to email server"
+		case strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline"):
+			errMsg = "email server timeout - try again later"
+		case strings.Contains(errStr, "tls") || strings.Contains(errStr, "certificate"):
+			errMsg = "email server TLS/SSL error"
+		}
+		renderError(errMsg)
+		return
+	}
+
+	log.Printf("[INFO] email sent successfully to %s", email.MaskEmail(to))
+
+	// render success
+	data := struct {
+		To string
+	}{
+		To: to,
+	}
+	w.Header().Set("HX-Trigger-After-Settle", `{"closePopup": true}`)
+	s.render(w, http.StatusOK, "email-sent.tmpl.html", "email-sent", data)
+}
+
+// isValidSecretLink validates that a link points to a message on this server
+func (s Server) isValidSecretLink(link string) bool {
+	parsed, err := url.Parse(link)
+	if err != nil {
+		return false
+	}
+
+	// check protocol matches
+	if parsed.Scheme != s.cfg.Protocol {
+		return false
+	}
+
+	// check host matches one of configured domains
+	linkHost := parsed.Hostname()
+	validHost := false
+	for _, domain := range s.cfg.Domain {
+		// extract hostname without port for comparison
+		domainHost := domain
+		if h, _, err := net.SplitHostPort(domain); err == nil {
+			domainHost = h
+		}
+		if strings.EqualFold(linkHost, domainHost) {
+			validHost = true
+			break
+		}
+	}
+	if !validHost {
+		return false
+	}
+
+	// check for path traversal attempts (both raw and URL-encoded)
+	if strings.Contains(parsed.Path, "..") || strings.Contains(parsed.RawPath, "..") {
+		return false
+	}
+
+	// check path starts with /message/
+	if !strings.HasPrefix(parsed.Path, "/message/") {
+		return false
+	}
+
+	return true
 }
 
 // newTemplateCache creates a template cache as a map
@@ -617,6 +785,7 @@ func newTemplateCache() (map[string]*template.Template, error) {
 			"add":        func(a, b int) int { return a + b },
 			"jsonEscape": jsonEscape,
 			"formatSize": formatSize,
+			"urlquery":   url.QueryEscape,
 		}).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err

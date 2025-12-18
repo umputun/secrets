@@ -3,6 +3,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -17,6 +19,7 @@ import (
 	"github.com/go-pkgz/rest"
 	"github.com/go-pkgz/routegroup"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/store"
 	"github.com/umputun/secrets/ui"
@@ -29,6 +32,7 @@ type Config struct {
 	Protocol string
 	Branding string
 	Port     string // server port, defaults to :8080
+	SignKey  string // sign key (will be hashed before use for IP anonymization)
 	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
@@ -39,14 +43,26 @@ type Config struct {
 	// authentication (optional)
 	AuthHash   string        // bcrypt hash of password, empty disables auth
 	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
+	// email sharing (optional)
+	EmailEnabled bool
+}
+
+//go:generate moq -out mocks/email_sender_mock.go -pkg mocks -skip-ensure -fmt goimports . EmailSender
+
+// EmailSender defines the interface for sending emails (consumer-side interface)
+type EmailSender interface {
+	Send(ctx context.Context, req email.Request) error
+	GetDefaultFromName() string
 }
 
 // Server is a rest with store
 type Server struct {
 	messager      Messager
+	emailSender   EmailSender
 	cfg           Config
 	version       string
 	templateCache map[string]*template.Template
+	logSecret     string // derived from SignKey for IP anonymization in logs
 }
 
 // New creates a new server with template cache
@@ -59,12 +75,24 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 	if err != nil {
 		return Server{}, fmt.Errorf("can't create template cache: %w", err)
 	}
+
+	// derive log secret from sign key for IP anonymization (never use raw SignKey for logging)
+	h := sha256.Sum256([]byte(cfg.SignKey + ":log"))
+	logSecret := hex.EncodeToString(h[:])
+
 	return Server{
 		messager:      m,
 		cfg:           cfg,
 		version:       version,
 		templateCache: cache,
+		logSecret:     logSecret,
 	}, nil
+}
+
+// WithEmail sets the email sender for the server
+func (s Server) WithEmail(sender EmailSender) Server {
+	s.emailSender = sender
+	return s
 }
 
 // Messager interface making and loading messages
@@ -163,7 +191,7 @@ func (s Server) routes() http.Handler {
 
 	// API routes
 	router.Mount("/api/v1").Route(func(apiGroup *routegroup.Bundle) {
-		apiGroup.Use(Logger(log.Default()))
+		apiGroup.Use(Logger(log.Default(), s.logSecret))
 		apiGroup.HandleFunc("POST /message", s.saveMessageCtrl)
 		apiGroup.HandleFunc("GET /message/{key}/{pin}", s.getMessageCtrl)
 		apiGroup.HandleFunc("GET /params", s.getParamsCtrl)
@@ -178,7 +206,7 @@ func (s Server) routes() http.Handler {
 
 	// web routes
 	router.Group().Route(func(webGroup *routegroup.Bundle) {
-		webGroup.Use(Logger(log.Default()), StripSlashes)
+		webGroup.Use(Logger(log.Default(), s.logSecret), StripSlashes)
 		webGroup.HandleFunc("POST /generate-link", s.generateLinkCtrl)
 		webGroup.HandleFunc("GET /message/{key}", s.showMessageViewCtrl)
 		webGroup.HandleFunc("POST /load-message", s.loadMessageCtrl)
@@ -187,6 +215,12 @@ func (s Server) routes() http.Handler {
 		webGroup.HandleFunc("GET /close-popup", s.closePopupCtrl)
 		webGroup.HandleFunc("GET /about", s.aboutViewCtrl)
 		webGroup.HandleFunc("GET /{$}", s.indexCtrl) // exact match for root only
+
+		// email routes (only if email is enabled)
+		if s.cfg.EmailEnabled {
+			webGroup.HandleFunc("GET /email-popup", s.emailPopupCtrl)
+			webGroup.HandleFunc("POST /send-email", s.sendEmailCtrl)
+		}
 	})
 
 	// special routes without groups

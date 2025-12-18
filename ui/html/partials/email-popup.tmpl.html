@@ -1,0 +1,70 @@
+{{define "email-popup"}}
+<div id="popup" class="popup active">
+    <div class="popup-content email-popup">
+        <div class="popup-header">
+            <h2 class="card-title card-title-with-icon">
+                <svg class="title-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Send via Email
+            </h2>
+        </div>
+        <form hx-post="/send-email"
+              hx-target="#popup"
+              hx-swap="outerHTML"
+              class="email-form">
+            {{if .Error}}
+            <div class="form-error">{{.Error}}</div>
+            {{end}}
+            <input type="hidden" name="link" value="{{.Link}}">
+
+            <div class="form-field">
+                <label for="subject">Subject</label>
+                <input type="text"
+                       id="subject"
+                       name="subject"
+                       value="{{.Subject}}"
+                       placeholder="Email subject"
+                       required>
+            </div>
+
+            <div class="form-field">
+                <label for="from-name">From (display name)</label>
+                <input type="text"
+                       id="from-name"
+                       name="from_name"
+                       value="{{.FromName}}"
+                       placeholder="Sender name">
+            </div>
+
+            <div class="form-field">
+                <label for="to">To</label>
+                <input type="email"
+                       id="to"
+                       name="to"
+                       value="{{.To}}"
+                       placeholder="recipient@example.com"
+                       autocomplete="email"
+                       required>
+            </div>
+
+            <div class="form-actions">
+                <button type="button"
+                        hx-get="/close-popup"
+                        hx-target="#popup"
+                        hx-swap="outerHTML"
+                        class="second-btn">Cancel</button>
+                <button type="submit" class="main-btn">
+                    <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Send
+                </button>
+            </div>
+        </form>
+        <script>setTimeout(function(){document.getElementById('to')?.focus();},50);</script>
+    </div>
+</div>
+{{end}}

@@ -175,7 +175,7 @@ Core libraries used:
 
 ### Static Assets Organization
 - CSS: Design system approach with modular sections (variables, typography, components)
-- JavaScript: Feature-specific modules (copy-text.js, theme.js, pin.js)
+- JavaScript: Minimal inline scripts only - no external JS files (HTMX handles interactivity)
 - Icons: Inline SVG for consistency and theming
 - Fonts: Google Fonts integration with preconnect optimization
 
@@ -184,6 +184,7 @@ Core libraries used:
 - Default protocol is HTTPS, must override for local development
 - Link generation uses request domain if allowed, falls back to first configured domain
 - Multiple domains supported via comma-separated list: `--domain="example.com,alt.example.com"`
+- **Embedded assets require rebuild**: UI assets (CSS, JS, templates) are embedded via `//go:embed`. Changes to `ui/` files require rebuilding and restarting the server. After killing the server, verify it stopped with `curl http://localhost:8080/ping` before restarting.
 
 ## HTMX Implementation
 
@@ -265,6 +266,20 @@ Core libraries used:
 - CLI flag names use lowercase with no underscores (e.g., `--pinsize`)
 - Environment variables use uppercase with underscores (e.g., `PIN_SIZE`)
 - Some historical typos may exist in CLI flags but environment variables are reliable
+
+## Email/SMTP Configuration
+
+### Mailgun SMTP Settings
+- **Use port 465 with implicit TLS** (`--email.tls`), NOT port 587 with STARTTLS
+- Mailgun requires IP allowlisting for SMTP authentication (implemented April 2024)
+- Authentication failures (535) often indicate IP not in allowlist, not wrong credentials
+- Test SMTP credentials via Mailgun HTTP API first: `curl --user 'user:pass' https://api.mailgun.net/v3/domain/messages`
+
+### Email Feature Flags
+- `--email.enabled` - enables email sharing feature
+- `--email.host`, `--email.port`, `--email.username`, `--email.password` - SMTP server config
+- `--email.tls` - use implicit TLS (port 465), `--email.starttls` - use STARTTLS (port 587)
+- `--email.from` - sender address with display name format: `"Name <email@domain>"`
 
 ## Testing Patterns
 

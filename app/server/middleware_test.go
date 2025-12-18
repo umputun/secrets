@@ -24,10 +24,13 @@ func TestLogger(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := Logger(l)(testHandler)
+	handler := Logger(l, "test-secret")(testHandler)
 	handler.ServeHTTP(rr, req)
 	t.Log(out.String())
-	assert.Contains(t, out.String(), "DEBUG GET - /params - 127.0.0.1 - 200")
+	// IP is hashed, verify it's a 12-char hex string
+	assert.Contains(t, out.String(), "DEBUG GET - /params -")
+	assert.Contains(t, out.String(), "- 200")
+	assert.NotContains(t, out.String(), "127.0.0.1") // IP should be hashed
 }
 
 func TestLoggerMasking(t *testing.T) {
@@ -43,10 +46,28 @@ func TestLoggerMasking(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := Logger(l)(testHandler)
+	handler := Logger(l, "test-secret")(testHandler)
 	handler.ServeHTTP(rr, req)
 	t.Log(out.String())
-	assert.Contains(t, out.String(), "DEBUG GET - /message/5e4e1633-24b01ef6/***** - 192.168.1.1 - 200")
+	assert.Contains(t, out.String(), "DEBUG GET - /message/5e4e1633-24b01ef6/*****")
+	assert.Contains(t, out.String(), "- 200")
+	assert.NotContains(t, out.String(), "192.168.1.1") // IP should be hashed
+}
+
+func TestHashIP(t *testing.T) {
+	// same IP + secret should produce same hash
+	h1 := hashIP("192.168.1.1", "secret")
+	h2 := hashIP("192.168.1.1", "secret")
+	assert.Equal(t, h1, h2)
+	assert.Len(t, h1, 12)
+
+	// different IPs should produce different hashes
+	h3 := hashIP("192.168.1.2", "secret")
+	assert.NotEqual(t, h1, h3)
+
+	// different secrets should produce different hashes
+	h4 := hashIP("192.168.1.1", "other-secret")
+	assert.NotEqual(t, h1, h4)
 }
 
 func TestStripSlashes(t *testing.T) {

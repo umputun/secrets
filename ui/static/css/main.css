@@ -633,12 +633,18 @@ button[type="submit"]:disabled {
 .form-row {
     display: grid;
     gap: var(--spacing-lg);
+}
+
+.form-row:not(:last-child) {
     margin-bottom: var(--spacing-xl);
 }
 
 @media (min-width: 640px) {
     .form-row.two-cols {
         grid-template-columns: 1fr 1fr;
+    }
+    .form-row.three-cols {
+        grid-template-columns: 1fr 1fr 1fr;
     }
 }
 
@@ -959,12 +965,14 @@ button[type="submit"]:disabled {
     filter: invert(1);
 }
 
-/* Login popup */
-.login-popup {
+/* Form popups (login, email) */
+.login-popup,
+.email-popup {
     text-align: left;
 }
 
-.login-popup .popup-header {
+.login-popup .popup-header,
+.email-popup .popup-header {
     position: relative;
     top: 0;
     right: 0;
@@ -1021,6 +1029,140 @@ button[type="submit"]:disabled {
     border: 1px solid rgba(244, 63, 94, 0.3);
     border-radius: var(--radius-md);
     color: var(--color-error);
+    font-size: var(--text-sm);
+}
+
+/* Email popup */
+.email-popup {
+    max-width: 500px;
+    width: 90vw;
+}
+
+.email-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.email-form .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.email-form .form-field label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+}
+
+.email-form .form-field label .optional {
+    font-weight: var(--font-normal);
+    color: var(--color-text-muted);
+}
+
+.email-form .form-field input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    background: var(--color-input-bg);
+    color: var(--color-text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.email-form .form-field input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-alpha);
+}
+
+.email-form .form-error {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(244, 63, 94, 0.1);
+    border: 1px solid rgba(244, 63, 94, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--color-error);
+    font-size: var(--text-sm);
+}
+
+.email-preview-container {
+    margin-top: var(--spacing-sm);
+}
+
+.email-preview {
+    padding: var(--spacing-md);
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    max-height: 150px;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: flex-end;
+    margin-top: var(--spacing-md);
+}
+
+.form-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.form-actions .btn-primary {
+    background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-dark) 100%);
+    color: white;
+    border: none;
+}
+
+.form-actions .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--color-accent-alpha);
+}
+
+.form-actions .btn-secondary {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+
+.form-actions .btn-secondary:hover {
+    border-color: var(--color-text-secondary);
+    color: var(--color-text-primary);
+}
+
+/* Email sent success */
+.email-sent-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+}
+
+.email-sent-success .success-icon {
+    color: var(--color-success);
+}
+
+.email-sent-success strong {
+    font-size: var(--text-lg);
+    color: var(--color-text-primary);
+}
+
+.email-sent-success span {
+    color: var(--color-text-secondary);
     font-size: var(--text-sm);
 }
 

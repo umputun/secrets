@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Message</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 40px 20px;">
+                <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h1 style="margin: 0 0 24px 0; color: #0f172a; font-size: 24px; font-weight: 600;">
+                                You've received a secure message
+                            </h1>
+                            <p style="margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                                <strong>{{.From}}</strong> has shared a secure message with you.
+                            </p>
+                            <p style="margin: 0 0 24px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                                Click the button below to access the message. This link can only be used once and will expire after viewing.
+                            </p>
+                            <p style="margin: 0 0 32px 0; padding: 16px; background-color: #fef3c7; border-radius: 8px; color: #92400e; font-size: 14px; line-height: 1.5;">
+                                <strong>Important:</strong> You'll need a PIN to open this message. The sender should share it with you separately (e.g., via text message or phone call).
+                            </p>
+                            <table role="presentation" style="margin: 0 0 32px 0;">
+                                <tr>
+                                    <td style="background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); border-radius: 8px;">
+                                        <a href="{{.Link}}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                                            View Secure Message
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="margin: 0 0 16px 0; color: #64748b; font-size: 14px; line-height: 1.5;">
+                                Or copy and paste this link into your browser:
+                            </p>
+                            <p style="margin: 0 0 32px 0; color: #14b8a6; font-size: 14px; word-break: break-all;">
+                                {{.Link}}
+                            </p>
+                            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;">
+                            <p style="margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.5;">
+                                This email was sent via <a href="{{.BrandingURL}}" style="color: #14b8a6; text-decoration: none;">{{.Branding}}</a>.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

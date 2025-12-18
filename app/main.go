@@ -9,6 +9,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
 	"github.com/umputun/secrets/app/server"
 	"github.com/umputun/secrets/app/store"
@@ -23,6 +24,7 @@ var opts struct {
 	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
 	WebRoot        string        `long:"web" env:"WEB" description:"web ui location (dev mode, uses embedded files if not set)"`
 	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
+	BrandingURL    string        `long:"branding-url" env:"BRANDING_URL" default:"https://safesecret.info" description:"branding link URL for emails"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
@@ -36,6 +38,21 @@ var opts struct {
 		Hash       string        `long:"hash" env:"HASH" description:"bcrypt hash of password (enables auth if set)"`
 		SessionTTL time.Duration `long:"session-ttl" env:"SESSION_TTL" default:"168h" description:"session lifetime"`
 	} `group:"auth" namespace:"auth" env-namespace:"AUTH"`
+
+	Email struct {
+		Enabled            bool          `long:"enabled" env:"ENABLED" description:"enable email sharing"`
+		Host               string        `long:"host" env:"HOST" description:"SMTP server host"`
+		Port               int           `long:"port" env:"PORT" default:"587" description:"SMTP server port"`
+		Username           string        `long:"username" env:"USERNAME" description:"SMTP auth username"`
+		Password           string        `long:"password" env:"PASSWORD" description:"SMTP auth password"`
+		From               string        `long:"from" env:"FROM" description:"sender address, format: 'Display Name <email>' or just 'email'"`
+		TLS                bool          `long:"tls" env:"TLS" description:"use implicit TLS (port 465)"`
+		StartTLS           bool          `long:"starttls" env:"STARTTLS" description:"use STARTTLS (port 587)"`
+		InsecureSkipVerify bool          `long:"insecure" env:"INSECURE_SKIP_VERIFY" description:"skip certificate verification"`
+		LoginAuth          bool          `long:"loginauth" env:"LOGIN_AUTH" description:"use LOGIN auth instead of PLAIN"`
+		Timeout            time.Duration `long:"timeout" env:"TIMEOUT" default:"30s" description:"connection timeout"`
+		Template           string        `long:"template" env:"TEMPLATE" description:"path to custom email template file"`
+	} `group:"email" namespace:"email" env-namespace:"EMAIL"`
 }
 
 var revision string
@@ -56,6 +73,32 @@ func main() {
 		log.Printf("[INFO]  authentication enabled (session TTL: %v)", opts.Auth.SessionTTL)
 	}
 
+	// create email sender if enabled
+	var emailSender *email.Sender
+	if opts.Email.Enabled {
+		log.Printf("[INFO]  email sharing enabled (host: %s, from: %s)", opts.Email.Host, opts.Email.From)
+		var emailErr error
+		emailSender, emailErr = email.NewSender(email.Config{
+			Enabled:            opts.Email.Enabled,
+			Host:               opts.Email.Host,
+			Port:               opts.Email.Port,
+			Username:           opts.Email.Username,
+			Password:           opts.Email.Password,
+			From:               opts.Email.From,
+			TLS:                opts.Email.TLS,
+			StartTLS:           opts.Email.StartTLS,
+			InsecureSkipVerify: opts.Email.InsecureSkipVerify,
+			LoginAuth:          opts.Email.LoginAuth,
+			Timeout:            opts.Email.Timeout,
+			Template:           opts.Email.Template,
+			Branding:           opts.Branding,
+			BrandingURL:        opts.BrandingURL,
+		})
+		if emailErr != nil {
+			log.Fatalf("[ERROR] can't create email sender, %v", emailErr)
+		}
+	}
+
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
 		Protocol:       opts.Protocol,
@@ -64,14 +107,18 @@ func main() {
 		MaxExpire:      opts.MaxExpire,
 		WebRoot:        opts.WebRoot,
 		Branding:       opts.Branding,
+		SignKey:        opts.SignKey,
 		EnableFiles:    opts.Files.Enabled,
 		MaxFileSize:    opts.Files.MaxSize,
 		AuthHash:       opts.Auth.Hash,
 		SessionTTL:     opts.Auth.SessionTTL,
+		EmailEnabled:   opts.Email.Enabled,
 	})
-
 	if err != nil {
 		log.Fatalf("[ERROR] can't create server, %v", err)
+	}
+	if emailSender != nil {
+		srv = srv.WithEmail(emailSender)
 	}
 
 	if err = srv.Run(context.Background()); err != nil {
