@@ -49,7 +49,6 @@ type Config struct {
 // EmailSender defines the interface for sending emails (consumer-side interface)
 type EmailSender interface {
 	Send(ctx context.Context, req email.Request) error
-	RenderBody(link, fromName string) (string, error)
 	GetDefaultFromName() string
 }
 

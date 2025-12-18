@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net"
@@ -1645,7 +1646,6 @@ func TestServer_emailPopupCtrl(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test Sender" },
-			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 		}
 		req := httptest.NewRequest("GET", "/email-popup", http.NoBody)
 		rr := httptest.NewRecorder()
@@ -1657,7 +1657,6 @@ func TestServer_emailPopupCtrl(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test Sender" },
-			RenderBodyFunc:         func(link, fromName string) (string, error) { return "<p>preview</p>", nil },
 		}
 		req := httptest.NewRequest("GET", "/email-popup?link=https://example.com/message/123", http.NoBody)
 		rr := httptest.NewRecorder()
@@ -1690,7 +1689,6 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
-			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 		}
 		form := url.Values{"link": {"https://example.com/message/123"}}
 		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
@@ -1705,7 +1703,6 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		srvWithEmail := srv
 		srvWithEmail.emailSender = &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
-			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 		}
 		form := url.Values{"link": {"https://example.com/message/123"}, "to": {"invalid-email"}, "subject": {"Test"}}
 		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
@@ -1719,7 +1716,6 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 	t.Run("success sends email", func(t *testing.T) {
 		mock := &mocks.EmailSenderMock{
 			GetDefaultFromNameFunc: func() string { return "Test" },
-			RenderBodyFunc:         func(link, fromName string) (string, error) { return "preview", nil },
 			SendFunc:               func(ctx context.Context, req email.Request) error { return nil },
 		}
 		srvWithEmail := srv
@@ -1735,6 +1731,103 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Len(t, mock.SendCalls(), 1)
 		assert.Equal(t, "user@example.com", mock.SendCalls()[0].Req.To)
+	})
+
+	t.Run("send failure shows auth error", func(t *testing.T) {
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc:               func(ctx context.Context, req email.Request) error { return errors.New("535 Authentication failed") },
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
+		assert.Contains(t, rr.Body.String(), "email authentication failed")
+	})
+
+	t.Run("send failure shows connection error", func(t *testing.T) {
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc:               func(ctx context.Context, req email.Request) error { return errors.New("dial tcp: connection refused") },
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
+		assert.Contains(t, rr.Body.String(), "cannot connect to email server")
+	})
+
+	t.Run("send failure shows timeout error", func(t *testing.T) {
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc:               func(ctx context.Context, req email.Request) error { return errors.New("i/o timeout") },
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
+		assert.Contains(t, rr.Body.String(), "email server timeout")
+	})
+
+	t.Run("send failure shows tls error", func(t *testing.T) {
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc: func(ctx context.Context, req email.Request) error {
+				return errors.New("tls: certificate is not trusted")
+			},
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
+		assert.Contains(t, rr.Body.String(), "email server TLS/SSL error")
+	})
+
+	t.Run("send failure shows generic error", func(t *testing.T) {
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc:               func(ctx context.Context, req email.Request) error { return errors.New("unknown smtp error") },
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"user@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code) // 200 for HTMX to process
+		assert.Contains(t, rr.Body.String(), "failed to send email")
 	})
 
 	t.Run("subject too long shows error", func(t *testing.T) {
@@ -1795,6 +1888,17 @@ func TestServer_isValidSecretLink(t *testing.T) {
 			{"no path", "https://example.com", false},
 			{"invalid url", "not-a-url", false},
 			{"empty", "", false},
+			// edge cases
+			{"with query params", "https://example.com/message/abc123?foo=bar", true},
+			{"with fragment", "https://example.com/message/abc123#section", true},
+			{"path traversal attempt", "https://example.com/message/../secrets/abc123", false},
+			{"url-encoded path", "https://example.com/message/abc%20123", true},
+			{"double-encoded traversal", "https://example.com/message/%2e%2e/secrets", false},
+			{"case sensitivity domain", "https://EXAMPLE.COM/message/abc123", true},
+			{"trailing slash", "https://example.com/message/abc123/", true},
+			{"message path only", "https://example.com/message/", true},
+			{"javascript scheme", "javascript:alert(1)", false},
+			{"data scheme", "data:text/html,<script>alert(1)</script>", false},
 		}
 
 		for _, tt := range tests {
@@ -1889,7 +1993,6 @@ func TestServer_WithEmail(t *testing.T) {
 	// add email sender using WithEmail
 	mock := &mocks.EmailSenderMock{
 		GetDefaultFromNameFunc: func() string { return "Test Sender" },
-		RenderBodyFunc:         func(link, fromName string) (string, error) { return "<p>preview</p>", nil },
 	}
 	srvWithEmail := srv.WithEmail(mock)
 

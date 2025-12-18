@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-pkgz/notify"
@@ -125,7 +126,7 @@ func NewSender(cfg Config) (*Sender, error) {
 
 // Send sends an email with the secret link
 func (s *Sender) Send(ctx context.Context, req Request) error {
-	body, err := s.RenderBody(req.Link, req.FromName)
+	body, err := s.renderBody(req.Link, req.FromName)
 	if err != nil {
 		return fmt.Errorf("failed to render email body: %w", err)
 	}
@@ -139,8 +140,8 @@ func (s *Sender) Send(ctx context.Context, req Request) error {
 	return nil
 }
 
-// RenderBody renders the email body with the given link and from name
-func (s *Sender) RenderBody(link, fromName string) (string, error) {
+// renderBody renders the email body with the given link and from name
+func (s *Sender) renderBody(link, fromName string) (string, error) {
 	data := struct {
 		Link        string
 		From        string
@@ -225,4 +226,13 @@ func IsValidEmail(email string) bool {
 	}
 	// ensure the parsed address matches the input (no display name was provided)
 	return addr.Address == email
+}
+
+// MaskEmail masks an email address for logging (e.g., "user@example.com" -> "u***@example.com")
+func MaskEmail(email string) string {
+	at := strings.Index(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	return email[:1] + "***" + email[at:]
 }

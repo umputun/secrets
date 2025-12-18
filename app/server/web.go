@@ -546,12 +546,12 @@ func getTheme(r *http.Request) string {
 func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 	currentTheme := getTheme(r)
 
-	// toggle between explicit light/dark only (auto -> light -> dark -> light)
+	// toggle between light and dark themes
 	var nextTheme string
 	switch currentTheme {
 	case "light":
 		nextTheme = "dark"
-	default: // "dark" or "auto"
+	default: // "dark" or "auto" (first visit)
 		nextTheme = "light"
 	}
 
@@ -651,41 +651,38 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 	fromName := r.FormValue("from_name")
 	to := strings.TrimSpace(r.FormValue("to"))
 
-	// validate required fields - return 200 so HTMX processes the response
-	if link == "" || to == "" || subject == "" {
+	// helper to render validation error (returns 200 so HTMX processes the response)
+	renderError := func(errMsg string) {
 		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: "please fill in all required fields",
+			Link: link, Subject: subject, FromName: fromName, To: to, Error: errMsg,
 		})
+	}
+
+	// validate required fields
+	if link == "" || to == "" || subject == "" {
+		renderError("please fill in all required fields")
 		return
 	}
 
 	// validate field lengths
 	if len(subject) > 200 {
-		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: "subject is too long (max 200 characters)",
-		})
+		renderError("subject is too long (max 200 characters)")
 		return
 	}
 	if len(fromName) > 100 {
-		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: "from name is too long (max 100 characters)",
-		})
+		renderError("from name is too long (max 100 characters)")
 		return
 	}
 
 	// validate the link points to this server
 	if !s.isValidSecretLink(link) {
-		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: "invalid link",
-		})
+		renderError("invalid link")
 		return
 	}
 
 	// validate email format
 	if !email.IsValidEmail(to) {
-		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: "invalid email address",
-		})
+		renderError("invalid email address")
 		return
 	}
 
@@ -705,14 +702,11 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
 		case strings.Contains(errStr, "tls") || strings.Contains(errStr, "certificate"):
 			errMsg = "email server TLS/SSL error"
 		}
-		// return 200 so HTMX processes the response (shows error in popup)
-		s.render(w, http.StatusOK, "email-popup.tmpl.html", "email-popup", emailPopupData{
-			Link: link, Subject: subject, FromName: fromName, To: to, Error: errMsg,
-		})
+		renderError(errMsg)
 		return
 	}
 
-	log.Printf("[INFO] email sent successfully")
+	log.Printf("[INFO] email sent successfully to %s", email.MaskEmail(to))
 
 	// render success
 	data := struct {
@@ -751,6 +745,11 @@ func (s Server) isValidSecretLink(link string) bool {
 		}
 	}
 	if !validHost {
+		return false
+	}
+
+	// check for path traversal attempts (both raw and URL-encoded)
+	if strings.Contains(parsed.Path, "..") || strings.Contains(parsed.RawPath, "..") {
 		return false
 	}
 

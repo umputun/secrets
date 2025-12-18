@@ -19,9 +19,6 @@ import (
 //			GetDefaultFromNameFunc: func() string {
 //				panic("mock out the GetDefaultFromName method")
 //			},
-//			RenderBodyFunc: func(link string, fromName string) (string, error) {
-//				panic("mock out the RenderBody method")
-//			},
 //			SendFunc: func(ctx context.Context, req email.Request) error {
 //				panic("mock out the Send method")
 //			},
@@ -35,9 +32,6 @@ type EmailSenderMock struct {
 	// GetDefaultFromNameFunc mocks the GetDefaultFromName method.
 	GetDefaultFromNameFunc func() string
 
-	// RenderBodyFunc mocks the RenderBody method.
-	RenderBodyFunc func(link string, fromName string) (string, error)
-
 	// SendFunc mocks the Send method.
 	SendFunc func(ctx context.Context, req email.Request) error
 
@@ -45,13 +39,6 @@ type EmailSenderMock struct {
 	calls struct {
 		// GetDefaultFromName holds details about calls to the GetDefaultFromName method.
 		GetDefaultFromName []struct {
-		}
-		// RenderBody holds details about calls to the RenderBody method.
-		RenderBody []struct {
-			// Link is the link argument value.
-			Link string
-			// FromName is the fromName argument value.
-			FromName string
 		}
 		// Send holds details about calls to the Send method.
 		Send []struct {
@@ -62,7 +49,6 @@ type EmailSenderMock struct {
 		}
 	}
 	lockGetDefaultFromName sync.RWMutex
-	lockRenderBody         sync.RWMutex
 	lockSend               sync.RWMutex
 }
 
@@ -90,42 +76,6 @@ func (mock *EmailSenderMock) GetDefaultFromNameCalls() []struct {
 	mock.lockGetDefaultFromName.RLock()
 	calls = mock.calls.GetDefaultFromName
 	mock.lockGetDefaultFromName.RUnlock()
-	return calls
-}
-
-// RenderBody calls RenderBodyFunc.
-func (mock *EmailSenderMock) RenderBody(link string, fromName string) (string, error) {
-	if mock.RenderBodyFunc == nil {
-		panic("EmailSenderMock.RenderBodyFunc: method is nil but EmailSender.RenderBody was just called")
-	}
-	callInfo := struct {
-		Link     string
-		FromName string
-	}{
-		Link:     link,
-		FromName: fromName,
-	}
-	mock.lockRenderBody.Lock()
-	mock.calls.RenderBody = append(mock.calls.RenderBody, callInfo)
-	mock.lockRenderBody.Unlock()
-	return mock.RenderBodyFunc(link, fromName)
-}
-
-// RenderBodyCalls gets all the calls that were made to RenderBody.
-// Check the length with:
-//
-//	len(mockedEmailSender.RenderBodyCalls())
-func (mock *EmailSenderMock) RenderBodyCalls() []struct {
-	Link     string
-	FromName string
-} {
-	var calls []struct {
-		Link     string
-		FromName string
-	}
-	mock.lockRenderBody.RLock()
-	calls = mock.calls.RenderBody
-	mock.lockRenderBody.RUnlock()
 	return calls
 }
 

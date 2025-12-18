@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,9 +54,58 @@ func TestNewSender(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read email template")
 	})
+
+	t.Run("custom template file success", func(t *testing.T) {
+		// create temp file with valid template
+		tmpFile, err := os.CreateTemp("", "email_template_*.html")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		customTemplate := `<!DOCTYPE html><html><body>Custom: {{.Link}} from {{.From}}</body></html>`
+		_, err = tmpFile.WriteString(customTemplate)
+		require.NoError(t, err)
+		require.NoError(t, tmpFile.Close())
+
+		sndr, err := NewSender(Config{
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     "noreply@example.com",
+			Template: tmpFile.Name(),
+			Branding: "Test Brand",
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, sndr)
+
+		// verify custom template is used
+		body, err := sndr.renderBody("https://example.com/msg", "Test User")
+		require.NoError(t, err)
+		assert.Contains(t, body, "Custom:")
+		assert.Contains(t, body, "https://example.com/msg")
+	})
+
+	t.Run("invalid template syntax fails", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "bad_template_*.html")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		// template with invalid syntax
+		_, err = tmpFile.WriteString(`{{.Invalid syntax {{}}`)
+		require.NoError(t, err)
+		require.NoError(t, tmpFile.Close())
+
+		_, err = NewSender(Config{
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     "noreply@example.com",
+			Template: tmpFile.Name(),
+			Branding: "Test Brand",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse email template")
+	})
 }
 
-func TestSender_RenderBody(t *testing.T) {
+func TestSender_renderBody(t *testing.T) {
 	sndr, err := NewSender(Config{
 		Enabled:     true,
 		Host:        "smtp.example.com",
@@ -65,7 +115,7 @@ func TestSender_RenderBody(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	body, err := sndr.RenderBody("https://example.com/message/abc123", "John Doe")
+	body, err := sndr.renderBody("https://example.com/message/abc123", "John Doe")
 	require.NoError(t, err)
 
 	assert.Contains(t, body, "https://example.com/message/abc123")
@@ -285,7 +335,7 @@ func TestSender_Send(t *testing.T) {
 		assert.Contains(t, err.Error(), "smtp connection failed")
 	})
 
-	t.Run("empty from name uses default", func(t *testing.T) {
+	t.Run("empty from name uses config default", func(t *testing.T) {
 		mockNotifier := &mocks.NotifierMock{
 			SendFunc: func(_ context.Context, _, _ string) error { return nil },
 		}
@@ -305,7 +355,51 @@ func TestSender_Send(t *testing.T) {
 
 		calls := mockNotifier.SendCalls()
 		require.Len(t, calls, 1)
-		// when FromName is empty, buildFromAddress uses original From config
-		assert.Contains(t, calls[0].Destination, "from=")
+		// when FromName is empty, buildFromAddress uses original From config including display name
+		assert.Contains(t, calls[0].Destination, "Default+Sender")        // URL-encoded display name
+		assert.Contains(t, calls[0].Destination, "noreply%40example.com") // URL-encoded email
 	})
+
+	t.Run("context cancellation is propagated", func(t *testing.T) {
+		mockNotifier := &mocks.NotifierMock{
+			SendFunc: func(ctx context.Context, _, _ string) error {
+				return ctx.Err() // return context error if canceled
+			},
+		}
+
+		sndr, err := NewSender(Config{
+			Enabled:  true,
+			Host:     "smtp.example.com",
+			From:     "noreply@example.com",
+			Branding: "Test Brand",
+			Notifier: mockNotifier,
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		req := Request{To: "recipient@example.com", Subject: "Test", FromName: "Test", Link: "https://example.com/message/abc"}
+		err = sndr.Send(ctx, req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+}
+
+func TestMaskEmail(t *testing.T) {
+	tests := []struct {
+		input, expected string
+	}{
+		{"user@example.com", "u***@example.com"},
+		{"a@b.com", "a***@b.com"},
+		{"longname@domain.org", "l***@domain.org"},
+		{"@invalid.com", "***"},
+		{"noemail", "***"},
+		{"", "***"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.expected, MaskEmail(tt.input))
+		})
+	}
 }
