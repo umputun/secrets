@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/umputun/secrets/app/email"
 	"github.com/umputun/secrets/app/messager"
+	"github.com/umputun/secrets/app/server/mocks"
 	"github.com/umputun/secrets/app/store"
 )
 
@@ -605,5 +608,146 @@ func TestServer_loginPopupCtrl(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Contains(t, resp.Header.Get("Content-Type"), "text/html")
+	})
+}
+
+func TestServer_EmailEndpointsRequireAuth(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	hash := testBcryptHash(t, "secret123")
+
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:       []string{"example.com"},
+			Protocol:     "https",
+			PinSize:      5,
+			MaxExpire:    10 * time.Hour,
+			AuthHash:     hash,
+			SessionTTL:   time.Hour,
+			EmailEnabled: true,
+		},
+	)
+	require.NoError(t, err)
+
+	// add mock email sender
+	mock := &mocks.EmailSenderMock{
+		GetDefaultFromNameFunc: func() string { return "Test Sender" },
+		SendFunc:               func(ctx context.Context, req email.Request) error { return nil },
+	}
+	srv = srv.WithEmail(mock)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	t.Run("unauthenticated request to email-popup returns 401", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, ts.URL+"/email-popup?link=https://example.com/message/123", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("HX-Request", "true")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("unauthenticated request to send-email returns 401", func(t *testing.T) {
+		form := url.Values{}
+		form.Set("link", "https://example.com/message/123")
+		form.Set("to", "test@example.com")
+		form.Set("subject", "Test Subject")
+
+		req, err := http.NewRequest(http.MethodPost, ts.URL+"/send-email", strings.NewReader(form.Encode()))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("authenticated request to email-popup succeeds", func(t *testing.T) {
+		// login first
+		loginForm := url.Values{}
+		loginForm.Set("password", "secret123")
+		loginReq, err := http.NewRequest(http.MethodPost, ts.URL+"/login", strings.NewReader(loginForm.Encode()))
+		require.NoError(t, err)
+		loginReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		client := &http.Client{}
+		loginResp, err := client.Do(loginReq)
+		require.NoError(t, err)
+		defer loginResp.Body.Close()
+
+		// get the session cookie
+		var sessionCookie *http.Cookie
+		for _, c := range loginResp.Cookies() {
+			if c.Name == authCookieName {
+				sessionCookie = c
+				break
+			}
+		}
+		require.NotNil(t, sessionCookie, "session cookie should be set after login")
+
+		// now request email popup with auth cookie
+		req, err := http.NewRequest(http.MethodGet, ts.URL+"/email-popup?link=https://example.com/message/123", http.NoBody)
+		require.NoError(t, err)
+		req.AddCookie(sessionCookie)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("authenticated request to send-email succeeds", func(t *testing.T) {
+		// login first
+		loginForm := url.Values{}
+		loginForm.Set("password", "secret123")
+		loginReq, err := http.NewRequest(http.MethodPost, ts.URL+"/login", strings.NewReader(loginForm.Encode()))
+		require.NoError(t, err)
+		loginReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		client := &http.Client{}
+		loginResp, err := client.Do(loginReq)
+		require.NoError(t, err)
+		defer loginResp.Body.Close()
+
+		// get the session cookie
+		var sessionCookie *http.Cookie
+		for _, c := range loginResp.Cookies() {
+			if c.Name == authCookieName {
+				sessionCookie = c
+				break
+			}
+		}
+		require.NotNil(t, sessionCookie, "session cookie should be set after login")
+
+		// send email with auth cookie
+		form := url.Values{}
+		form.Set("link", "https://example.com/message/123")
+		form.Set("to", "test@example.com")
+		form.Set("subject", "Test Subject")
+
+		req, err := http.NewRequest(http.MethodPost, ts.URL+"/send-email", strings.NewReader(form.Encode()))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(sessionCookie)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }

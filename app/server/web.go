@@ -139,10 +139,7 @@ func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
 func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	// check auth if enabled
 	if s.cfg.AuthHash != "" && !s.isAuthenticated(r) {
-		s.render(w, http.StatusUnauthorized, "login-popup.tmpl.html", "login-popup", struct {
-			Error string
-			Theme string
-		}{Error: "", Theme: getTheme(r)})
+		s.renderLoginPopupWithStatus(w, r, "", http.StatusUnauthorized)
 		return
 	}
 
@@ -606,6 +603,12 @@ func (s Server) closePopupCtrl(w http.ResponseWriter, _ *http.Request) {
 // emailPopupCtrl renders the email popup with preview
 // GET /email-popup?link=...
 func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
+	// check auth if enabled - email sharing requires same auth as secret creation
+	if s.cfg.AuthHash != "" && !s.isAuthenticated(r) {
+		s.renderLoginPopupWithStatus(w, r, "", http.StatusUnauthorized)
+		return
+	}
+
 	if s.emailSender == nil {
 		http.Error(w, "email not configured", http.StatusServiceUnavailable)
 		return
@@ -636,6 +639,12 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 // sendEmailCtrl sends the email with the secret link
 // POST /send-email
 func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
+	// check auth if enabled - email sharing requires same auth as secret creation
+	if s.cfg.AuthHash != "" && !s.isAuthenticated(r) {
+		s.renderLoginPopupWithStatus(w, r, "", http.StatusUnauthorized)
+		return
+	}
+
 	if s.emailSender == nil {
 		http.Error(w, "email not configured", http.StatusServiceUnavailable)
 		return

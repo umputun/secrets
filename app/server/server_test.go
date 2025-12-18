@@ -909,3 +909,63 @@ func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "file downloads disabled", result["error"])
 }
+
+func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	// save a message first
+	msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		key  string
+		pin  string
+	}{
+		{name: "valid credentials", key: msg.Key, pin: "12345"},
+		{name: "invalid pin", key: msg.Key, pin: "99999"},
+		{name: "non-existent key", key: "nonexistent", pin: "12345"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// save a new message for each valid test since message is deleted after successful read
+			testKey := tt.key
+			if tt.name == "valid credentials" {
+				newMsg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+				require.NoError(t, err)
+				testKey = newMsg.Key
+			}
+
+			url := fmt.Sprintf("%s/api/v1/message/%s/%s", ts.URL, testKey, tt.pin)
+
+			start := time.Now()
+			resp, err := http.Get(url) //nolint:gosec // test URL
+			elapsed := time.Since(start)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// timing pad should ensure at least 100ms response time for all branches
+			// allow margin for CI variability (80ms minimum)
+			assert.GreaterOrEqual(t, elapsed, 80*time.Millisecond,
+				"response time should be at least ~100ms due to timing pad, got %v", elapsed)
+		})
+	}
+}

@@ -82,12 +82,11 @@ func Health(path string, checkers ...func(ctx context.Context) (name string, err
 				}
 				resp = append(resp, hh)
 			}
+			status := http.StatusOK
 			if anyError {
-				w.WriteHeader(http.StatusServiceUnavailable)
-			} else {
-				w.WriteHeader(http.StatusOK)
+				status = http.StatusServiceUnavailable
 			}
-			RenderJSON(w, resp)
+			_ = EncodeJSON(w, status, resp)
 		}
 		return http.HandlerFunc(fn)
 	}

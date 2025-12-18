@@ -320,10 +320,12 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return http.StatusOK, rest.JSON{"key": msg.Key, "message": string(msg.Data)}
 	}
 
-	// make sure serveRequest works constant time on any branch
+	// make sure serveRequest takes constant time on any branch to prevent timing attacks
 	st := time.Now()
 	status, res := serveRequest()
-	time.Sleep(time.Millisecond*100 - time.Since(st))
+	if elapsed := time.Since(st); elapsed < 100*time.Millisecond {
+		time.Sleep(100*time.Millisecond - elapsed)
+	}
 	_ = rest.EncodeJSON(w, status, res)
 
 	var statusText string

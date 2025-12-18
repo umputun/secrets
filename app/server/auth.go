@@ -103,6 +103,10 @@ func (s Server) loginPopupCtrl(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Server) renderLoginPopup(w http.ResponseWriter, r *http.Request, errorMsg string) {
+	s.renderLoginPopupWithStatus(w, r, errorMsg, http.StatusOK)
+}
+
+func (s Server) renderLoginPopupWithStatus(w http.ResponseWriter, r *http.Request, errorMsg string, status int) {
 	data := struct {
 		Error string
 		Theme string
@@ -110,7 +114,7 @@ func (s Server) renderLoginPopup(w http.ResponseWriter, r *http.Request, errorMs
 		Error: errorMsg,
 		Theme: getTheme(r),
 	}
-	s.render(w, http.StatusOK, "login-popup.tmpl.html", "login-popup", data)
+	s.render(w, status, "login-popup.tmpl.html", "login-popup", data)
 }
 
 // generateSessionToken creates a secure session token
