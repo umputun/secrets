@@ -175,6 +175,29 @@ When enabled, a "Send Email" button appears after creating a secret link. The em
 > [!WARNING]
 > **Do not enable email sharing on public instances without authentication (`--auth.hash`).** Without auth, anyone can use your SMTP server to send emails to arbitrary addresses, which can be abused for spam or phishing. Always require authentication when email sharing is enabled on publicly accessible instances.
 
+<details>
+<summary><b>Mailgun SMTP Setup</b></summary>
+
+Mailgun requires specific configuration:
+
+```bash
+--email.enabled \
+--email.host=smtp.mailgun.org \
+--email.port=465 \
+--email.tls \
+--email.username=postmaster@mg.yourdomain.com \
+--email.password=your-mailgun-smtp-password \
+--email.from="Your App <noreply@mg.yourdomain.com>"
+```
+
+**Important notes:**
+- Use port **465 with `--email.tls`** (implicit TLS), not port 587 with STARTTLS
+- Add your server's IP to Mailgun's **Authorized Recipients** or **IP Allowlist** (required since April 2024)
+- Authentication failures (535) usually indicate IP not in allowlist, not wrong credentials
+- Sandbox domains can only send to verified recipients
+
+</details>
+
 ### Examples
 
 ```bash
