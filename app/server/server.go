@@ -3,6 +3,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -30,6 +32,7 @@ type Config struct {
 	Protocol string
 	Branding string
 	Port     string // server port, defaults to :8080
+	SignKey  string // sign key (will be hashed before use for IP anonymization)
 	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
@@ -59,6 +62,7 @@ type Server struct {
 	cfg           Config
 	version       string
 	templateCache map[string]*template.Template
+	logSecret     string // derived from SignKey for IP anonymization in logs
 }
 
 // New creates a new server with template cache
@@ -72,11 +76,16 @@ func New(m Messager, version string, cfg Config) (Server, error) {
 		return Server{}, fmt.Errorf("can't create template cache: %w", err)
 	}
 
+	// derive log secret from sign key for IP anonymization (never use raw SignKey for logging)
+	h := sha256.Sum256([]byte(cfg.SignKey + ":log"))
+	logSecret := hex.EncodeToString(h[:])
+
 	return Server{
 		messager:      m,
 		cfg:           cfg,
 		version:       version,
 		templateCache: cache,
+		logSecret:     logSecret,
 	}, nil
 }
 
@@ -182,7 +191,7 @@ func (s Server) routes() http.Handler {
 
 	// API routes
 	router.Mount("/api/v1").Route(func(apiGroup *routegroup.Bundle) {
-		apiGroup.Use(Logger(log.Default()))
+		apiGroup.Use(Logger(log.Default(), s.logSecret))
 		apiGroup.HandleFunc("POST /message", s.saveMessageCtrl)
 		apiGroup.HandleFunc("GET /message/{key}/{pin}", s.getMessageCtrl)
 		apiGroup.HandleFunc("GET /params", s.getParamsCtrl)
@@ -197,7 +206,7 @@ func (s Server) routes() http.Handler {
 
 	// web routes
 	router.Group().Route(func(webGroup *routegroup.Bundle) {
-		webGroup.Use(Logger(log.Default()), StripSlashes)
+		webGroup.Use(Logger(log.Default(), s.logSecret), StripSlashes)
 		webGroup.HandleFunc("POST /generate-link", s.generateLinkCtrl)
 		webGroup.HandleFunc("GET /message/{key}", s.showMessageViewCtrl)
 		webGroup.HandleFunc("POST /load-message", s.loadMessageCtrl)

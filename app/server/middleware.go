@@ -1,6 +1,9 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,8 +14,8 @@ import (
 	log "github.com/go-pkgz/lgr"
 )
 
-// Logger middleware with security masking for sensitive paths
-func Logger(l log.L) func(http.Handler) http.Handler {
+// Logger middleware with security masking for sensitive paths and IP anonymization
+func Logger(l log.L, secret string) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ww := &statusWriter{ResponseWriter: w, status: 200}
@@ -41,11 +44,11 @@ func Logger(l log.L) func(http.Handler) http.Handler {
 				}
 			}
 
-			// get IP - use net.SplitHostPort which handles both IPv4 and IPv6
+			// get IP and hash it for privacy
 			remoteIP := "-"
 			if r.RemoteAddr != "" {
 				if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host != "" {
-					remoteIP = host
+					remoteIP = hashIP(host, secret)
 				}
 			}
 
@@ -53,6 +56,13 @@ func Logger(l log.L) func(http.Handler) http.Handler {
 		}
 		return http.HandlerFunc(fn)
 	}
+}
+
+// hashIP returns first 12 chars of HMAC-SHA1 hash for IP anonymization
+func hashIP(ip, secret string) string {
+	h := hmac.New(sha1.New, []byte(secret))
+	h.Write([]byte(ip))
+	return hex.EncodeToString(h.Sum(nil))[:12]
 }
 
 // statusWriter wraps http.ResponseWriter to capture status code

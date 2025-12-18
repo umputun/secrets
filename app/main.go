@@ -107,6 +107,7 @@ func main() {
 		MaxExpire:      opts.MaxExpire,
 		WebRoot:        opts.WebRoot,
 		Branding:       opts.Branding,
+		SignKey:        opts.SignKey,
 		EnableFiles:    opts.Files.Enabled,
 		MaxFileSize:    opts.Files.MaxSize,
 		AuthHash:       opts.Auth.Hash,
