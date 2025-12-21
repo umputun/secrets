@@ -1,0 +1,41 @@
+name: e2e
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: setup go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: cache playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
+      - name: install playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps chromium
+
+      - name: install playwright deps only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: go run github.com/playwright-community/playwright-go/cmd/playwright@latest install-deps chromium
+
+      - name: run e2e tests
+        run: go test -v -count=1 -timeout=5m -tags=e2e ./e2e/...
