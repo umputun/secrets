@@ -28,6 +28,7 @@ var opts struct {
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
+	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
 
 	Files struct {
 		Enabled bool  `long:"enabled" env:"ENABLED" description:"enable file uploads"`
@@ -102,6 +103,7 @@ func main() {
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
 		Domain:         opts.Domain,
 		Protocol:       opts.Protocol,
+		Listen:         opts.Listen,
 		PinSize:        opts.PinSize,
 		MaxPinAttempts: opts.MaxPinAttempts,
 		MaxExpire:      opts.MaxExpire,

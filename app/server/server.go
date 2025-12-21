@@ -31,7 +31,7 @@ type Config struct {
 	WebRoot  string
 	Protocol string
 	Branding string
-	Port     string // server port, defaults to :8080
+	Listen   string // server listen address (ip:port or :port), defaults to :8080
 	SignKey  string // sign key (will be hashed before use for IP anonymization)
 	// validation parameters
 	PinSize        int
@@ -130,7 +130,7 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 func (s Server) Run(ctx context.Context) error {
 	log.Printf("[INFO] activate rest server")
 
-	port := s.cfg.Port
+	port := s.cfg.Listen
 	if port == "" {
 		port = ":8080"
 	}

@@ -376,7 +376,7 @@ func TestServer_Run(t *testing.T) {
 		"1",
 		Config{
 			Domain:         []string{"example.com"},
-			Port:           ":0", // use random available port
+			Listen:         ":0", // use random available port
 			PinSize:        5,
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,

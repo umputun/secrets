@@ -135,6 +135,7 @@ Key configuration via environment variables or flags:
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
 - `DOMAIN` - Allowed domain(s), supports comma-separated list (e.g., "example.com,alt.example.com")
 - `PROTOCOL` - http or https (default: https)
+- `LISTEN` - Server listen address, ip:port or :port format (default: :8080)
 - `FILES_ENABLED` - Enable file uploads (default: false)
 - `FILES_MAX_SIZE` - Maximum file size in bytes (default: 1MB)
 - `AUTH_HASH` - bcrypt hash of password (enables auth for link generation if set)

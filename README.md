@@ -91,7 +91,7 @@ cd app && go build -o secrets
 
 ## Configuration
 
-All options work as both CLI flags and environment variables. The app listens on port **8080** by default.
+All options work as both CLI flags and environment variables.
 
 ### Core Options
 
@@ -100,6 +100,7 @@ All options work as both CLI flags and environment variables. The app listens on
 | `-k, --key` | `SIGN_KEY` | *required* | Signing key for encryption |
 | `-d, --domain` | `DOMAIN` | *required* | Site domain(s), comma-separated for multiple |
 | `-p, --protocol` | `PROTOCOL` | `https` | Site protocol (http/https) |
+| `--listen` | `LISTEN` | `:8080` | Server listen address (ip:port or :port) |
 | `--branding` | `BRANDING` | `Safe Secrets` | Application title |
 | `--branding-url` | `BRANDING_URL` | `https://safesecret.info` | Branding link URL for emails |
 | `--dbg` | - | `false` | Enable debug mode |
