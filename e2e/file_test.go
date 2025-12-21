@@ -132,6 +132,18 @@ func TestFile_UploadAndDownload(t *testing.T) {
 	visible, err = downloadBtn.IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "download file button should be visible for file messages")
+
+	// enter PIN and trigger download
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+	require.NoError(t, downloadBtn.Click())
+	time.Sleep(500 * time.Millisecond) // wait for download to complete
+
+	// after successful download, should show success message or the message should be consumed
+	// check that the download was processed (page shows success state or navigates)
+	successIndicator := page.Locator(".card:has-text('File Downloaded'), .card:has-text('downloaded')")
+	visible, err = successIndicator.IsVisible()
+	require.NoError(t, err)
+	assert.True(t, visible, "should show file downloaded confirmation")
 }
 
 func TestFile_InfoDisplay(t *testing.T) {
