@@ -92,11 +92,10 @@ func TestFile_UploadAndDownload(t *testing.T) {
 	require.NoError(t, fileTab.Click())
 	time.Sleep(100 * time.Millisecond)
 
-	// create a test file
+	// create a test file in temp directory
 	testContent := []byte("test file content for e2e testing")
-	testFilePath := "/tmp/e2e-test-file.txt"
+	testFilePath := t.TempDir() + "/e2e-test-file.txt"
 	require.NoError(t, os.WriteFile(testFilePath, testContent, 0o600))
-	t.Cleanup(func() { _ = os.Remove(testFilePath) })
 
 	// upload file using file input
 	fileInput := page.Locator("input[type='file']")
@@ -150,11 +149,10 @@ func TestFile_InfoDisplay(t *testing.T) {
 	require.NoError(t, fileTab.Click())
 	time.Sleep(100 * time.Millisecond)
 
-	// create a test file
+	// create a test file in temp directory
 	testContent := []byte("test file content for display test")
-	testFilePath := "/tmp/e2e-test-display.txt"
+	testFilePath := t.TempDir() + "/e2e-test-display.txt"
 	require.NoError(t, os.WriteFile(testFilePath, testContent, 0o600))
-	t.Cleanup(func() { _ = os.Remove(testFilePath) })
 
 	// upload file
 	fileInput := page.Locator("input[type='file']")
