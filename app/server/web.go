@@ -214,6 +214,8 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[INFO] created message %s, type=text, size=%d, exp=%s, ip=%s",
+		msg.Key, len(form.Message), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
 	s.renderSecureLink(w, r, msg.Key, form)
 }
 
@@ -305,6 +307,8 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[INFO] created message %s, type=file, size=%d, exp=%s, ip=%s",
+		msg.Key, len(fileData), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
 	s.renderSecureLink(w, r, msg.Key, form)
 }
 
@@ -448,19 +452,24 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(msg.Data[dataStart:])
-		log.Printf("[INFO] accessed file message %s (%s), status 200 (success)", form.Key, filename)
+		log.Printf("[INFO] accessed message %s, type=file, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
 		return
 	}
 
 	// text message - render decoded message template
 	s.render(w, http.StatusOK, "decoded-message.tmpl.html", "decoded-message", string(msg.Data))
-	log.Printf("[INFO] accessed message %s, status 200 (success)", form.Key)
+	log.Printf("[INFO] accessed message %s, type=text, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
 }
 
 // handleLoadMessageError handles errors from LoadMessage, rendering appropriate responses.
 // isFile indicates whether the message was a file (checked before LoadMessage which may delete it).
 func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, form *showMsgForm, err error, isFile bool) {
 	isHTMX := r.Header.Get("HX-Request") == "true"
+
+	msgType := "text"
+	if isFile {
+		msgType = "file"
+	}
 
 	if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
 		// message not found or expired - return 404
@@ -469,7 +478,7 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 			status = http.StatusOK
 		}
 		s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
-		log.Printf("[INFO] accessed message %s, status 404 (not found)", form.Key)
+		log.Printf("[INFO] accessed message %s, type=%s, status=404 (not found), ip=%s", form.Key, msgType, GetHashedIP(r))
 		return
 	}
 
@@ -484,7 +493,7 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 		tmpl = mainTmpl // partial for HTMX swap
 	}
 	s.render(w, status, "show-message.tmpl.html", tmpl, data)
-	log.Printf("[INFO] accessed message %s, status 403 (wrong pin)", form.Key)
+	log.Printf("[INFO] accessed message %s, type=%s, status=403 (wrong pin), ip=%s", form.Key, msgType, GetHashedIP(r))
 }
 
 // duration converts a number and unit into a time.Duration

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/go-pkgz/lgr"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -41,7 +42,11 @@ func (s Server) checkBasicAuth(r *http.Request) bool {
 	// bcrypt password check (already constant-time)
 	passwordCorrect := bcrypt.CompareHashAndPassword([]byte(s.cfg.AuthHash), []byte(password)) == nil
 
-	return usernameCorrect && passwordCorrect
+	if !usernameCorrect || !passwordCorrect {
+		log.Printf("[WARN] basic auth failed, ip=%s", GetHashedIP(r))
+		return false
+	}
+	return true
 }
 
 // loginCtrl handles login form submission
@@ -56,10 +61,12 @@ func (s Server) loginCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate password against bcrypt hash
 	if err := bcrypt.CompareHashAndPassword([]byte(s.cfg.AuthHash), []byte(password)); err != nil {
+		log.Printf("[WARN] login failed, ip=%s", GetHashedIP(r))
 		s.renderLoginPopup(w, r, "invalid password")
 		return
 	}
 
+	log.Printf("[INFO] login success, ip=%s", GetHashedIP(r))
 	// authentication successful, set session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     authCookieName,
