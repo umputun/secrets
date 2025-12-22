@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
@@ -13,6 +14,32 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 )
+
+type ctxKey string
+
+const hashedIPKey ctxKey = "hashedIP"
+
+// HashedIP middleware adds anonymized IP to request context for audit logging
+func HashedIP(secret string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := "-"
+			if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host != "" {
+				ip = hashIP(host, secret)
+			}
+			ctx := context.WithValue(r.Context(), hashedIPKey, ip)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// GetHashedIP retrieves hashed IP from context
+func GetHashedIP(r *http.Request) string {
+	if ip, ok := r.Context().Value(hashedIPKey).(string); ok {
+		return ip
+	}
+	return "-"
+}
 
 // Logger middleware with security masking for sensitive paths and IP anonymization
 func Logger(l log.L, secret string) func(http.Handler) http.Handler {

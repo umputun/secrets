@@ -102,6 +102,107 @@ func TestStripSlashes(t *testing.T) {
 	}
 }
 
+func TestHashedIPMiddleware(t *testing.T) {
+	t.Run("adds hashed IP to context", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/test", http.NoBody)
+		require.NoError(t, err)
+		req.RemoteAddr = "192.168.1.100:12345"
+
+		rr := httptest.NewRecorder()
+		var capturedIP string
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedIP = GetHashedIP(r)
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := HashedIP("test-secret")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		assert.Len(t, capturedIP, 12)
+		assert.NotEqual(t, "-", capturedIP)
+		assert.NotContains(t, capturedIP, "192.168.1.100")
+	})
+
+	t.Run("same IP produces same hash", func(t *testing.T) {
+		var hash1, hash2 string
+
+		for i, hash := range []*string{&hash1, &hash2} {
+			req, err := http.NewRequest("GET", "/test", http.NoBody)
+			require.NoError(t, err)
+			req.RemoteAddr = "10.0.0.1:9999"
+
+			rr := httptest.NewRecorder()
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				*hash = GetHashedIP(r)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := HashedIP("consistent-secret")(testHandler)
+			handler.ServeHTTP(rr, req)
+			_ = i
+		}
+
+		assert.Equal(t, hash1, hash2)
+	})
+
+	t.Run("different IPs produce different hashes", func(t *testing.T) {
+		var hash1, hash2 string
+
+		for i, tc := range []struct {
+			ip   string
+			hash *string
+		}{
+			{"10.0.0.1:1234", &hash1},
+			{"10.0.0.2:1234", &hash2},
+		} {
+			req, err := http.NewRequest("GET", "/test", http.NoBody)
+			require.NoError(t, err)
+			req.RemoteAddr = tc.ip
+
+			rr := httptest.NewRecorder()
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				*tc.hash = GetHashedIP(r)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := HashedIP("test-secret")(testHandler)
+			handler.ServeHTTP(rr, req)
+			_ = i
+		}
+
+		assert.NotEqual(t, hash1, hash2)
+	})
+
+	t.Run("empty remote addr returns dash", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/test", http.NoBody)
+		require.NoError(t, err)
+		req.RemoteAddr = ""
+
+		rr := httptest.NewRecorder()
+		var capturedIP string
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedIP = GetHashedIP(r)
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := HashedIP("test-secret")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		assert.Equal(t, "-", capturedIP)
+	})
+}
+
+func TestGetHashedIP(t *testing.T) {
+	t.Run("returns dash when not in context", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/test", http.NoBody)
+		require.NoError(t, err)
+
+		// no middleware applied, context doesn't have hashed IP
+		ip := GetHashedIP(req)
+		assert.Equal(t, "-", ip)
+	})
+}
+
 func TestTimeout(t *testing.T) {
 	t.Run("request completes before timeout", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "/test", http.NoBody)

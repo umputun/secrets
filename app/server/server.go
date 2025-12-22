@@ -180,6 +180,7 @@ func (s Server) routes() http.Handler {
 	// global middleware - applied to all routes
 	router.Use(
 		rest.RealIP,
+		HashedIP(s.logSecret),
 		rest.Recoverer(log.Default()),
 		rest.Throttle(1000),
 		Timeout(60*time.Second),
@@ -291,7 +292,8 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = rest.EncodeJSON(w, http.StatusCreated, rest.JSON{"key": msg.Key, "exp": msg.Exp})
-	log.Printf("[INFO] created message %s exp %s", msg.Key, msg.Exp.Format(time.RFC3339))
+	log.Printf("[INFO] created message %s, type=text, size=%d, exp=%s, ip=%s",
+		msg.Key, len(request.Message), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
 }
 
 // GET /v1/message/{key}/{pin}
@@ -303,6 +305,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	msgType := "unknown"
 	serveRequest := func() (status int, res rest.JSON) {
 		msg, err := s.messager.LoadMessage(key, pin)
 		if err != nil {
@@ -312,10 +315,16 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 			}
 			return http.StatusBadRequest, rest.JSON{"error": err.Error()}
 		}
-		// reject file messages when files are disabled
-		if messager.IsFileMessage(msg.Data) && !s.cfg.EnableFiles {
-			log.Printf("[WARN] file download rejected for %s, files disabled", key)
-			return http.StatusForbidden, rest.JSON{"error": "file downloads disabled"}
+		// determine message type for logging
+		if messager.IsFileMessage(msg.Data) {
+			msgType = "file"
+			// reject file messages when files are disabled
+			if !s.cfg.EnableFiles {
+				log.Printf("[WARN] file download rejected for %s, files disabled", key)
+				return http.StatusForbidden, rest.JSON{"error": "file downloads disabled"}
+			}
+		} else {
+			msgType = "text"
 		}
 		return http.StatusOK, rest.JSON{"key": msg.Key, "message": string(msg.Data)}
 	}
@@ -337,7 +346,8 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	default:
 		statusText = "error"
 	}
-	log.Printf("[INFO] accessed message %s, status %d (%s)", key, status, statusText)
+	log.Printf("[INFO] accessed message %s, type=%s, status=%d (%s), ip=%s",
+		key, msgType, status, statusText, GetHashedIP(r))
 }
 
 // GET /params

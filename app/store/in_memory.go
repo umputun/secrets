@@ -40,7 +40,7 @@ func (s *InMemory) Load(key string) (result *Message, err error) {
 	msg, ok := s.data[key]
 
 	if !ok {
-		log.Printf("[INFO] not found %s", key)
+		log.Printf("[DEBUG] not found %s", key)
 		return nil, ErrLoadRejected
 	}
 
@@ -54,7 +54,7 @@ func (s *InMemory) IncErr(key string) (count int, err error) {
 	msg, ok := s.data[key]
 
 	if !ok {
-		log.Printf("[INFO] not found %s", key)
+		log.Printf("[DEBUG] not found %s", key)
 		return 0, ErrLoadRejected
 	}
 	msg.Errors++

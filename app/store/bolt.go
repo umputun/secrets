@@ -61,7 +61,7 @@ func (s *Bolt) Load(key string) (result *Message, err error) {
 		b := tx.Bucket(bucket)
 		val := b.Get([]byte(key))
 		if val == nil {
-			log.Printf("[INFO] not found %s", key)
+			log.Printf("[DEBUG] not found %s", key)
 			return ErrLoadRejected
 		}
 		result = &Message{}
