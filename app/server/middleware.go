@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,13 +18,14 @@ type ctxKey string
 
 const hashedIPKey ctxKey = "hashedIP"
 
-// HashedIP middleware adds anonymized IP to request context for audit logging
+// HashedIP middleware adds anonymized IP to request context for audit logging.
+// Must run after rest.RealIP middleware which sets r.RemoteAddr to the client IP.
 func HashedIP(secret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := "-"
-			if host := extractIP(r.RemoteAddr); host != "" {
-				ip = hashIP(host, secret)
+			if r.RemoteAddr != "" {
+				ip = hashIP(r.RemoteAddr, secret)
 			}
 			ctx := context.WithValue(r.Context(), hashedIPKey, ip)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -41,8 +41,9 @@ func GetHashedIP(r *http.Request) string {
 	return "-"
 }
 
-// Logger middleware with security masking for sensitive paths and IP anonymization
-func Logger(l log.L, secret string) func(http.Handler) http.Handler {
+// Logger middleware with security masking for sensitive paths and IP anonymization.
+// Must run after HashedIP middleware which sets hashed IP in context.
+func Logger(l log.L) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ww := &statusWriter{ResponseWriter: w, status: 200}
@@ -71,11 +72,8 @@ func Logger(l log.L, secret string) func(http.Handler) http.Handler {
 				}
 			}
 
-			// get IP and hash it for privacy
-			remoteIP := "-"
-			if host := extractIP(r.RemoteAddr); host != "" {
-				remoteIP = hashIP(host, secret)
-			}
+			// get hashed IP from context (set by HashedIP middleware)
+			remoteIP := GetHashedIP(r)
 
 			l.Logf("[DEBUG] %s - %s - %s - %d - %v", r.Method, q, remoteIP, ww.status, duration)
 		}
@@ -88,23 +86,6 @@ func hashIP(ip, secret string) string {
 	h := hmac.New(sha1.New, []byte(secret))
 	h.Write([]byte(ip))
 	return hex.EncodeToString(h.Sum(nil))[:12]
-}
-
-// extractIP extracts IP address from RemoteAddr which may be "ip:port" or just "ip".
-// rest.RealIP middleware sets RemoteAddr without port when behind reverse proxy.
-func extractIP(remoteAddr string) string {
-	if remoteAddr == "" {
-		return ""
-	}
-	// try splitting host:port first
-	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
-		return host
-	}
-	// no port present - check if it's a valid IP directly
-	if ip := net.ParseIP(remoteAddr); ip != nil {
-		return remoteAddr
-	}
-	return ""
 }
 
 // statusWriter wraps http.ResponseWriter to capture status code

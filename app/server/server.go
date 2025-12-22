@@ -179,7 +179,7 @@ func (s Server) routes() http.Handler {
 
 	// global middleware - applied to all routes
 	router.Use(
-		rest.RealIP,
+		rest.RealIP, // x-Real-IP → CF-Connecting-IP → leftmost public XFF → RemoteAddr
 		HashedIP(s.logSecret),
 		rest.Recoverer(log.Default()),
 		rest.Throttle(1000),
@@ -192,7 +192,7 @@ func (s Server) routes() http.Handler {
 
 	// API routes
 	router.Mount("/api/v1").Route(func(apiGroup *routegroup.Bundle) {
-		apiGroup.Use(Logger(log.Default(), s.logSecret))
+		apiGroup.Use(Logger(log.Default()))
 		apiGroup.HandleFunc("POST /message", s.saveMessageCtrl)
 		apiGroup.HandleFunc("GET /message/{key}/{pin}", s.getMessageCtrl)
 		apiGroup.HandleFunc("GET /params", s.getParamsCtrl)
@@ -207,7 +207,7 @@ func (s Server) routes() http.Handler {
 
 	// web routes
 	router.Group().Route(func(webGroup *routegroup.Bundle) {
-		webGroup.Use(Logger(log.Default(), s.logSecret), StripSlashes)
+		webGroup.Use(Logger(log.Default()), StripSlashes)
 		webGroup.HandleFunc("POST /generate-link", s.generateLinkCtrl)
 		webGroup.HandleFunc("GET /message/{key}", s.showMessageViewCtrl)
 		webGroup.HandleFunc("POST /load-message", s.loadMessageCtrl)

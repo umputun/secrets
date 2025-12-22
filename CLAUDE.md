@@ -119,6 +119,16 @@ File messages use a distinct storage format with encrypted metadata:
 - `ParseFileHeader(data)` - extracts filename, content-type, data start position (4KB scan limit)
 - `IsFile(key)` - loads message to check type without decrypting (used for UI to show "Download" vs "Reveal")
 
+### Middleware Architecture
+- **rest.RealIP middleware** - Extracts client IP from headers for CDN/proxy compatibility (from go-pkgz/rest v1.20.6+)
+  - Header priority: X-Real-IP → CF-Connecting-IP → leftmost public IP in X-Forwarded-For → RemoteAddr
+  - Filters private/loopback/link-local IPs automatically
+- **HashedIP middleware** - Anonymizes client IP using HMAC-SHA1 hash (12-char hex) for audit logging
+  - Must run after rest.RealIP middleware (reads `r.RemoteAddr` set by RealIP)
+- **Logger middleware** - Logs requests with masked sensitive paths (PINs) and anonymized IPs
+  - Must run after HashedIP middleware (reads hashed IP from context)
+- **Middleware chain order matters**: rest.RealIP → HashedIP → Logger
+
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message
 - `GET /api/v1/message/:key/:pin` - Retrieve and decrypt message
@@ -153,7 +163,7 @@ Key configuration via environment variables or flags:
 Core libraries used:
 - `github.com/go-chi/chi/v5` - HTTP routing
 - `github.com/go-pkgz/lgr` - Structured logging
-- `github.com/go-pkgz/rest` - REST middleware utilities
+- `github.com/go-pkgz/rest` - REST middleware utilities (v1.20.6+ for CDN-compatible RealIP)
 - `go.etcd.io/bbolt` - BoltDB storage engine
 - `golang.org/x/crypto` - Encryption and bcrypt hashing
 - `github.com/stretchr/testify` - Testing assertions

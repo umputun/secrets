@@ -24,7 +24,8 @@ func TestLogger(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := Logger(l, "test-secret")(testHandler)
+	// chain HashedIP middleware before Logger (as in production)
+	handler := HashedIP("test-secret")(Logger(l)(testHandler))
 	handler.ServeHTTP(rr, req)
 	t.Log(out.String())
 	// IP is hashed, verify it's a 12-char hex string
@@ -46,7 +47,8 @@ func TestLoggerMasking(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := Logger(l, "test-secret")(testHandler)
+	// chain HashedIP middleware before Logger (as in production)
+	handler := HashedIP("test-secret")(Logger(l)(testHandler))
 	handler.ServeHTTP(rr, req)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "DEBUG GET - /message/5e4e1633-24b01ef6/*****")
@@ -68,30 +70,6 @@ func TestHashIP(t *testing.T) {
 	// different secrets should produce different hashes
 	h4 := hashIP("192.168.1.1", "other-secret")
 	assert.NotEqual(t, h1, h4)
-}
-
-func TestExtractIP(t *testing.T) {
-	tests := []struct {
-		name       string
-		remoteAddr string
-		expected   string
-	}{
-		{"ip with port", "192.168.1.1:12345", "192.168.1.1"},
-		{"ip without port (proxy)", "192.168.1.1", "192.168.1.1"},
-		{"ipv6 with port", "[::1]:12345", "::1"},
-		{"ipv6 without port", "::1", "::1"},
-		{"empty string", "", ""},
-		{"invalid address", "not-an-ip", ""},
-		{"localhost with port", "127.0.0.1:8080", "127.0.0.1"},
-		{"localhost without port", "127.0.0.1", "127.0.0.1"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := extractIP(tt.remoteAddr)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }
 
 func TestStripSlashes(t *testing.T) {
@@ -150,7 +128,7 @@ func TestHashedIPMiddleware(t *testing.T) {
 	t.Run("same IP produces same hash", func(t *testing.T) {
 		var hash1, hash2 string
 
-		for i, hash := range []*string{&hash1, &hash2} {
+		for _, hash := range []*string{&hash1, &hash2} {
 			req, err := http.NewRequest("GET", "/test", http.NoBody)
 			require.NoError(t, err)
 			req.RemoteAddr = "10.0.0.1:9999"
@@ -163,7 +141,6 @@ func TestHashedIPMiddleware(t *testing.T) {
 
 			handler := HashedIP("consistent-secret")(testHandler)
 			handler.ServeHTTP(rr, req)
-			_ = i
 		}
 
 		assert.Equal(t, hash1, hash2)
@@ -172,7 +149,7 @@ func TestHashedIPMiddleware(t *testing.T) {
 	t.Run("different IPs produce different hashes", func(t *testing.T) {
 		var hash1, hash2 string
 
-		for i, tc := range []struct {
+		for _, tc := range []struct {
 			ip   string
 			hash *string
 		}{
@@ -191,7 +168,6 @@ func TestHashedIPMiddleware(t *testing.T) {
 
 			handler := HashedIP("test-secret")(testHandler)
 			handler.ServeHTTP(rr, req)
-			_ = i
 		}
 
 		assert.NotEqual(t, hash1, hash2)
@@ -218,7 +194,7 @@ func TestHashedIPMiddleware(t *testing.T) {
 	t.Run("ip without port (behind proxy)", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "/test", http.NoBody)
 		require.NoError(t, err)
-		req.RemoteAddr = "10.0.0.50" // no port - this is what rest.RealIP sets behind proxy
+		req.RemoteAddr = "10.0.0.50" // no port - this is what RealIP sets behind proxy
 
 		rr := httptest.NewRecorder()
 		var capturedIP string
@@ -282,4 +258,44 @@ func TestTimeout(t *testing.T) {
 		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 		assert.Contains(t, rr.Body.String(), "Request timeout")
 	})
+}
+
+func TestLoggerMaskingEdgeCases(t *testing.T) {
+	tests := []struct {
+		name         string
+		path         string
+		shouldMask   bool
+		expectedPart string // partial string that should appear in log
+	}{
+		{"normal message path", "/message/5e4e1633-24b01ef6-49d6-4c8a-acf9-9dac0aa0eff9/12345", true, "/message/5e4e1633-24b01ef6/*****"},
+		{"short key not masked", "/message/short/12345", false, "/message/short/12345"},
+		{"no pin segment", "/message/5e4e1633-24b01ef6-49d6-4c8a-acf9", false, "/message/5e4e1633-24b01ef6-49d6-4c8a-acf9"},
+		{"message at end", "/api/message", false, "/api/message"},
+		{"nested message path", "/v1/api/message/5e4e1633-24b01ef6-49d6-4c8a-acf9-9dac0aa0eff9/pin123", true, "/v1/api/message/5e4e1633-24b01ef6/*****"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", tt.path, http.NoBody)
+			require.NoError(t, err)
+			req.RemoteAddr = "10.0.0.1:1234"
+
+			rr := httptest.NewRecorder()
+			out := bytes.Buffer{}
+			l := lgr.New(lgr.Out(&out), lgr.Debug)
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			handler := HashedIP("test-secret")(Logger(l)(testHandler))
+			handler.ServeHTTP(rr, req)
+
+			logOutput := out.String()
+			assert.Contains(t, logOutput, tt.expectedPart, "log should contain expected path")
+			if tt.shouldMask {
+				assert.NotContains(t, logOutput, "12345", "pin should be masked")
+				assert.NotContains(t, logOutput, "pin123", "pin should be masked")
+			}
+		})
+	}
 }
