@@ -89,6 +89,18 @@ cd app && go build -o secrets
 ./secrets -k "your-secret-key" -d "example.com" -p https
 ```
 
+### Running Tests
+
+```bash
+# Unit tests
+go test ./...
+
+# E2E tests (requires playwright setup)
+make e2e-setup   # one-time: install playwright browsers
+make e2e         # run e2e tests (headless)
+make e2e-ui      # run with visible browser for debugging
+```
+
 ## Configuration
 
 All options work as both CLI flags and environment variables.

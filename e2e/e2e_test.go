@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ const (
 
 var (
 	pw        *playwright.Playwright
+	browser   playwright.Browser
 	serverCmd *exec.Cmd
 )
 
@@ -90,10 +92,29 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// launch browser once (reused across all tests via contexts)
+	headless := os.Getenv("E2E_HEADLESS") != "false"
+	browser, err = pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(headless),
+		SlowMo: playwright.Float(func() float64 {
+			if headless {
+				return 0
+			}
+			return 50 // 50ms slowdown for UI mode
+		}()),
+	})
+	if err != nil {
+		fmt.Printf("failed to launch browser: %v\n", err)
+		_ = pw.Stop()
+		_ = serverCmd.Process.Kill()
+		os.Exit(1)
+	}
+
 	// run tests
 	code := m.Run()
 
 	// cleanup
+	_ = browser.Close()
 	_ = pw.Stop()
 	_ = serverCmd.Process.Kill()
 	_ = serverCmd.Wait()
@@ -101,7 +122,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func waitForServer(url string, timeout time.Duration) error {
+func waitForServer(url string, timeout time.Duration) error { //nolint:unparam // timeout kept for API flexibility
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(url) // #nosec G107 - test url
@@ -118,22 +139,30 @@ func waitForServer(url string, timeout time.Duration) error {
 
 func newPage(t *testing.T) playwright.Page {
 	t.Helper()
-	headless := os.Getenv("E2E_HEADLESS") != "false"
-	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(headless),
-		SlowMo: playwright.Float(func() float64 {
-			if headless {
-				return 0
-			}
-			return 50 // 50ms slowdown for UI mode
-		}()),
-	})
+	// create new context for test isolation (cookies, storage, etc.)
+	ctx, err := browser.NewContext()
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = browser.Close() })
+	t.Cleanup(func() { _ = ctx.Close() })
 
-	page, err := browser.NewPage()
+	page, err := ctx.NewPage()
 	require.NoError(t, err)
 	return page
+}
+
+// waitVisible waits for a locator to become visible, replacing time.Sleep() patterns
+func waitVisible(t *testing.T, loc playwright.Locator) {
+	t.Helper()
+	require.NoError(t, loc.WaitFor(playwright.LocatorWaitForOptions{
+		State: playwright.WaitForSelectorStateVisible,
+	}))
+}
+
+// waitHidden waits for a locator to become hidden
+func waitHidden(t *testing.T, loc playwright.Locator) {
+	t.Helper()
+	require.NoError(t, loc.WaitFor(playwright.LocatorWaitForOptions{
+		State: playwright.WaitForSelectorStateHidden,
+	}))
 }
 
 // extractMessageKey extracts the message key from a secret link URL
@@ -196,15 +225,10 @@ func TestSecret_CreateAndReveal(t *testing.T) {
 	// fill in PIN
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 
-	// submit form
+	// submit form and wait for result
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond) // htmx processing
-
-	// check for secure link result
 	linkTextarea := page.Locator("textarea#msg-text")
-	visible, err := linkTextarea.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "secure link textarea should be visible after creation")
+	waitVisible(t, linkTextarea)
 
 	// get the generated link
 	secretLink, err := linkTextarea.InputValue()
@@ -219,20 +243,15 @@ func TestSecret_CreateAndReveal(t *testing.T) {
 	require.NoError(t, err)
 
 	// check PIN input is visible on message page
-	visible, err = page.Locator("#pin").IsVisible()
+	visible, err := page.Locator("#pin").IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "PIN input should be visible on message page")
 
 	// enter PIN to reveal message
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond) // htmx processing
-
-	// check message is revealed
 	messageText := page.Locator("textarea#decoded-msg-text")
-	visible, err = messageText.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "decoded message should be visible")
+	waitVisible(t, messageText)
 
 	content, err := messageText.InputValue()
 	require.NoError(t, err)
@@ -248,10 +267,10 @@ func TestSecret_WrongPin(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("secret with wrong pin test"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
 
 	// get the generated link
-	linkTextarea := page.Locator("textarea#msg-text")
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
 
@@ -265,13 +284,8 @@ func TestSecret_WrongPin(t *testing.T) {
 	// enter wrong PIN
 	require.NoError(t, page.Locator("#pin").Fill("99999"))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
-
-	// check error is displayed
 	errorSpan := page.Locator(".error")
-	visible, err := errorSpan.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "error should be visible for wrong PIN")
+	waitVisible(t, errorSpan)
 
 	errorText, err := errorSpan.TextContent()
 	require.NoError(t, err)
@@ -287,10 +301,10 @@ func TestSecret_MaxAttempts(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("max attempts test message"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
 
 	// get the generated link
-	linkTextarea := page.Locator("textarea#msg-text")
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
 
@@ -303,7 +317,8 @@ func TestSecret_MaxAttempts(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, page.Locator("#pin").Fill("99999"))
 		require.NoError(t, page.Locator("button[type='submit']").Click())
-		time.Sleep(200 * time.Millisecond)
+		errorSpan := page.Locator(".error")
+		waitVisible(t, errorSpan)
 	}
 
 	// after max attempts, message should be deleted
@@ -312,13 +327,8 @@ func TestSecret_MaxAttempts(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, page.Locator("#pin").Fill(testPin)) // even correct PIN
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
-
-	// should show expired/not found error (card with "Message Unavailable" heading)
 	errorCard := page.Locator(".card:has-text('Message Unavailable')")
-	visible, err := errorCard.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "error card should be visible after max attempts")
+	waitVisible(t, errorCard)
 }
 
 func TestSecret_AlreadyViewed(t *testing.T) {
@@ -330,10 +340,10 @@ func TestSecret_AlreadyViewed(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("one-time secret"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
 
 	// get the generated link
-	linkTextarea := page.Locator("textarea#msg-text")
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
 
@@ -345,26 +355,16 @@ func TestSecret_AlreadyViewed(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
-
-	// verify message was shown
 	messageText := page.Locator("textarea#decoded-msg-text")
-	visible, err := messageText.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "message should be shown on first access")
+	waitVisible(t, messageText)
 
 	// second access - should fail (message deleted after first view)
 	_, err = page.Goto(baseURL + "/message/" + messageKey)
 	require.NoError(t, err)
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
-
-	// should show expired/not found error (card with "Message Unavailable" heading)
 	errorCard := page.Locator(".card:has-text('Message Unavailable')")
-	visible, err = errorCard.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "error card should be visible on second access")
+	waitVisible(t, errorCard)
 }
 
 // --- theme tests ---
@@ -378,20 +378,21 @@ func TestTheme_Toggle(t *testing.T) {
 	initialTheme, err := page.Locator("html").GetAttribute("data-theme")
 	require.NoError(t, err)
 
-	// find and click theme toggle button
+	// find and click theme toggle button (should always be present)
 	themeBtn := page.Locator("button[hx-post='/theme']")
 	visible, err := themeBtn.IsVisible()
 	require.NoError(t, err)
-	if !visible {
-		t.Skip("theme toggle button not visible")
-	}
+	require.True(t, visible, "theme toggle button should be visible")
 
 	require.NoError(t, themeBtn.Click())
-	time.Sleep(300 * time.Millisecond) // wait for page refresh
+	// wait for page to fully reload by checking for message form
+	messageTextarea := page.Locator("#message")
+	waitVisible(t, messageTextarea)
 
 	// check theme changed
 	newTheme, err := page.Locator("html").GetAttribute("data-theme")
 	require.NoError(t, err)
+	assert.NotEmpty(t, newTheme, "theme attribute should be set after toggle")
 	assert.NotEqual(t, initialTheme, newTheme, "theme should change after toggle")
 }
 
@@ -430,7 +431,9 @@ func TestNavigation_HomeLink(t *testing.T) {
 	}
 
 	require.NoError(t, homeLink.Click())
-	time.Sleep(100 * time.Millisecond)
+	// wait for navigation to complete by waiting for the message form to appear
+	messageTextarea := page.Locator("#message")
+	waitVisible(t, messageTextarea)
 
 	// verify we're on home page
 	currentURL := page.URL()
@@ -447,10 +450,9 @@ func TestValidation_EmptyMessage(t *testing.T) {
 	// try to submit with empty message
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
+	// html5 validation will prevent submission - no async action happens
 
-	// should stay on same page with error
-	// html5 validation will prevent submission, check we're still on form
+	// should stay on same page, check we're still on form
 	visible, err := page.Locator("#message").IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "should stay on form with empty message")
@@ -464,9 +466,9 @@ func TestValidation_EmptyPin(t *testing.T) {
 	// fill message but not PIN
 	require.NoError(t, page.Locator("#message").Fill("test message"))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
+	// html5 validation will prevent submission - no async action happens
 
-	// should stay on same page (html5 validation)
+	// should stay on same page
 	visible, err := page.Locator("#pin").IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "should stay on form with empty PIN")
@@ -498,13 +500,8 @@ func TestCopyLink_ButtonVisible(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("copy test message"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
-
-	// check copy button is visible
 	copyBtn := page.Locator("button#copy-link-btn")
-	visible, err := copyBtn.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "copy link button should be visible after creating secret")
+	waitVisible(t, copyBtn)
 }
 
 // --- new secret button tests ---
@@ -518,22 +515,13 @@ func TestNewSecret_ButtonAfterCreate(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("new secret test"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(200 * time.Millisecond)
-
-	// check "New" button is visible (in secure-link template)
 	newBtn := page.Locator("a:has-text('New')")
-	visible, err := newBtn.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "new button should be visible after creating secret")
+	waitVisible(t, newBtn)
 
 	// click it and verify we're back to form
 	require.NoError(t, newBtn.Click())
-	time.Sleep(100 * time.Millisecond)
-
-	// check message textarea is visible (back on form)
-	visible, err = page.Locator("#message").IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "should be back on form after clicking new")
+	messageTextarea := page.Locator("#message")
+	waitVisible(t, messageTextarea)
 }
 
 // --- expiration tests ---
@@ -562,4 +550,94 @@ func TestExpiration_UnitSelection(t *testing.T) {
 	value, err = expUnit.InputValue()
 	require.NoError(t, err)
 	assert.Equal(t, "d", value, "should be able to select days")
+}
+
+func TestValidation_PinTooShort(t *testing.T) {
+	page := newPage(t)
+	_, err := page.Goto(baseURL)
+	require.NoError(t, err)
+
+	// fill message and short PIN (test server expects 5 digits)
+	require.NoError(t, page.Locator("#message").Fill("test message"))
+	require.NoError(t, page.Locator("#pin").Fill("1234")) // only 4 digits, need 5
+
+	// submit form
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	// should show validation error (PIN has minlength=5 in HTML)
+	// the form should not submit successfully - check that link textarea is NOT shown
+	linkTextarea := page.Locator("textarea#msg-text")
+
+	// use a short timeout to check non-visibility
+	visible, _ := linkTextarea.IsVisible()
+	assert.False(t, visible, "secret link should not appear with invalid PIN length")
+}
+
+const multiDomainServerURL = "http://localhost:18084"
+
+// startMultiDomainServer starts a server with multiple domains configured.
+// Returns a cleanup function that stops the server.
+func startMultiDomainServer(t *testing.T) func() {
+	t.Helper()
+
+	cmd := exec.Command("/tmp/secrets-e2e",
+		"--key=test-sign-key-for-e2e-multi",
+		"--domain=localhost:18084,127.0.0.1:18084",
+		"--protocol=http",
+		"--listen=:18084",
+		"--pinsize=5",
+		"--expire=1h",
+		"--pinattempts=3",
+		"--dbg",
+	)
+	// create env without AUTH_HASH to disable auth
+	env := []string{}
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "AUTH_HASH=") {
+			env = append(env, e)
+		}
+	}
+	cmd.Env = env
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start multi-domain server: %v", err)
+	}
+
+	// wait for server readiness using shared helper
+	if err := waitForServer(multiDomainServerURL+"/ping", 30*time.Second); err != nil {
+		_ = cmd.Process.Kill()
+		t.Fatalf("multi-domain server not ready: %v", err)
+	}
+
+	return func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	}
+}
+
+func TestSecret_MultiDomainLinkGeneration(t *testing.T) {
+	cleanup := startMultiDomainServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+	_, err := page.Goto(multiDomainServerURL)
+	require.NoError(t, err)
+
+	// create a secret
+	require.NoError(t, page.Locator("#message").Fill("multi-domain test message"))
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	// get the generated link
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+
+	// verify link uses the correct domain (first domain in the list or request domain)
+	assert.Contains(t, secretLink, "/message/", "link should contain /message/ path")
+	assert.True(t,
+		strings.Contains(secretLink, "localhost:18084") || strings.Contains(secretLink, "127.0.0.1:18084"),
+		"link should use one of the configured domains")
 }

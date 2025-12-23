@@ -4,12 +4,58 @@ package e2e
 
 import (
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const noFilesServerURL = "http://localhost:18083"
+
+// startNoFilesServer starts a server with files disabled on port 18083.
+// Returns a cleanup function that stops the server.
+func startNoFilesServer(t *testing.T) func() {
+	t.Helper()
+
+	cmd := exec.Command("/tmp/secrets-e2e",
+		"--key=test-sign-key-for-e2e-nofiles",
+		"--domain=localhost:18083",
+		"--protocol=http",
+		"--listen=:18083",
+		"--pinsize=5",
+		"--expire=1h",
+		"--pinattempts=3",
+		// files NOT enabled (default is disabled)
+		"--dbg",
+	)
+	// create env without AUTH_HASH to disable auth
+	env := []string{}
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "AUTH_HASH=") {
+			env = append(env, e)
+		}
+	}
+	cmd.Env = env
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start no-files server: %v", err)
+	}
+
+	// wait for server readiness using shared helper
+	if err := waitForServer(noFilesServerURL+"/ping", 30*time.Second); err != nil {
+		_ = cmd.Process.Kill()
+		t.Fatalf("no-files server not ready: %v", err)
+	}
+
+	return func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	}
+}
 
 func TestFile_TabVisible(t *testing.T) {
 	page := newPage(t)
@@ -27,22 +73,15 @@ func TestFile_TabSwitch(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	// click file tab
+	// click file tab (files are enabled in test server config)
 	fileTab := page.Locator("#file-tab")
 	visible, err := fileTab.IsVisible()
 	require.NoError(t, err)
-	if !visible {
-		t.Skip("file tab not visible - files may be disabled")
-	}
+	require.True(t, visible, "file tab should be visible - files are enabled in test config")
 
 	require.NoError(t, fileTab.Click())
-	time.Sleep(100 * time.Millisecond)
-
-	// check drop zone is now visible
 	dropZone := page.Locator("#drop-zone")
-	visible, err = dropZone.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "drop zone should be visible after switching to file tab")
+	waitVisible(t, dropZone)
 
 	// message textarea should be hidden
 	visible, err = page.Locator("#message").IsVisible()
@@ -55,26 +94,21 @@ func TestFile_SwitchBack(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	// click file tab
+	// click file tab (files are enabled in test server config)
 	fileTab := page.Locator("#file-tab")
 	visible, err := fileTab.IsVisible()
 	require.NoError(t, err)
-	if !visible {
-		t.Skip("file tab not visible")
-	}
+	require.True(t, visible, "file tab should be visible - files are enabled in test config")
 
 	require.NoError(t, fileTab.Click())
-	time.Sleep(100 * time.Millisecond)
+	dropZone := page.Locator("#drop-zone")
+	waitVisible(t, dropZone)
 
 	// click text tab to switch back
 	textTab := page.Locator("#text-tab")
 	require.NoError(t, textTab.Click())
-	time.Sleep(100 * time.Millisecond)
-
-	// message textarea should be visible again
-	visible, err = page.Locator("#message").IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "message textarea should be visible after switching back to text")
+	messageTextarea := page.Locator("#message")
+	waitVisible(t, messageTextarea)
 }
 
 func TestFile_UploadAndDownload(t *testing.T) {
@@ -82,15 +116,14 @@ func TestFile_UploadAndDownload(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	// switch to file tab
+	// switch to file tab (files are enabled in test server config)
 	fileTab := page.Locator("#file-tab")
 	visible, err := fileTab.IsVisible()
 	require.NoError(t, err)
-	if !visible {
-		t.Skip("file tab not visible - files may be disabled")
-	}
+	require.True(t, visible, "file tab should be visible - files are enabled in test config")
 	require.NoError(t, fileTab.Click())
-	time.Sleep(100 * time.Millisecond)
+	dropZone := page.Locator("#drop-zone")
+	waitVisible(t, dropZone)
 
 	// create a test file in temp directory
 	testContent := []byte("test file content for e2e testing")
@@ -100,20 +133,16 @@ func TestFile_UploadAndDownload(t *testing.T) {
 	// upload file using file input
 	fileInput := page.Locator("input[type='file']")
 	require.NoError(t, fileInput.SetInputFiles(testFilePath))
-	time.Sleep(100 * time.Millisecond)
+	fileInfo := page.Locator("#file-info")
+	waitVisible(t, fileInfo)
 
 	// fill PIN
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 
 	// submit form
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(300 * time.Millisecond) // file upload takes longer
-
-	// check for secure link result
 	linkTextarea := page.Locator("textarea#msg-text")
-	visible, err = linkTextarea.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "secure link textarea should be visible after file upload")
+	waitVisible(t, linkTextarea)
 
 	// get the generated link
 	secretLink, err := linkTextarea.InputValue()
@@ -136,14 +165,8 @@ func TestFile_UploadAndDownload(t *testing.T) {
 	// enter PIN and trigger download
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, downloadBtn.Click())
-	time.Sleep(500 * time.Millisecond) // wait for download to complete
-
-	// after successful download, should show success message or the message should be consumed
-	// check that the download was processed (page shows success state or navigates)
 	successIndicator := page.Locator(".card:has-text('File Downloaded'), .card:has-text('downloaded')")
-	visible, err = successIndicator.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "should show file downloaded confirmation")
+	waitVisible(t, successIndicator)
 }
 
 func TestFile_InfoDisplay(t *testing.T) {
@@ -151,15 +174,14 @@ func TestFile_InfoDisplay(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	// switch to file tab
+	// switch to file tab (files are enabled in test server config)
 	fileTab := page.Locator("#file-tab")
 	visible, err := fileTab.IsVisible()
 	require.NoError(t, err)
-	if !visible {
-		t.Skip("file tab not visible - files may be disabled")
-	}
+	require.True(t, visible, "file tab should be visible - files are enabled in test config")
 	require.NoError(t, fileTab.Click())
-	time.Sleep(100 * time.Millisecond)
+	dropZone := page.Locator("#drop-zone")
+	waitVisible(t, dropZone)
 
 	// create a test file in temp directory
 	testContent := []byte("test file content for display test")
@@ -169,16 +191,32 @@ func TestFile_InfoDisplay(t *testing.T) {
 	// upload file
 	fileInput := page.Locator("input[type='file']")
 	require.NoError(t, fileInput.SetInputFiles(testFilePath))
-	time.Sleep(100 * time.Millisecond)
-
-	// check file info is displayed in drop zone
 	fileInfo := page.Locator("#file-info")
-	visible, err = fileInfo.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "file info should be visible after selecting file")
+	waitVisible(t, fileInfo)
 
 	// check filename is shown
 	infoText, err := fileInfo.TextContent()
 	require.NoError(t, err)
 	assert.Contains(t, infoText, "e2e-test-display.txt", "should show filename")
+}
+
+func TestFile_TabHiddenWhenDisabled(t *testing.T) {
+	cleanup := startNoFilesServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+	_, err := page.Goto(noFilesServerURL)
+	require.NoError(t, err)
+
+	// file tab should NOT be visible when files are disabled
+	fileTab := page.Locator("#file-tab")
+	visible, err := fileTab.IsVisible()
+	require.NoError(t, err)
+	assert.False(t, visible, "file tab should be hidden when files disabled")
+
+	// message textarea should still be visible
+	messageTextarea := page.Locator("#message")
+	visible, err = messageTextarea.IsVisible()
+	require.NoError(t, err)
+	assert.True(t, visible, "message textarea should be visible")
 }

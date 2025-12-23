@@ -3,10 +3,9 @@
 package e2e
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,10 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	emailServerURL  = "http://localhost:18082"
-	emailServerPort = ":18082"
-)
+const emailServerURL = "http://localhost:18082"
 
 // startEmailServer starts a server with email enabled (fake SMTP config).
 // Returns a cleanup function that stops the server.
@@ -26,9 +22,9 @@ func startEmailServer(t *testing.T) func() {
 
 	cmd := exec.Command("/tmp/secrets-e2e",
 		"--key=test-sign-key-for-e2e-email",
-		"--domain=localhost"+emailServerPort,
+		"--domain=localhost:18082",
 		"--protocol=http",
-		"--listen="+emailServerPort,
+		"--listen=:18082",
 		"--pinsize=5",
 		"--expire=1h",
 		"--pinattempts=3",
@@ -41,7 +37,7 @@ func startEmailServer(t *testing.T) func() {
 	// create env without AUTH_HASH to disable auth
 	env := []string{}
 	for _, e := range os.Environ() {
-		if len(e) < 9 || e[:9] != "AUTH_HASH" {
+		if !strings.HasPrefix(e, "AUTH_HASH=") {
 			env = append(env, e)
 		}
 	}
@@ -52,8 +48,8 @@ func startEmailServer(t *testing.T) func() {
 		t.Fatalf("failed to start email server: %v", err)
 	}
 
-	// wait for server readiness
-	if err := waitForEmailServer(emailServerURL+"/ping", 30*time.Second); err != nil {
+	// wait for server readiness using shared helper
+	if err := waitForServer(emailServerURL+"/ping", 30*time.Second); err != nil {
 		_ = cmd.Process.Kill()
 		t.Fatalf("email server not ready: %v", err)
 	}
@@ -62,21 +58,6 @@ func startEmailServer(t *testing.T) func() {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 	}
-}
-
-func waitForEmailServer(url string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		resp, err := http.Get(url) // #nosec G107 - test url
-		if err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("email server not ready after %v", timeout)
 }
 
 func TestEmail_ButtonVisible(t *testing.T) {
@@ -91,10 +72,10 @@ func TestEmail_ButtonVisible(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("email test message"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(300 * time.Millisecond)
+	emailBtn := page.Locator("button:has-text('Email')")
+	waitVisible(t, emailBtn)
 
 	// check email button is visible (only when email is enabled)
-	emailBtn := page.Locator("button:has-text('Email')")
 	visible, err := emailBtn.IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "email button should be visible when email is enabled")
@@ -112,15 +93,15 @@ func TestEmail_PopupOpens(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("email popup test"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(300 * time.Millisecond)
+	emailBtn := page.Locator("button:has-text('Email')")
+	waitVisible(t, emailBtn)
 
 	// click email button
-	emailBtn := page.Locator("button:has-text('Email')")
 	require.NoError(t, emailBtn.Click())
-	time.Sleep(200 * time.Millisecond)
+	popup := page.Locator("#popup.active")
+	waitVisible(t, popup)
 
 	// check email popup is visible
-	popup := page.Locator("#popup.active")
 	visible, err := popup.IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "email popup should be visible")
@@ -149,12 +130,13 @@ func TestEmail_SendFailsWithFakeSMTP(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("email send test"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(300 * time.Millisecond)
+	emailBtn := page.Locator("button:has-text('Email')")
+	waitVisible(t, emailBtn)
 
 	// click email button to open popup
-	emailBtn := page.Locator("button:has-text('Email')")
 	require.NoError(t, emailBtn.Click())
-	time.Sleep(200 * time.Millisecond)
+	popup := page.Locator("#popup.active")
+	waitVisible(t, popup)
 
 	// fill email form
 	require.NoError(t, page.Locator("#to").Fill("recipient@example.com"))
@@ -163,13 +145,16 @@ func TestEmail_SendFailsWithFakeSMTP(t *testing.T) {
 	// submit the form
 	sendBtn := page.Locator("#popup button:has-text('Send')")
 	require.NoError(t, sendBtn.Click())
-	time.Sleep(500 * time.Millisecond) // wait for SMTP attempt to fail
+	errorElement := page.Locator("#popup .form-error")
+	waitVisible(t, errorElement)
 
 	// should show error (SMTP connection will fail with fake config)
-	errorElement := page.Locator("#popup .form-error")
 	visible, err := errorElement.IsVisible()
 	require.NoError(t, err)
 	assert.True(t, visible, "error should be visible when SMTP fails")
+	errorText, err := errorElement.TextContent()
+	require.NoError(t, err)
+	assert.NotEmpty(t, errorText, "error message should have content")
 }
 
 func TestEmail_PopupCancel(t *testing.T) {
@@ -184,20 +169,20 @@ func TestEmail_PopupCancel(t *testing.T) {
 	require.NoError(t, page.Locator("#message").Fill("email cancel test"))
 	require.NoError(t, page.Locator("#pin").Fill(testPin))
 	require.NoError(t, page.Locator("button[type='submit']").Click())
-	time.Sleep(300 * time.Millisecond)
+	emailBtn := page.Locator("button:has-text('Email')")
+	waitVisible(t, emailBtn)
 
 	// click email button
-	emailBtn := page.Locator("button:has-text('Email')")
 	require.NoError(t, emailBtn.Click())
-	time.Sleep(200 * time.Millisecond)
+	popup := page.Locator("#popup.active")
+	waitVisible(t, popup)
 
 	// click cancel button
 	cancelBtn := page.Locator("#popup button:has-text('Cancel')")
 	require.NoError(t, cancelBtn.Click())
-	time.Sleep(200 * time.Millisecond)
+	waitHidden(t, popup)
 
 	// popup should be hidden
-	popup := page.Locator("#popup.active")
 	visible, err := popup.IsVisible()
 	require.NoError(t, err)
 	assert.False(t, visible, "popup should be hidden after cancel")
