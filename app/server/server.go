@@ -175,9 +175,13 @@ func (s Server) Run(ctx context.Context) error {
 func (s Server) routes() http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
-	// determine size limit based on whether files are enabled
+	// determine size limit based on mode and whether files are enabled
 	sizeLimit := int64(64 * 1024) // 64KB default for text-only
-	if s.cfg.EnableFiles {
+	if s.cfg.Paranoid {
+		// paranoid mode: base64 adds ~33% overhead, use MaxFileSize * 1.4 for all requests
+		// (server can't distinguish text from files in paranoid mode)
+		sizeLimit = int64(float64(s.cfg.MaxFileSize) * 1.4)
+	} else if s.cfg.EnableFiles {
 		sizeLimit = s.cfg.MaxFileSize + 10*1024 // file size + 10KB for form overhead
 	}
 

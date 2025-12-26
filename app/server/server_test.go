@@ -960,6 +960,148 @@ func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	assert.Equal(t, "file downloads disabled", result["error"])
 }
 
+func TestServer_SizeLimit_Paranoid(t *testing.T) {
+	// test that paranoid mode uses larger size limit (MaxFileSize * 1.4)
+	eng := store.NewInMemory(time.Second)
+	maxFileSize := int64(100 * 1024) // 100KB
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			MaxFileSize:    maxFileSize,
+			Paranoid:       true,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			MaxFileSize:    maxFileSize,
+			Paranoid:       true,
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	// send a message larger than 64KB but less than maxFileSize*1.4 (140KB)
+	// this should succeed in paranoid mode but would fail in normal text-only mode (64KB limit)
+	largeMessage := strings.Repeat("a", 80*1024) // 80KB of base64-like data
+	body := `{"message": "` + largeMessage + `","exp": 600,"pin": "12345"}`
+
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, 201, resp.StatusCode, "large request should succeed in paranoid mode")
+}
+
+func TestServer_SizeLimit_Normal(t *testing.T) {
+	// test that normal mode uses 64KB limit for text-only
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			Paranoid:       false,
+			EnableFiles:    false,
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	// send a message larger than 64KB - should fail in normal text-only mode
+	largeMessage := strings.Repeat("a", 80*1024) // 80KB of data
+	body := `{"message": "` + largeMessage + `","exp": 600,"pin": "12345"}`
+
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// request should be rejected due to size limit (http.StatusRequestEntityTooLarge or similar error)
+	assert.NotEqual(t, 201, resp.StatusCode, "large request should fail in normal text-only mode")
+}
+
+func TestServer_Paranoid_DataPassthrough(t *testing.T) {
+	// test that paranoid mode stores and retrieves data without server-side encryption
+	eng := store.NewInMemory(time.Second * 30)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+			Paranoid:       true,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			Branding:       "Safe Secrets",
+			MaxFileSize:    1048576,
+			Paranoid:       true,
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	// save a pre-encrypted message (simulating client-side encryption)
+	clientEncryptedData := "base64EncodedClientEncryptedBlob_abc123"
+	body := `{"message": "` + clientEncryptedData + `","exp": 600,"pin": "12345"}`
+
+	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := http.Client{Timeout: time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 201, resp.StatusCode)
+
+	respSave := struct{ Key string }{}
+	err = json.NewDecoder(resp.Body).Decode(&respSave)
+	require.NoError(t, err)
+
+	// retrieve the message - should get back the exact same data (no server decryption)
+	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
+	req, err = http.NewRequest("GET", url, http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respLoad := struct{ Message string }{}
+	err = json.NewDecoder(resp.Body).Decode(&respLoad)
+	require.NoError(t, err)
+
+	// in paranoid mode, the message should be returned exactly as stored (pass-through)
+	assert.Equal(t, clientEncryptedData, respLoad.Message, "data should be returned as-is in paranoid mode")
+}
+
 func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
 	eng := store.NewInMemory(time.Second)
 	srv, err := New(

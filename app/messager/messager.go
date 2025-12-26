@@ -31,6 +31,7 @@ var (
 	ErrFileTooLarge   = errors.New("file too large")
 	ErrBadFileName    = errors.New("invalid file name")
 	ErrBadContentType = errors.New("invalid content type")
+	ErrParanoidFile   = errors.New("file upload not supported in paranoid mode")
 )
 
 // filePrefix marks file messages.
@@ -50,6 +51,7 @@ type Params struct {
 	MaxDuration    time.Duration
 	MaxPinAttempts int
 	MaxFileSize    int64
+	Paranoid       bool // pass-through mode: skip server-side crypto, data stored/returned as-is
 }
 
 // FileRequest contains data for file message creation
@@ -120,10 +122,15 @@ func (p MessageProc) MakeMessage(ctx context.Context, duration time.Duration, ms
 		PinHash: pinHash,
 	}
 
-	result.Data, err = p.crypt.Encrypt(Request{Data: []byte(msg), Pin: pin})
-	if err != nil {
-		log.Printf("[ERROR] failed to encrypt, %v", err)
-		return nil, ErrCrypto
+	// in paranoid mode, store data as-is (client handles encryption)
+	if p.Paranoid {
+		result.Data = []byte(msg)
+	} else {
+		result.Data, err = p.crypt.Encrypt(Request{Data: []byte(msg), Pin: pin})
+		if err != nil {
+			log.Printf("[ERROR] failed to encrypt, %v", err)
+			return nil, ErrCrypto
+		}
 	}
 	if err = p.engine.Save(ctx, result); err != nil {
 		return nil, fmt.Errorf("save message: %w", err)
@@ -157,6 +164,14 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 			return nil, ErrBadPin
 		}
 		return msg, ErrBadPinAttempt
+	}
+
+	// in paranoid mode, return data as-is (client handles decryption)
+	if p.Paranoid {
+		if rmErr := p.engine.Remove(ctx, key); rmErr != nil {
+			log.Printf("[WARN] failed to remove, %v", rmErr)
+		}
+		return msg, nil
 	}
 
 	// for file messages, everything after !!FILE!! is encrypted (including metadata)
@@ -205,7 +220,11 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 
 // IsFile checks if a message with given key is a file message (without decrypting).
 // Returns false if message doesn't exist or is not a file.
+// In paranoid mode, always returns false (server can't distinguish content types).
 func (p MessageProc) IsFile(ctx context.Context, key string) bool {
+	if p.Paranoid {
+		return false // server doesn't know content type in paranoid mode
+	}
 	msg, err := p.engine.Load(ctx, key)
 	if err != nil {
 		return false
@@ -215,7 +234,15 @@ func (p MessageProc) IsFile(ctx context.Context, key string) bool {
 
 // MakeFileMessage creates a message from file data with unencrypted prefix for metadata.
 // Format: !!FILE!!filename!!content-type!!\n<encrypted binary>
+// In paranoid mode, returns error - client encrypts files with metadata and sends as base64
+// blob via MakeMessage (regular text endpoint). Server can't use this function because
+// it would double-encrypt the already-encrypted client payload.
 func (p MessageProc) MakeFileMessage(ctx context.Context, req FileRequest) (result *store.Message, err error) {
+	if p.Paranoid {
+		log.Printf("[WARN] file upload rejected, paranoid mode requires client-side encryption")
+		return nil, ErrParanoidFile
+	}
+
 	if req.Pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")
 		return nil, ErrBadPin

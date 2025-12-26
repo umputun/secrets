@@ -69,7 +69,7 @@ func main() {
 
 	dataStore := getEngine(opts.Engine, opts.SQLiteDB)
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
-	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize}
+	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize, Paranoid: opts.Paranoid}
 
 	if opts.Auth.Hash != "" {
 		log.Printf("[INFO]  authentication enabled (session TTL: %v)", opts.Auth.SessionTTL)
