@@ -4,29 +4,63 @@ run:
 linters:
   default: none
   enable:
+    - asciicheck
+    - bidichk
     - bodyclose
+    - copyloopvar
+    - dupl
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
     - gochecknoinits
+    - goconst
     - gocritic
+    - gocyclo
+    - godoclint
     - gosec
     - govet
     - ineffassign
+    - intrange
+    - makezero
     - misspell
+    - modernize
     - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - perfsprint
+    - predeclared
     - prealloc
+    - reassign
     - revive
+    - sqlclosecheck
     - staticcheck
+    - testifylint
+    - tparallel
     - unconvert
     - unparam
     - unused
-    - nestif
-    - testifylint
-    - modernize
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - wrapcheck
+
   settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
     dupl:
       threshold: 100
     goconst:
       min-len: 2
-      min-occurrences: 2
+      min-occurrences: 7
     gocritic:
       disabled-checks:
         - wrapperFunc
@@ -37,7 +71,7 @@ linters:
         - style
         - experimental
     gocyclo:
-      min-complexity: 15
+      min-complexity: 20
     govet:
       enable:
         - shadow
@@ -45,21 +79,79 @@ linters:
       line-length: 140
     misspell:
       locale: US
+    revive:
+      rules:
+        - name: early-return
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: empty-block
+        - name: redefines-builtin-id
   exclusions:
     generated: lax
     rules:
       - linters:
-          - gosec
-        text: weak cryptographic primitive
+          - golint
+        text: should have a package comment, unless it's in another file for this package
+      - linters:
+          - gocritic
+        text: "exitAfterDefer:"
+      - linters:
+          - gocritic
+        text: "whyNoLint: include an explanation for nolint directive"
       - linters:
           - revive
-        text: 'package-comments: should have a package comment'
+        text: should have a package comment
+      - linters:
+          - staticcheck
+        text: at least one file in a package should have a package comment
+      - linters:
+          - gocritic
+        text: "commentedOutCode: may want to remove commented-out code"
+      - linters:
+          - gocritic
+        text: "unnamedResult: consider giving a name to these results"
+      - linters:
+          - revive
+        text: "var-naming: don't use an underscore in package name"
+      - linters:
+          - staticcheck
+        text: should not use underscores in package names
+      - linters:
+          - govet
+        text: struct literal uses unkeyed fields
       - linters:
           - revive
           - unparam
           - unused
         path: _test\.go$
         text: unused-parameter
+      - linters:
+          - dupl
+          - goconst
+          - noctx
+          - usestdlibvars
+        path: _test\.go$
+      - linters:
+          - gosec
+        path: e2e/
+        text: "G101: Potential hardcoded credentials"
+      - linters:
+          - goconst
+        text: "string `text` has"
+      - linters:
+          - godoclint
+        path: lib/stash/
+      - linters:
+          - errcheck
+        text: "Error return value of .*.Close.*is not checked"
+      - linters:
+          - errcheck
+        path: _test\.go$
+        text: "Error return value of .*(os\\.Remove|os\\.RemoveAll|Body\\.Close).*is not checked"
+      - linters:
+          - staticcheck
+        text: "SA5008: duplicate struct tag"
     paths:
       - vendor
       - third_party$

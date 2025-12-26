@@ -4,6 +4,7 @@
 package messager
 
 import (
+	"context"
 	"sync"
 
 	"github.com/umputun/secrets/app/store"
@@ -19,16 +20,16 @@ var _ Engine = &EngineMock{}
 //
 //		// make and configure a mocked Engine
 //		mockedEngine := &EngineMock{
-//			IncErrFunc: func(key string) (int, error) {
+//			IncErrFunc: func(ctx context.Context, key string) (int, error) {
 //				panic("mock out the IncErr method")
 //			},
-//			LoadFunc: func(key string) (*store.Message, error) {
+//			LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 //				panic("mock out the Load method")
 //			},
-//			RemoveFunc: func(key string) error {
+//			RemoveFunc: func(ctx context.Context, key string) error {
 //				panic("mock out the Remove method")
 //			},
-//			SaveFunc: func(msg *store.Message) error {
+//			SaveFunc: func(ctx context.Context, msg *store.Message) error {
 //				panic("mock out the Save method")
 //			},
 //		}
@@ -39,36 +40,44 @@ var _ Engine = &EngineMock{}
 //	}
 type EngineMock struct {
 	// IncErrFunc mocks the IncErr method.
-	IncErrFunc func(key string) (int, error)
+	IncErrFunc func(ctx context.Context, key string) (int, error)
 
 	// LoadFunc mocks the Load method.
-	LoadFunc func(key string) (*store.Message, error)
+	LoadFunc func(ctx context.Context, key string) (*store.Message, error)
 
 	// RemoveFunc mocks the Remove method.
-	RemoveFunc func(key string) error
+	RemoveFunc func(ctx context.Context, key string) error
 
 	// SaveFunc mocks the Save method.
-	SaveFunc func(msg *store.Message) error
+	SaveFunc func(ctx context.Context, msg *store.Message) error
 
 	// calls tracks calls to the methods.
 	calls struct {
 		// IncErr holds details about calls to the IncErr method.
 		IncErr []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Key is the key argument value.
 			Key string
 		}
 		// Load holds details about calls to the Load method.
 		Load []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Key is the key argument value.
 			Key string
 		}
 		// Remove holds details about calls to the Remove method.
 		Remove []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Key is the key argument value.
 			Key string
 		}
 		// Save holds details about calls to the Save method.
 		Save []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Msg is the msg argument value.
 			Msg *store.Message
 		}
@@ -80,19 +89,21 @@ type EngineMock struct {
 }
 
 // IncErr calls IncErrFunc.
-func (mock *EngineMock) IncErr(key string) (int, error) {
+func (mock *EngineMock) IncErr(ctx context.Context, key string) (int, error) {
 	if mock.IncErrFunc == nil {
 		panic("EngineMock.IncErrFunc: method is nil but Engine.IncErr was just called")
 	}
 	callInfo := struct {
+		Ctx context.Context
 		Key string
 	}{
+		Ctx: ctx,
 		Key: key,
 	}
 	mock.lockIncErr.Lock()
 	mock.calls.IncErr = append(mock.calls.IncErr, callInfo)
 	mock.lockIncErr.Unlock()
-	return mock.IncErrFunc(key)
+	return mock.IncErrFunc(ctx, key)
 }
 
 // IncErrCalls gets all the calls that were made to IncErr.
@@ -100,9 +111,11 @@ func (mock *EngineMock) IncErr(key string) (int, error) {
 //
 //	len(mockedEngine.IncErrCalls())
 func (mock *EngineMock) IncErrCalls() []struct {
+	Ctx context.Context
 	Key string
 } {
 	var calls []struct {
+		Ctx context.Context
 		Key string
 	}
 	mock.lockIncErr.RLock()
@@ -112,19 +125,21 @@ func (mock *EngineMock) IncErrCalls() []struct {
 }
 
 // Load calls LoadFunc.
-func (mock *EngineMock) Load(key string) (*store.Message, error) {
+func (mock *EngineMock) Load(ctx context.Context, key string) (*store.Message, error) {
 	if mock.LoadFunc == nil {
 		panic("EngineMock.LoadFunc: method is nil but Engine.Load was just called")
 	}
 	callInfo := struct {
+		Ctx context.Context
 		Key string
 	}{
+		Ctx: ctx,
 		Key: key,
 	}
 	mock.lockLoad.Lock()
 	mock.calls.Load = append(mock.calls.Load, callInfo)
 	mock.lockLoad.Unlock()
-	return mock.LoadFunc(key)
+	return mock.LoadFunc(ctx, key)
 }
 
 // LoadCalls gets all the calls that were made to Load.
@@ -132,9 +147,11 @@ func (mock *EngineMock) Load(key string) (*store.Message, error) {
 //
 //	len(mockedEngine.LoadCalls())
 func (mock *EngineMock) LoadCalls() []struct {
+	Ctx context.Context
 	Key string
 } {
 	var calls []struct {
+		Ctx context.Context
 		Key string
 	}
 	mock.lockLoad.RLock()
@@ -144,19 +161,21 @@ func (mock *EngineMock) LoadCalls() []struct {
 }
 
 // Remove calls RemoveFunc.
-func (mock *EngineMock) Remove(key string) error {
+func (mock *EngineMock) Remove(ctx context.Context, key string) error {
 	if mock.RemoveFunc == nil {
 		panic("EngineMock.RemoveFunc: method is nil but Engine.Remove was just called")
 	}
 	callInfo := struct {
+		Ctx context.Context
 		Key string
 	}{
+		Ctx: ctx,
 		Key: key,
 	}
 	mock.lockRemove.Lock()
 	mock.calls.Remove = append(mock.calls.Remove, callInfo)
 	mock.lockRemove.Unlock()
-	return mock.RemoveFunc(key)
+	return mock.RemoveFunc(ctx, key)
 }
 
 // RemoveCalls gets all the calls that were made to Remove.
@@ -164,9 +183,11 @@ func (mock *EngineMock) Remove(key string) error {
 //
 //	len(mockedEngine.RemoveCalls())
 func (mock *EngineMock) RemoveCalls() []struct {
+	Ctx context.Context
 	Key string
 } {
 	var calls []struct {
+		Ctx context.Context
 		Key string
 	}
 	mock.lockRemove.RLock()
@@ -176,19 +197,21 @@ func (mock *EngineMock) RemoveCalls() []struct {
 }
 
 // Save calls SaveFunc.
-func (mock *EngineMock) Save(msg *store.Message) error {
+func (mock *EngineMock) Save(ctx context.Context, msg *store.Message) error {
 	if mock.SaveFunc == nil {
 		panic("EngineMock.SaveFunc: method is nil but Engine.Save was just called")
 	}
 	callInfo := struct {
+		Ctx context.Context
 		Msg *store.Message
 	}{
+		Ctx: ctx,
 		Msg: msg,
 	}
 	mock.lockSave.Lock()
 	mock.calls.Save = append(mock.calls.Save, callInfo)
 	mock.lockSave.Unlock()
-	return mock.SaveFunc(msg)
+	return mock.SaveFunc(ctx, msg)
 }
 
 // SaveCalls gets all the calls that were made to Save.
@@ -196,9 +219,11 @@ func (mock *EngineMock) Save(msg *store.Message) error {
 //
 //	len(mockedEngine.SaveCalls())
 func (mock *EngineMock) SaveCalls() []struct {
+	Ctx context.Context
 	Msg *store.Message
 } {
 	var calls []struct {
+		Ctx context.Context
 		Msg *store.Message
 	}
 	mock.lockSave.RLock()

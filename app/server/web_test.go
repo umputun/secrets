@@ -395,7 +395,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 	require.NoError(t, err)
 
 	// first save a message
-	msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+	msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1331,7 +1331,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 
 	t.Run("valid file download with correct pin", func(t *testing.T) {
 		// create file message
-		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
 			Duration:    time.Hour,
 			Pin:         "12345",
 			FileName:    "secret.pdf",
@@ -1359,7 +1359,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 	})
 
 	t.Run("file download with wrong pin", func(t *testing.T) {
-		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
 			Duration:    time.Hour,
 			Pin:         "12345",
 			FileName:    "secret.pdf",
@@ -1385,7 +1385,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 	})
 
 	t.Run("file message is one-time only", func(t *testing.T) {
-		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
 			Duration:    time.Hour,
 			Pin:         "12345",
 			FileName:    "secret.pdf",
@@ -1439,7 +1439,7 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("text message shows decode button", func(t *testing.T) {
-		msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+		msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
 		require.NoError(t, err)
 
 		resp, err := http.Get(ts.URL + "/message/" + msg.Key)
@@ -1453,7 +1453,7 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 	})
 
 	t.Run("file message shows download button", func(t *testing.T) {
-		msg, err := srv.messager.MakeFileMessage(messager.FileRequest{
+		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
 			Duration:    time.Hour,
 			Pin:         "12345",
 			FileName:    "secret.pdf",
@@ -1586,7 +1586,7 @@ func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	})
 
 	// create a file message directly
-	fileMsg, err := msg.MakeFileMessage(messager.FileRequest{
+	fileMsg, err := msg.MakeFileMessage(t.Context(), messager.FileRequest{
 		Duration:    time.Hour,
 		Pin:         "12345",
 		FileName:    "test.txt",

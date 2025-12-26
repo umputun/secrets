@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/mail"
@@ -60,17 +61,20 @@ type Sender struct {
 	defaultFromName string // cached default from name
 }
 
+// ErrEmailDisabled indicates email feature is not enabled
+var ErrEmailDisabled = errors.New("email is disabled")
+
 // NewSender creates a new email sender with the given configuration
 func NewSender(cfg Config) (*Sender, error) {
 	if !cfg.Enabled {
-		return nil, nil
+		return nil, ErrEmailDisabled
 	}
 
 	if cfg.Host == "" {
-		return nil, fmt.Errorf("email host is required when email is enabled")
+		return nil, errors.New("email host is required when email is enabled")
 	}
 	if cfg.From == "" {
-		return nil, fmt.Errorf("email from address is required when email is enabled")
+		return nil, errors.New("email from address is required when email is enabled")
 	}
 
 	// set defaults

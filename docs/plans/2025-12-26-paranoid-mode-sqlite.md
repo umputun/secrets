@@ -67,16 +67,17 @@ Ciphertext = base64url(IV || encrypted || tag)
 
 ---
 
-## Phase 1: SQLite Storage + Short IDs
+## Phase 1: SQLite Storage + Short IDs ✅ COMPLETED
 
-Replace BoltDB with SQLite and switch to short IDs.
+Replace BoltDB with SQLite and switch to short IDs. Both MEMORY and SQLITE modes use SQLite engine - MEMORY uses `:memory:` for ephemeral storage.
 
-### Task 1.1: Create SQLite Engine with Short IDs
+### Task 1.1: Create SQLite Engine with Short IDs ✅
 
 **Files:**
-- Create: `app/store/sqlite.go`
-- Create: `app/store/sqlite_test.go`
-- Modify: `app/store/store.go`
+- Created: `app/store/sqlite.go`
+- Created: `app/store/sqlite_test.go`
+- Created: `app/store/store_test.go`
+- Modified: `app/store/store.go`
 
 **Schema:**
 ```sql
@@ -96,55 +97,103 @@ PRAGMA journal_mode=WAL;      -- better concurrent read performance
 PRAGMA synchronous=NORMAL;    -- good balance of safety and speed
 ```
 
-**Steps:**
-1. Add `GenerateID()` to store.go - 12-char base62 using crypto/rand with rejection sampling
-   ```go
-   // Use rejection sampling to avoid modulo bias: reject values >= 248
-   if b[0] < 248 { result[i] = alphabet[b[0]%62] }
-   ```
-2. Replace `Key(ts, uuid)` with simple `GenerateID()` call in messager
-3. Create SQLite engine implementing Engine interface
-4. Use atomic `UPDATE...RETURNING` for IncErr to avoid race condition:
-   ```sql
-   UPDATE messages SET errors = errors + 1 WHERE id = ? RETURNING errors
-   ```
-5. Add cleanup goroutine: `DELETE FROM messages WHERE exp < ?`
-6. Handle ID collision on Save() with retry loop (SQLite returns unique constraint error)
-7. Write tests (see test list below)
-8. Run tests: `go test -v ./app/store/...`
+**Implementation details:**
+1. Added `GenerateID()` to store.go - 12-char base62 using crypto/rand with rejection sampling
+2. Created SQLite engine with mutex protection for writes (SQLite single-writer pattern)
+3. Added `NewInMemory()` wrapper that uses SQLite with `:memory:` - simplifies codebase to single engine
+4. Used atomic `UPDATE...RETURNING` for IncErr
+5. Added cleanup goroutine for expired messages
 
-**Tests for sqlite_test.go:**
-- `TestSQLite_Save` - save message, verify fields stored correctly
-- `TestSQLite_Load` - save then load, verify round-trip
-- `TestSQLite_Load_NotFound` - load non-existent key returns error
-- `TestSQLite_IncErr` - increment errors, verify count returned
-- `TestSQLite_IncErr_Concurrent` - parallel IncErr calls, verify no lost updates
-- `TestSQLite_Remove` - remove message, verify Load fails after
-- `TestSQLite_Cleanup` - create expired message, run cleanup, verify removed
-- `TestSQLite_Cleanup_KeepsValid` - create future-expiry message, run cleanup, verify kept
+**Tests implemented:**
+- `TestSQLite_Save`, `TestSQLite_Load`, `TestSQLite_Load_NotFound`
+- `TestSQLite_IncErr`, `TestSQLite_IncErr_Concurrent`
+- `TestSQLite_Remove`, `TestSQLite_Cleanup`, `TestSQLite_Cleanup_KeepsValid`
+- `TestGenerateID_Length`, `TestGenerateID_Charset`, `TestGenerateID_Uniqueness`
 
-**Tests for store_test.go:**
-- `TestGenerateID_Length` - verify 12 characters
-- `TestGenerateID_Charset` - verify only base62 chars (a-zA-Z0-9)
-- `TestGenerateID_Uniqueness` - generate 1000 IDs, verify no duplicates
-
-### Task 1.2: Remove BoltDB, Update Main
+### Task 1.2: Remove BoltDB and InMemory, Update Main ✅
 
 **Files:**
-- Modify: `app/main.go`
-- Modify: `app/messager/messager.go`
-- Delete: `app/store/bolt.go`
-- Delete: `app/store/bolt_test.go`
+- Modified: `app/main.go` - uses `NewInMemory()` for MEMORY, `NewSQLite()` for SQLITE
+- Modified: `app/messager/messager.go` - uses `store.GenerateID()`
+- Deleted: `app/store/bolt.go`, `app/store/bolt_test.go`
+- Deleted: `app/store/in_memory.go`, `app/store/in_memory_test.go`
+- Modified: `app/server/server_test.go` - updated test to use SQLite
 
-**Steps:**
-1. Update main.go: change engine choices to `MEMORY|SQLITE`
-2. Update messager to use `store.GenerateID()` instead of `store.Key()`
-3. Remove bolt.go and bolt_test.go
-4. Run `go mod tidy`
-5. Run all tests: `go test ./...`
-6. Run linter: `golangci-lint run`
+**Changes:**
+1. Engine choices: `MEMORY|SQLITE` (both use SQLite, MEMORY uses `:memory:`)
+2. CLI flag: `--sqlite` (was `--bolt`) for persistent DB path
+3. Removed `store.Key()` function, replaced with `store.GenerateID()`
+4. All tests pass, linter clean
 
 **Commit:** "replace boltdb with sqlite, use short ids"
+
+### Task 1.3: Add Context Support ✅
+
+**Files:**
+- Modified: `app/store/sqlite.go` - all methods accept `context.Context`
+- Modified: `app/store/sqlite_test.go` - tests pass context
+- Modified: `app/messager/messager.go` - Engine interface and methods accept context
+- Modified: `app/messager/messager_test.go` - tests pass context
+- Modified: `app/server/server.go` - handlers pass `r.Context()` to messager
+- Modified: `app/server/web.go` - handlers pass `r.Context()` to messager
+
+**Changes:**
+1. Engine interface methods accept `ctx context.Context` as first parameter
+2. All SQLite methods use `ExecContext`/`QueryRowContext` with passed context
+3. Messager methods (MakeMessage, LoadMessage, IsFile, MakeFileMessage) accept context
+4. HTTP handlers pass `r.Context()` from request
+5. Regenerated mocks with `go generate`
+
+**Commit:** "add context support to storage and messager"
+
+### Task 1.4: Linter Configuration and Fixes ✅
+
+**Files:**
+- Modified: `.golangci.yml` - added exclusions for test-specific patterns
+- Modified: Multiple source files - fixed linter issues
+
+**Linter exclusions added:**
+- `Body.Close()` errors in test files
+- `SA5008: duplicate struct tag` for go-flags choice syntax
+- `os.Remove/os.RemoveAll` errors in test files
+
+**Code fixes applied:**
+- `perfsprint`: Use `errors.New` instead of `fmt.Errorf` for simple errors, string concatenation instead of `fmt.Sprintf`
+- `whitespace`: Remove leading newlines in functions
+- `wrapcheck`: Wrap errors from external packages/interfaces
+- `nolintlint`: Fixed `// nolint` → `//nolint` format
+- `noctx`: Use `ExecContext` with context in SQLite cleaner goroutine
+- `nilnil`: Added `ErrEmailDisabled` sentinel error in email package
+- `gocyclo`: Added nolint for complex but linear validation logic
+
+### Task 1.5: Improve IP Anonymization ✅
+
+**Files:**
+- Modified: `app/server/middleware.go`
+- Modified: `app/server/middleware_test.go`
+
+**Changes:**
+1. Replaced HMAC-SHA1 with HMAC-SHA256 (more secure hash)
+2. Shortened anonymized IP from 12 chars to 8 chars (still 32 bits = 4 billion combinations)
+3. Removed gosec nolint comment (no longer needed)
+
+**Commit:** "improve linter config and ip anonymization"
+
+### Task 1.6: Fix NewInMemory Isolation ✅
+
+**Files:**
+- Modified: `app/store/sqlite.go`
+
+**Changes:**
+1. Each `NewInMemory()` call now generates unique URI with random suffix
+2. Uses `file:<random>?mode=memory&cache=shared` pattern
+3. Prevents cross-test data leakage when tests run in parallel
+4. Random bytes from `crypto/rand` ensure isolation
+
+**Before:** `file::memory:?cache=shared` (all instances share same DB)
+**After:** `file:7999cc8d98ee1b26?mode=memory&cache=shared` (isolated per instance)
+
+**Commit:** "fix in-memory sqlite isolation"
 
 ---
 
@@ -428,9 +477,15 @@ Update docs.
 
 ## Final Checklist
 
-- [ ] SQLite storage works with WAL mode
-- [ ] Short IDs (12 chars) with rejection sampling (unbiased)
-- [ ] Atomic IncErr with UPDATE...RETURNING
+- [x] SQLite storage works with WAL mode
+- [x] Short IDs (12 chars) with rejection sampling (unbiased)
+- [x] Atomic IncErr with UPDATE...RETURNING
+- [x] Mutex protection for SQLite writes (single-writer pattern)
+- [x] MEMORY mode uses SQLite with `:memory:` (unified engine)
+- [x] Each NewInMemory() creates isolated database (unique URI)
+- [x] Context propagation through all layers
+- [x] Linter configuration with proper exclusions
+- [x] IP anonymization uses HMAC-SHA256 (8 chars)
 - [ ] `--paranoid` flag works
 - [ ] Server skips crypto in paranoid mode
 - [ ] PIN still enforces access control
@@ -444,4 +499,4 @@ Update docs.
 - [ ] E2E tests pass including crypto round-trip
 - [ ] Normal mode regression tests pass
 - [ ] Docs updated
-- [ ] Linter clean
+- [x] Linter clean

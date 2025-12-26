@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"golang.org/x/crypto/nacl/secretbox"
 )
@@ -25,7 +26,6 @@ type Request struct {
 
 // Encrypt encrypts data with secretbox and returns base64-encoded result
 func (c Crypt) Encrypt(req Request) ([]byte, error) {
-
 	keyWithPin := fmt.Sprintf("%s%s", c.Key, req.Pin)
 	if len(keyWithPin) != 32 {
 		return nil, fmt.Errorf("key+pin should be 32 bytes, got %d", len(keyWithPin))
@@ -66,7 +66,6 @@ func (c Crypt) Decrypt(req Request) ([]byte, error) {
 		return nil, errors.New("failed to decrypt")
 	}
 	return decrypted, nil
-
 }
 
 // MakeSignKey creates 32-pin bytes signKey for AES256
@@ -75,9 +74,8 @@ func MakeSignKey(signKey string, pinSize int) (result string) {
 		return signKey[:32-pinSize]
 	}
 
-	for i := 0; i <= (32-pinSize)/len(signKey); i++ {
-		result += signKey
-	}
+	repeatCount := (32 - pinSize) / len(signKey)
+	result = strings.Repeat(signKey, repeatCount+1)
 
 	return result[:32-pinSize]
 }

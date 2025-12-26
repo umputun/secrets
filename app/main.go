@@ -16,18 +16,18 @@ import (
 )
 
 var opts struct {
-	Engine         string        `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"BOLT" default:"MEMORY"` // nolint
+	Engine         string        `short:"e" long:"engine" env:"ENGINE" description:"storage engine" choice:"MEMORY" choice:"SQLITE" default:"MEMORY"`
 	SignKey        string        `short:"k" long:"key" env:"SIGN_KEY" description:"sign key" required:"true"`
 	PinSize        int           `long:"pinsize" env:"PIN_SIZE" default:"5" description:"pin size"`
 	MaxExpire      time.Duration `long:"expire" env:"MAX_EXPIRE" default:"24h" description:"max lifetime"`
 	MaxPinAttempts int           `long:"pinattempts" env:"PIN_ATTEMPTS" default:"3" description:"max attempts to enter pin"`
-	BoltDB         string        `long:"bolt" env:"BOLT_FILE" default:"/tmp/secrets.bd" description:"boltdb file"`
+	SQLiteDB       string        `long:"sqlite" env:"SQLITE_FILE" default:"/tmp/secrets.db" description:"sqlite database file"`
 	WebRoot        string        `long:"web" env:"WEB" description:"web ui location (dev mode, uses embedded files if not set)"`
 	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
 	BrandingURL    string        `long:"branding-url" env:"BRANDING_URL" default:"https://safesecret.info" description:"branding link URL for emails"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
-	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"` // nolint
+	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"`
 	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
 
 	Files struct {
@@ -66,7 +66,7 @@ func main() {
 
 	setupLog(opts.Dbg)
 
-	dataStore := getEngine(opts.Engine, opts.BoltDB)
+	dataStore := getEngine(opts.Engine, opts.SQLiteDB)
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize}
 
@@ -128,19 +128,20 @@ func main() {
 	}
 }
 
-func getEngine(engineType, boltFile string) messager.Engine {
+func getEngine(engineType, sqliteFile string) messager.Engine {
 	switch engineType {
 	case "MEMORY":
 		return store.NewInMemory(time.Minute * 5)
-	case "BOLT":
-		boltStore, err := store.NewBolt(boltFile, time.Minute*5)
+	case "SQLITE":
+		sqliteStore, err := store.NewSQLite(sqliteFile, time.Minute*5)
 		if err != nil {
 			log.Fatalf("[ERROR] can't open db, %v", err)
 		}
-		return boltStore
+		return sqliteStore
+	default:
+		log.Fatalf("[ERROR] unknown engine type %s", engineType)
+		return nil
 	}
-	log.Fatalf("[ERROR] unknown engine type %s", engineType)
-	return nil
 }
 
 func setupLog(dbg bool) {

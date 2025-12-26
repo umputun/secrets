@@ -13,9 +13,9 @@ import (
 )
 
 func TestNewSender(t *testing.T) {
-	t.Run("disabled returns nil", func(t *testing.T) {
+	t.Run("disabled returns error", func(t *testing.T) {
 		sndr, err := NewSender(Config{Enabled: false, Branding: "Test Brand"})
-		require.NoError(t, err)
+		require.ErrorIs(t, err, ErrEmailDisabled)
 		assert.Nil(t, sndr)
 	})
 

@@ -5,12 +5,13 @@
 package messager
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/umputun/secrets/app/store"
@@ -21,15 +22,15 @@ import (
 
 // Errors
 var (
-	ErrBadPin         = fmt.Errorf("wrong pin")
-	ErrBadPinAttempt  = fmt.Errorf("wrong pin attempt")
-	ErrCrypto         = fmt.Errorf("crypto error")
-	ErrInternal       = fmt.Errorf("internal error")
-	ErrExpired        = fmt.Errorf("message expired")
-	ErrDuration       = fmt.Errorf("bad duration")
-	ErrFileTooLarge   = fmt.Errorf("file too large")
-	ErrBadFileName    = fmt.Errorf("invalid file name")
-	ErrBadContentType = fmt.Errorf("invalid content type")
+	ErrBadPin         = errors.New("wrong pin")
+	ErrBadPinAttempt  = errors.New("wrong pin attempt")
+	ErrCrypto         = errors.New("crypto error")
+	ErrInternal       = errors.New("internal error")
+	ErrExpired        = errors.New("message expired")
+	ErrDuration       = errors.New("bad duration")
+	ErrFileTooLarge   = errors.New("file too large")
+	ErrBadFileName    = errors.New("invalid file name")
+	ErrBadContentType = errors.New("invalid content type")
 )
 
 // filePrefix marks file messages.
@@ -68,15 +69,14 @@ type Crypter interface {
 
 // Engine defines interface to save, load, remove and inc errors count for messages
 type Engine interface {
-	Save(msg *store.Message) (err error)
-	Load(key string) (result *store.Message, err error)
-	IncErr(key string) (count int, err error)
-	Remove(key string) (err error)
+	Save(ctx context.Context, msg *store.Message) (err error)
+	Load(ctx context.Context, key string) (result *store.Message, err error)
+	IncErr(ctx context.Context, key string) (count int, err error)
+	Remove(ctx context.Context, key string) (err error)
 }
 
 // New makes MessageProc with the engine and crypt
 func New(engine Engine, crypter Crypter, params Params) *MessageProc {
-
 	if params.MaxDuration == 0 {
 		params.MaxDuration = time.Hour * 24 * 31 // 31 days if nothing defined
 	}
@@ -96,8 +96,7 @@ func New(engine Engine, crypter Crypter, params Params) *MessageProc {
 }
 
 // MakeMessage from data, pin and duration, saves to engine. Encrypts data part with pin.
-func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error) {
-
+func (p MessageProc) MakeMessage(ctx context.Context, duration time.Duration, msg, pin string) (result *store.Message, err error) {
 	if pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")
 		return nil, ErrBadPin
@@ -114,12 +113,10 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		return nil, ErrDuration
 	}
 
-	key := uuid.New().String()
-
 	exp := time.Now().Add(duration)
 	result = &store.Message{
-		Key:     store.Key(exp, key),
-		Exp:     time.Now().Add(duration),
+		Key:     store.GenerateID(),
+		Exp:     exp,
 		PinHash: pinHash,
 	}
 
@@ -128,34 +125,35 @@ func (p MessageProc) MakeMessage(duration time.Duration, msg, pin string) (resul
 		log.Printf("[ERROR] failed to encrypt, %v", err)
 		return nil, ErrCrypto
 	}
-	err = p.engine.Save(result)
-	return result, err
+	if err = p.engine.Save(ctx, result); err != nil {
+		return nil, fmt.Errorf("save message: %w", err)
+	}
+	return result, nil
 }
 
 // LoadMessage gets from engine, verifies Message with pin and decrypts content.
 // It also removes accessed messages and invalidate them on multiple wrong pins.
 // Message decrypted by this function will be returned naked to consumer.
-func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error) {
-
-	msg, err = p.engine.Load(key)
+func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *store.Message, err error) {
+	msg, err = p.engine.Load(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load message: %w", err)
 	}
 
 	if time.Now().After(msg.Exp) {
 		log.Printf("[WARN] expired %s on %v", msg.Key, msg.Exp)
-		_ = p.engine.Remove(key)
+		_ = p.engine.Remove(ctx, key)
 		return nil, ErrExpired
 	}
 
 	if !p.checkHash(msg, pin) {
-		count, e := p.engine.IncErr(key)
+		count, e := p.engine.IncErr(ctx, key)
 		if e != nil {
 			return nil, ErrBadPin
 		}
 		log.Printf("[WARN] wrong pin provided for %s (%d times)", key, count)
 		if count >= p.MaxPinAttempts {
-			_ = p.engine.Remove(key)
+			_ = p.engine.Remove(ctx, key)
 			return nil, ErrBadPin
 		}
 		return msg, ErrBadPinAttempt
@@ -173,11 +171,11 @@ func (p MessageProc) LoadMessage(key, pin string) (msg *store.Message, err error
 	r, err := p.crypt.Decrypt(Request{Data: dataToDecrypt, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
-		_ = p.engine.Remove(key)
+		_ = p.engine.Remove(ctx, key)
 		return nil, ErrBadPin
 	}
 
-	if err := p.engine.Remove(key); err != nil {
+	if err := p.engine.Remove(ctx, key); err != nil {
 		log.Printf("[WARN] failed to remove, %v", err)
 	}
 
@@ -207,8 +205,8 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 
 // IsFile checks if a message with given key is a file message (without decrypting).
 // Returns false if message doesn't exist or is not a file.
-func (p MessageProc) IsFile(key string) bool {
-	msg, err := p.engine.Load(key)
+func (p MessageProc) IsFile(ctx context.Context, key string) bool {
+	msg, err := p.engine.Load(ctx, key)
 	if err != nil {
 		return false
 	}
@@ -217,7 +215,7 @@ func (p MessageProc) IsFile(key string) bool {
 
 // MakeFileMessage creates a message from file data with unencrypted prefix for metadata.
 // Format: !!FILE!!filename!!content-type!!\n<encrypted binary>
-func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, err error) {
+func (p MessageProc) MakeFileMessage(ctx context.Context, req FileRequest) (result *store.Message, err error) {
 	if req.Pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")
 		return nil, ErrBadPin
@@ -267,17 +265,17 @@ func (p MessageProc) MakeFileMessage(req FileRequest) (result *store.Message, er
 	// stored format: !!FILE!!<encrypted blob containing metadata+data>
 	fullData := append([]byte(filePrefix), encryptedData...)
 
-	key := uuid.New().String()
 	exp := time.Now().Add(req.Duration)
 	result = &store.Message{
-		Key:     store.Key(exp, key),
+		Key:     store.GenerateID(),
 		Exp:     exp,
 		PinHash: pinHash,
 		Data:    fullData,
 	}
-
-	err = p.engine.Save(result)
-	return result, err
+	if err = p.engine.Save(ctx, result); err != nil {
+		return nil, fmt.Errorf("save file message: %w", err)
+	}
+	return result, nil
 }
 
 // IsFileMessage checks if message data has file prefix (works on raw stored data)

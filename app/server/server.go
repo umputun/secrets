@@ -68,7 +68,7 @@ type Server struct {
 // New creates a new server with template cache
 func New(m Messager, version string, cfg Config) (Server, error) {
 	if len(cfg.Domain) == 0 {
-		return Server{}, fmt.Errorf("at least one domain must be configured")
+		return Server{}, errors.New("at least one domain must be configured")
 	}
 
 	cache, err := newTemplateCache()
@@ -97,10 +97,10 @@ func (s Server) WithEmail(sender EmailSender) Server {
 
 // Messager interface making and loading messages
 type Messager interface {
-	MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
-	MakeFileMessage(req messager.FileRequest) (result *store.Message, err error)
-	LoadMessage(key, pin string) (msg *store.Message, err error)
-	IsFile(key string) bool // checks if message is a file without decrypting
+	MakeMessage(ctx context.Context, duration time.Duration, msg, pin string) (result *store.Message, err error)
+	MakeFileMessage(ctx context.Context, req messager.FileRequest) (result *store.Message, err error)
+	LoadMessage(ctx context.Context, key, pin string) (msg *store.Message, err error)
+	IsFile(ctx context.Context, key string) bool // checks if message is a file without decrypting
 }
 
 // newTemplateData creates a templateData with common fields populated
@@ -286,7 +286,7 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.MakeMessage(time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+	msg, err := s.messager.MakeMessage(r.Context(), time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
 		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create message")
 		return
@@ -307,7 +307,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	msgType := "unknown"
 	serveRequest := func() (status int, res rest.JSON) {
-		msg, err := s.messager.LoadMessage(key, pin)
+		msg, err := s.messager.LoadMessage(r.Context(), key, pin)
 		if err != nil {
 			log.Printf("[WARN] failed to load key %v", key)
 			if errors.Is(err, messager.ErrBadPinAttempt) {

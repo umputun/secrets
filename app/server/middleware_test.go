@@ -28,7 +28,7 @@ func TestLogger(t *testing.T) {
 	handler := HashedIP("test-secret")(Logger(l)(testHandler))
 	handler.ServeHTTP(rr, req)
 	t.Log(out.String())
-	// IP is hashed, verify it's a 12-char hex string
+	// IP is hashed, verify it's an 8-char hex string
 	assert.Contains(t, out.String(), "DEBUG GET - /params -")
 	assert.Contains(t, out.String(), "- 200")
 	assert.NotContains(t, out.String(), "127.0.0.1") // IP should be hashed
@@ -61,7 +61,7 @@ func TestHashIP(t *testing.T) {
 	h1 := hashIP("192.168.1.1", "secret")
 	h2 := hashIP("192.168.1.1", "secret")
 	assert.Equal(t, h1, h2)
-	assert.Len(t, h1, 12)
+	assert.Len(t, h1, 8)
 
 	// different IPs should produce different hashes
 	h3 := hashIP("192.168.1.2", "secret")
@@ -120,7 +120,7 @@ func TestHashedIPMiddleware(t *testing.T) {
 		handler := HashedIP("test-secret")(testHandler)
 		handler.ServeHTTP(rr, req)
 
-		assert.Len(t, capturedIP, 12)
+		assert.Len(t, capturedIP, 8)
 		assert.NotEqual(t, "-", capturedIP)
 		assert.NotContains(t, capturedIP, "192.168.1.100")
 	})
@@ -206,7 +206,7 @@ func TestHashedIPMiddleware(t *testing.T) {
 		handler := HashedIP("test-secret")(testHandler)
 		handler.ServeHTTP(rr, req)
 
-		assert.Len(t, capturedIP, 12)
+		assert.Len(t, capturedIP, 8)
 		assert.NotEqual(t, "-", capturedIP)
 		assert.NotContains(t, capturedIP, "10.0.0.50")
 	})

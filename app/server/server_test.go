@@ -29,7 +29,7 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -46,7 +46,7 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 
 	respLoad := struct {
@@ -64,15 +64,16 @@ func TestServer_saveAndLoadMemory(t *testing.T) {
 	// second load should fail
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 400, resp.StatusCode)
 }
 
-func TestServer_saveAndLoadBolt(t *testing.T) {
-	eng, err := store.NewBolt("/tmp/secrets-test.bdb", 1*time.Minute)
+func TestServer_saveAndLoadSQLite(t *testing.T) {
+	eng, err := store.NewSQLite("/tmp/secrets-test.db", 1*time.Minute)
 	require.NoError(t, err)
 	defer func() {
-		require.NoError(t, os.Remove("/tmp/secrets-test.bdb"))
+		_ = eng.Close()
+		require.NoError(t, os.Remove("/tmp/secrets-test.db"))
 	}()
 	signKey := messager.MakeSignKey("stew-pub-barcan-scatty-daimio-wicker-yakona", 5)
 	srv, err := New(
@@ -100,7 +101,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -117,7 +118,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 
 	respLoad := struct {
@@ -135,7 +136,7 @@ func TestServer_saveAndLoadBolt(t *testing.T) {
 	// second load should fail
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 400, resp.StatusCode)
 }
 
@@ -149,7 +150,7 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -166,17 +167,17 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 400, resp.StatusCode)
 
 	// try with a valid pin will fail, too many attempt
@@ -185,7 +186,7 @@ func TestServer_saveAndManyPinAttempt(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 400, resp.StatusCode)
 }
 
@@ -199,7 +200,7 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 201, resp.StatusCode)
 
 	respSave := struct {
@@ -216,12 +217,12 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 417, resp.StatusCode)
 
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 417, resp.StatusCode)
 
 	// try with a valid pin will pass, not too many attempt
@@ -230,7 +231,7 @@ func TestServer_saveAndGoodPinAttempt(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 }
 
@@ -239,12 +240,12 @@ func TestServer_getParams(t *testing.T) {
 	defer teardown()
 
 	client := http.Client{Timeout: time.Second}
-	url := fmt.Sprintf("%s/api/v1/params", ts.URL)
+	url := ts.URL + "/api/v1/params"
 	req, err := http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close() // nolint
+	defer resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -327,7 +328,7 @@ func TestServer_getMessageCtrl(t *testing.T) {
 	defer ts.Close()
 
 	// save a message first
-	msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+	msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -867,7 +868,7 @@ func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	})
 
 	// create a file message directly
-	fileMsg, err := msg.MakeFileMessage(messager.FileRequest{
+	fileMsg, err := msg.MakeFileMessage(t.Context(), messager.FileRequest{
 		Duration:    time.Hour,
 		Pin:         "12345",
 		FileName:    "test.txt",
@@ -931,7 +932,7 @@ func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
 	defer ts.Close()
 
 	// save a message first
-	msg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+	msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -949,7 +950,7 @@ func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
 			// save a new message for each valid test since message is deleted after successful read
 			testKey := tt.key
 			if tt.name == "valid credentials" {
-				newMsg, err := srv.messager.MakeMessage(time.Hour, "test secret", "12345")
+				newMsg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
 				require.NoError(t, err)
 				testKey = newMsg.Key
 			}

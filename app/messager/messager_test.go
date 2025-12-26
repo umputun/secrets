@@ -1,7 +1,8 @@
 package messager
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ func TestMessageProc_NewDefault(t *testing.T) {
 
 func TestMessageProc_MakeMessage(t *testing.T) {
 	s := &EngineMock{
-		SaveFunc: func(msg *store.Message) error {
+		SaveFunc: func(ctx context.Context, msg *store.Message) error {
 			return nil
 		},
 	}
@@ -32,7 +33,7 @@ func TestMessageProc_MakeMessage(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.MakeMessage(time.Second*30, "message", "56789")
+	r, err := m.MakeMessage(t.Context(), time.Second*30, "message", "56789")
 	t.Logf("%+v", r)
 	require.NoError(t, err)
 	assert.Equal(t, "encrypted blah", string(r.Data))
@@ -86,7 +87,7 @@ func TestMessageProc_MakeMessage_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-			r, err := m.MakeMessage(tt.args.duration, "message", tt.args.pin)
+			r, err := m.MakeMessage(t.Context(), tt.args.duration, "message", tt.args.pin)
 			t.Logf("%+v", r)
 			require.EqualError(t, err, tt.wantErr.Error())
 
@@ -100,12 +101,12 @@ func TestMessageProc_MakeMessage_CrypterError(t *testing.T) {
 	s := &EngineMock{}
 	c := &CrypterMock{
 		EncryptFunc: func(req Request) ([]byte, error) {
-			return nil, fmt.Errorf("crypter error")
+			return nil, errors.New("crypter error")
 		},
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.MakeMessage(time.Second*30, "message", "56789")
+	r, err := m.MakeMessage(t.Context(), time.Second*30, "message", "56789")
 	t.Logf("%+v", r)
 	require.EqualError(t, err, "crypto error")
 
@@ -115,17 +116,17 @@ func TestMessageProc_MakeMessage_CrypterError(t *testing.T) {
 
 func TestMessageProc_LoadMessage_Err(t *testing.T) {
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
-			return nil, fmt.Errorf("load error")
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return nil, errors.New("load error")
 		},
 	}
 	c := &CrypterMock{}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "56789")
+	r, err := m.LoadMessage(t.Context(), "somekey", "56789")
 	t.Logf("%+v", r)
 
-	require.EqualError(t, err, "load error")
+	require.ErrorContains(t, err, "load error")
 
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Empty(t, s.RemoveCalls())
@@ -135,14 +136,14 @@ func TestMessageProc_LoadMessage_Err(t *testing.T) {
 
 func TestMessageProc_LoadMessage_ExpiredErr(t *testing.T) {
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
 				Data:    []byte("data"),
 				PinHash: "some-hash",
 				Exp:     time.Now().Add(-1 * time.Minute),
 			}, nil
 		},
-		RemoveFunc: func(key string) error {
+		RemoveFunc: func(ctx context.Context, key string) error {
 			return nil
 		},
 	}
@@ -150,7 +151,7 @@ func TestMessageProc_LoadMessage_ExpiredErr(t *testing.T) {
 	c := &CrypterMock{}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "56789")
+	r, err := m.LoadMessage(t.Context(), "somekey", "56789")
 	t.Logf("%+v", r)
 
 	require.EqualError(t, err, "message expired")
@@ -163,7 +164,7 @@ func TestMessageProc_LoadMessage_ExpiredErr(t *testing.T) {
 
 func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
 				Data:    []byte("data"),
 				PinHash: "some-hash",
@@ -171,15 +172,15 @@ func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
 			}, nil
 		},
 
-		IncErrFunc: func(key string) (int, error) {
-			return 0, fmt.Errorf("inc error")
+		IncErrFunc: func(ctx context.Context, key string) (int, error) {
+			return 0, errors.New("inc error")
 		},
 	}
 
 	c := &CrypterMock{}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "56789")
+	r, err := m.LoadMessage(t.Context(), "somekey", "56789")
 	t.Logf("%+v", r)
 
 	require.EqualError(t, err, "wrong pin")
@@ -192,18 +193,18 @@ func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
 
 func TestMessageProc_LoadMessage_BadPin_MaxAttempts(t *testing.T) {
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
 				Data:    []byte("data"),
 				PinHash: "some-hash",
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
-		RemoveFunc: func(key string) error {
+		RemoveFunc: func(ctx context.Context, key string) error {
 			return nil
 		},
 
-		IncErrFunc: func(key string) (int, error) {
+		IncErrFunc: func(ctx context.Context, key string) (int, error) {
 			return 2, nil
 		},
 	}
@@ -211,7 +212,7 @@ func TestMessageProc_LoadMessage_BadPin_MaxAttempts(t *testing.T) {
 	c := &CrypterMock{}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "56789")
+	r, err := m.LoadMessage(t.Context(), "somekey", "56789")
 	t.Logf("%+v", r)
 
 	require.EqualError(t, err, "wrong pin")
@@ -230,10 +231,10 @@ func TestMessageProc_LoadMessage_BadPinAttempt(t *testing.T) {
 	}
 
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return msg, nil
 		},
-		IncErrFunc: func(key string) (int, error) {
+		IncErrFunc: func(ctx context.Context, key string) (int, error) {
 			return 1, nil
 		},
 	}
@@ -241,7 +242,7 @@ func TestMessageProc_LoadMessage_BadPinAttempt(t *testing.T) {
 	c := &CrypterMock{}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "56789")
+	r, err := m.LoadMessage(t.Context(), "somekey", "56789")
 	t.Logf("%+v", r)
 
 	require.EqualError(t, err, "wrong pin attempt")
@@ -256,26 +257,26 @@ func TestMessageProc_LoadMessage_BadPinAttempt(t *testing.T) {
 
 func TestMessageProc_LoadMessage_DecryptError(t *testing.T) {
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
 				Data:    []byte("data"),
 				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
-		RemoveFunc: func(key string) error {
+		RemoveFunc: func(ctx context.Context, key string) error {
 			return nil
 		},
 	}
 
 	c := &CrypterMock{
 		DecryptFunc: func(req Request) ([]byte, error) {
-			return nil, fmt.Errorf("decrypt error")
+			return nil, errors.New("decrypt error")
 		},
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "123456")
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
 	t.Logf("%+v", r)
 
 	require.EqualError(t, err, "wrong pin")
@@ -288,14 +289,14 @@ func TestMessageProc_LoadMessage_DecryptError(t *testing.T) {
 
 func TestMessageProc_LoadMessage(t *testing.T) {
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
 				Data:    []byte("data"),
 				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
-		RemoveFunc: func(key string) error {
+		RemoveFunc: func(ctx context.Context, key string) error {
 			return nil
 		},
 	}
@@ -307,7 +308,7 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "123456")
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
 	t.Logf("%+v", r)
 
 	require.NoError(t, err)
@@ -323,14 +324,14 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 
 func TestMessageProc_MakeFileMessage(t *testing.T) {
 	s := &EngineMock{
-		SaveFunc: func(msg *store.Message) error { return nil },
+		SaveFunc: func(ctx context.Context, msg *store.Message) error { return nil },
 	}
 	c := &CrypterMock{
 		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted-blob"), nil },
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	r, err := m.MakeFileMessage(FileRequest{
+	r, err := m.MakeFileMessage(t.Context(), FileRequest{
 		Duration:    time.Second * 30,
 		Pin:         "12345",
 		FileName:    "test.pdf",
@@ -366,14 +367,14 @@ func TestMessageProc_LoadFileMessage(t *testing.T) {
 	storedData := []byte("!!FILE!!encrypted-blob")
 
 	s := &EngineMock{
-		LoadFunc: func(key string) (*store.Message, error) {
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
 				Data:    storedData,
 				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
-		RemoveFunc: func(key string) error { return nil },
+		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
 
 	c := &CrypterMock{
@@ -386,7 +387,7 @@ func TestMessageProc_LoadFileMessage(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.LoadMessage("somekey", "123456")
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
 
 	require.NoError(t, err)
 
@@ -434,7 +435,7 @@ func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
 			s := &EngineMock{}
 			c := &CrypterMock{}
 			m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-			_, err := m.MakeFileMessage(tt.req)
+			_, err := m.MakeFileMessage(t.Context(), tt.req)
 			require.EqualError(t, err, tt.wantErr.Error())
 			assert.Empty(t, s.SaveCalls())
 		})
@@ -444,11 +445,11 @@ func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
 func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
 	s := &EngineMock{}
 	c := &CrypterMock{
-		EncryptFunc: func(req Request) ([]byte, error) { return nil, fmt.Errorf("encrypt error") },
+		EncryptFunc: func(req Request) ([]byte, error) { return nil, errors.New("encrypt error") },
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	_, err := m.MakeFileMessage(FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
+	_, err := m.MakeFileMessage(t.Context(), FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
 	require.EqualError(t, err, ErrCrypto.Error())
 	assert.Empty(t, s.SaveCalls())
 	assert.Len(t, c.EncryptCalls(), 1)
@@ -456,15 +457,15 @@ func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
 
 func TestMessageProc_MakeFileMessage_SaveError(t *testing.T) {
 	s := &EngineMock{
-		SaveFunc: func(msg *store.Message) error { return fmt.Errorf("storage error") },
+		SaveFunc: func(ctx context.Context, msg *store.Message) error { return errors.New("storage error") },
 	}
 	c := &CrypterMock{
 		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted"), nil },
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	_, err := m.MakeFileMessage(FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
-	require.EqualError(t, err, "storage error")
+	_, err := m.MakeFileMessage(t.Context(), FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
+	require.ErrorContains(t, err, "storage error")
 	assert.Len(t, s.SaveCalls(), 1)
 	assert.Len(t, c.EncryptCalls(), 1)
 }
@@ -478,13 +479,13 @@ func TestMessageProc_IsFile(t *testing.T) {
 	}{
 		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), want: true},
 		{name: "text message", loadErr: nil, data: []byte("encrypted text"), want: false},
-		{name: "load error", loadErr: fmt.Errorf("not found"), data: nil, want: false},
+		{name: "load error", loadErr: errors.New("not found"), data: nil, want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &EngineMock{
-				LoadFunc: func(key string) (*store.Message, error) {
+				LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 					if tt.loadErr != nil {
 						return nil, tt.loadErr
 					}
@@ -492,7 +493,7 @@ func TestMessageProc_IsFile(t *testing.T) {
 				},
 			}
 			m := New(s, nil, Params{})
-			assert.Equal(t, tt.want, m.IsFile("test-key"))
+			assert.Equal(t, tt.want, m.IsFile(t.Context(), "test-key"))
 			assert.Len(t, s.LoadCalls(), 1)
 		})
 	}

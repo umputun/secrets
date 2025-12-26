@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -81,11 +81,11 @@ func Logger(l log.L) func(http.Handler) http.Handler {
 	}
 }
 
-// hashIP returns first 12 chars of HMAC-SHA1 hash for IP anonymization
+// hashIP returns first 8 chars of HMAC-SHA256 hash for IP anonymization
 func hashIP(ip, secret string) string {
-	h := hmac.New(sha1.New, []byte(secret))
+	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(ip))
-	return hex.EncodeToString(h.Sum(nil))[:12]
+	return hex.EncodeToString(h.Sum(nil))[:8]
 }
 
 // statusWriter wraps http.ResponseWriter to capture status code

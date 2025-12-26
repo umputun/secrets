@@ -116,7 +116,7 @@ func (s Server) render(w http.ResponseWriter, status int, page, tmplName string,
 
 // renders the home page
 // GET /
-func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) { // nolint
+func (s Server) indexCtrl(w http.ResponseWriter, r *http.Request) {
 	data := s.newTemplateData(r, createMsgForm{
 		Exp:    15,
 		MaxExp: humanDuration(s.cfg.MaxExpire),
@@ -194,7 +194,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	form.Exp = expInt
 	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
 
-	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
+	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, "Expire must be less than "+humanDuration(s.cfg.MaxExpire))
 
 	if !form.Valid() {
 		data := s.newTemplateData(r, form)
@@ -208,7 +208,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.MakeMessage(expDuration, form.Message, strings.Join(pinValues, ""))
+	msg, err := s.messager.MakeMessage(r.Context(), expDuration, form.Message, strings.Join(pinValues, ""))
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
 		return
@@ -257,7 +257,7 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	form.Exp = expInt
 	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
 
-	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, fmt.Sprintf("Expire must be less than %s", humanDuration(s.cfg.MaxExpire)))
+	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, "Expire must be less than "+humanDuration(s.cfg.MaxExpire))
 
 	// get uploaded file
 	file, header, err := r.FormFile("file")
@@ -294,7 +294,7 @@ func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// create file message
-	msg, err := s.messager.MakeFileMessage(messager.FileRequest{
+	msg, err := s.messager.MakeFileMessage(r.Context(), messager.FileRequest{
 		Duration:    expDuration,
 		Pin:         strings.Join(pinValues, ""),
 		FileName:    header.Filename,
@@ -365,15 +365,15 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	data := s.newTemplateData(r, showMsgForm{
 		Key: key,
 	})
-	data.IsMessagePage = true            // prevent indexing of sensitive message pages
-	data.IsFile = s.messager.IsFile(key) // check if message is a file for button label
+	data.IsMessagePage = true                         // prevent indexing of sensitive message pages
+	data.IsFile = s.messager.IsFile(r.Context(), key) // check if message is a file for button label
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
 
 // renders the about page
 // GET /about
-func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) { // nolint
+func (s Server) aboutViewCtrl(w http.ResponseWriter, r *http.Request) {
 	data := s.newTemplateData(r, nil)
 	data.PageTitle = "How It Works - Encrypted Message Sharing"
 	data.PageDesc = "Learn how SafeSecret protects your sensitive information with PIN-protected encryption, self-destructing messages, and zero-knowledge architecture."
@@ -413,9 +413,9 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check if message is file BEFORE loading (LoadMessage may delete on max attempts)
-	isFile := s.messager.IsFile(form.Key)
+	isFile := s.messager.IsFile(r.Context(), form.Key)
 
-	msg, err := s.messager.LoadMessage(form.Key, strings.Join(pinValues, ""))
+	msg, err := s.messager.LoadMessage(r.Context(), form.Key, strings.Join(pinValues, ""))
 	if err != nil {
 		s.handleLoadMessageError(w, r, &form, err, isFile)
 		return
@@ -512,7 +512,6 @@ func duration(n int, unit string) time.Duration {
 
 // humanDuration converts a time.Duration into a human readable string like "5 minutes"
 func humanDuration(d time.Duration) string {
-
 	pluralPostfix := func(val time.Duration) string {
 		if val == 1 {
 			return ""
@@ -647,7 +646,7 @@ func (s Server) emailPopupCtrl(w http.ResponseWriter, r *http.Request) {
 
 // sendEmailCtrl sends the email with the secret link
 // POST /send-email
-func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) {
+func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) { //nolint:gocyclo // linear validation logic
 	// check auth if enabled - email sharing requires same auth as secret creation
 	if s.cfg.AuthHash != "" && !s.isAuthenticated(r) {
 		s.renderLoginPopupWithStatus(w, r, "", http.StatusUnauthorized)
@@ -784,9 +783,8 @@ func newTemplateCache() (map[string]*template.Template, error) {
 	cache := map[string]*template.Template{}
 
 	pages, err := fs.Glob(assets.Files, "html/*/*.tmpl.html")
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("glob templates: %w", err)
 	}
 
 	for _, page := range pages {
@@ -806,7 +804,7 @@ func newTemplateCache() (map[string]*template.Template, error) {
 			"urlquery":   url.QueryEscape,
 		}).ParseFS(assets.Files, patterns...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse template %s: %w", name, err)
 		}
 		cache[name] = ts
 	}
@@ -886,6 +884,6 @@ func jsonEscape(s string) template.JS {
 		return template.JS("")
 	}
 	// remove the surrounding quotes that Marshal adds
-	// nolint:gosec // json.Marshal properly escapes content, template.JS prevents double escaping in JSON-LD
+	//nolint:gosec // json.Marshal properly escapes content, template.JS prevents double escaping in JSON-LD
 	return template.JS(b[1 : len(b)-1])
 }
