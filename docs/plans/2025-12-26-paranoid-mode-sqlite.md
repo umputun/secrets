@@ -15,15 +15,24 @@ Ciphertext = base64url(IV || encrypted || tag)
 - IV: 12 bytes from crypto.getRandomValues()
 - Tag: 16 bytes (built into Web Crypto GCM output)
 - Key: 128-bit, encoded as 22-char base64url
+- GCM nonce uniqueness: satisfied because each message uses fresh random key
 ```
+
+**Web Crypto Requirements:**
+- Web Crypto API requires HTTPS (or localhost for development)
+- Runtime check required: `if (!crypto.subtle)` show error message
+- Paranoid mode unavailable on plain HTTP (except localhost)
 
 **File Handling in Paranoid Mode:**
 - No server-side file detection - all content is opaque blob
 - File metadata (filename, content-type) encrypted inside payload
-- Client determines content type after decryption using magic prefix
-- File format: `encrypt("!!F!!" + filename + "!!" + contentType + "!!\n" + binaryData)`
-- Text format: `encrypt(plaintext)` - no prefix
-- Detection: after decryption, check for `!!F!!` prefix to distinguish file from text
+- Client determines content type after decryption using type byte prefix
+- Text format: `encrypt(0x00 || utf8_bytes(plaintext))` - type byte 0x00
+- File format: `encrypt(0x01 || len_be16(filename) || utf8(filename) || len_be16(contentType) || utf8(contentType) || binaryData)`
+  - Length fields: 2 bytes, big-endian
+  - Strings: UTF-8 encoded
+- Detection: first byte after decryption determines type (0x00=text, 0x01=file)
+- Binary prefix avoids collision with user content (unlike string prefixes)
 
 **Transport in Paranoid Mode:**
 - All uploads (text and files) use same endpoint with base64 blob body
@@ -31,8 +40,11 @@ Ciphertext = base64url(IV || encrypted || tag)
 - Server stores/returns opaque blob without interpretation
 
 **Server Response in Paranoid Mode:**
-- Reveal page embeds encrypted blob in HTML: `<div data-encrypted="...base64...">`
-- API returns same JSON structure: `{"key": "...", "message": "...base64..."}` - field unchanged, content is encrypted
+- GET /message/{key}: shows PIN entry form only (no content, same as normal mode)
+- POST /load-message with valid PIN: returns encrypted blob in response
+  - Web: `<div data-encrypted="...base64...">` in HTML response
+  - API: `{"key": "...", "message": "...base64..."}` - same structure, encrypted content
+- Encrypted blob only returned AFTER PIN validation (access control preserved)
 - Client JS decrypts and renders (text) or triggers download (file)
 
 **Size Limits:**
@@ -48,8 +60,10 @@ Ciphertext = base64url(IV || encrypted || tag)
 
 **Missing Fragment Warning:**
 - Client checks `location.hash` on reveal page load
-- If empty in paranoid mode, show warning before PIN entry
-- Prevents accidental deletion when URL fragment stripped
+- If empty in paranoid mode: show error, completely disable PIN form (not just warning)
+- PIN submit button must be non-functional to prevent accidental message deletion
+- Message explains: "Decryption key missing from URL - cannot decrypt this secret"
+- Prevents accidental deletion when URL fragment stripped by chat apps, email clients, etc.
 
 ---
 
@@ -76,13 +90,28 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_exp ON messages(exp);
 ```
 
+**SQLite Configuration:**
+```sql
+PRAGMA journal_mode=WAL;      -- better concurrent read performance
+PRAGMA synchronous=NORMAL;    -- good balance of safety and speed
+```
+
 **Steps:**
-1. Add `GenerateID()` to store.go - 12-char base62 using crypto/rand
+1. Add `GenerateID()` to store.go - 12-char base62 using crypto/rand with rejection sampling
+   ```go
+   // Use rejection sampling to avoid modulo bias: reject values >= 248
+   if b[0] < 248 { result[i] = alphabet[b[0]%62] }
+   ```
 2. Replace `Key(ts, uuid)` with simple `GenerateID()` call in messager
 3. Create SQLite engine implementing Engine interface
-4. Add cleanup goroutine: `DELETE FROM messages WHERE exp < ?`
-5. Write tests for all operations
-6. Run tests: `go test -v ./app/store/...`
+4. Use atomic `UPDATE...RETURNING` for IncErr to avoid race condition:
+   ```sql
+   UPDATE messages SET errors = errors + 1 WHERE id = ? RETURNING errors
+   ```
+5. Add cleanup goroutine: `DELETE FROM messages WHERE exp < ?`
+6. Handle ID collision on Save() with retry loop (SQLite returns unique constraint error)
+7. Write tests for all operations including concurrent access
+8. Run tests: `go test -v ./app/store/...`
 
 ### Task 1.2: Remove BoltDB, Update Main
 
@@ -136,6 +165,8 @@ Skip server encryption/decryption in paranoid mode. All content treated as opaqu
 - Modify: `app/messager/messager.go`
 - Modify: `app/messager/messager_test.go`
 - Modify: `app/main.go`
+- Modify: `app/server/server.go` (API handlers)
+- Modify: `app/server/web.go` (web handlers)
 
 **Steps:**
 1. Add `Paranoid bool` to messager.Params, pass from main.go
@@ -144,9 +175,12 @@ Skip server encryption/decryption in paranoid mode. All content treated as opaqu
 4. Keep PIN validation (access control still works)
 5. In paranoid mode, `MakeFileMessage` not used - all content goes through `MakeMessage` as opaque blob
 6. `IsFile()` returns false in paranoid mode (server doesn't know content type)
-7. Write tests for paranoid mode behavior
-8. Run tests: `go test -v ./app/messager/...`
-9. Run linter
+7. In `getMessageCtrl`: return opaque blob in `message` field (same structure, encrypted content)
+8. In paranoid mode, `generateFileLinkCtrl` (multipart) is NOT used - files go through `generateLinkCtrl` as base64 blob
+9. Disable/hide multipart file upload route in paranoid mode (client handles file→blob conversion)
+10. Write tests for paranoid mode behavior
+11. Run tests: `go test -v ./app/messager/...`
+12. Run linter
 
 ### Task 3.2: Adjust Size Limits for Paranoid Mode
 
@@ -173,16 +207,19 @@ Create JavaScript crypto module.
 - Create: `app/server/assets/static/js/crypto.js`
 
 **Functions:**
+- `checkCryptoAvailable()` → boolean (checks `crypto.subtle` exists)
 - `generateKey()` → 22-char base64url (128-bit)
-- `encrypt(plaintext, key)` → base64url ciphertext
-- `decrypt(ciphertext, key)` → plaintext
-- `encryptFile(data, filename, contentType, key)` → base64url
-- `decryptFile(ciphertext, key)` → {filename, contentType, data}
+- `encrypt(plaintext, key)` → base64url ciphertext (prepends 0x00 type byte)
+- `decrypt(ciphertext, key)` → plaintext (checks 0x00 type byte)
+- `encryptFile(data, filename, contentType, key)` → base64url (prepends 0x01 + metadata)
+- `decryptFile(ciphertext, key)` → {filename, contentType, data} (parses 0x01 format)
 
 **Steps:**
-1. Implement all crypto functions using Web Crypto API
-2. Test in browser with manual HTML page
-3. Verify round-trip encryption works
+1. Add `checkCryptoAvailable()` that returns false if `!crypto.subtle` (HTTP without localhost)
+2. Implement all crypto functions using Web Crypto API
+3. Use binary type bytes: 0x00 for text, 0x01 for files (no string prefix collision)
+4. Test in browser with manual HTML page
+5. Verify round-trip encryption works for both text and files
 
 **Commit:** "add client-side crypto module"
 
@@ -202,12 +239,14 @@ Integrate crypto into create forms. In paranoid mode, all content (text and file
 **Steps:**
 1. Pass Paranoid to templates
 2. Include crypto.js when paranoid
-3. For text: encrypt plaintext, POST as base64 blob
-4. For files: encrypt with `!!F!!` prefix + metadata, POST as base64 blob (not multipart)
-5. Both use same form field - server sees opaque blob either way
-6. After success: append `#key` to displayed URL
-7. Update copy button to include fragment
-8. Manual test both text and file
+3. On page load: check `checkCryptoAvailable()`, show error if false (HTTPS required)
+4. Before encryption: validate content size against MaxFileSize limit, show error if exceeded
+5. For text: encrypt with 0x00 prefix, POST as base64 blob
+6. For files: encrypt with 0x01 prefix + metadata, POST as base64 blob (not multipart)
+7. Both use same form field - server sees opaque blob either way
+8. After success: append `#key` to displayed URL
+9. Update copy button to include fragment
+10. Manual test both text and file
 
 **Commit:** "add client-side encryption to create forms"
 
@@ -236,14 +275,24 @@ Integrate crypto into reveal page. Server returns encrypted blob, client decrypt
 
 **Steps:**
 1. Include crypto.js when paranoid
-2. On page load: check `location.hash` - if empty, show warning and disable PIN form
-3. Read key from `window.location.hash`
-4. After PIN validation: read encrypted blob from response, decrypt in browser
-5. Detect content type: check for `!!F!!` prefix after decryption
-6. Text: display plaintext in message container
-7. File: parse metadata, trigger download with correct filename/content-type
-8. Handle decryption errors gracefully (wrong key, corrupted data)
-9. Manual test full flow
+2. In paranoid mode: show generic "Decrypt" button (not "Reveal"/"Download" since server doesn't know type)
+3. On page load: check `location.hash` - if empty, show error and completely disable PIN form
+4. Check `checkCryptoAvailable()`, show error if false
+5. Read key from `window.location.hash`
+6. After PIN validation: read encrypted blob from response, decrypt in browser
+7. Detect content type: check first byte (0x00=text, 0x01=file)
+8. Text (0x00): display plaintext in message container
+9. File (0x01): parse metadata, use `Blob` + `URL.createObjectURL()` for download
+   ```javascript
+   const blob = new Blob([data], { type: contentType });
+   const url = URL.createObjectURL(blob);
+   const a = document.createElement('a');
+   a.href = url; a.download = filename; a.click();  // download attr forces download, safe
+   ```
+   - Use `textContent` (not `innerHTML`) when displaying filename to prevent XSS
+   - `a.download` forces download behavior regardless of content-type (no render risk)
+10. Handle decryption errors gracefully (wrong key, corrupted data)
+11. Manual test full flow
 
 **Commit:** "add client-side decryption to reveal page"
 
@@ -262,13 +311,28 @@ Add paranoid mode e2e tests.
 - Create text secret → URL has fragment
 - Retrieve text secret → decryption works
 - Wrong PIN rejected
-- Create/retrieve file works
+- Create/retrieve file works (verify binary round-trip)
 - One-time read enforced
+- Missing fragment shows error and disables form
+- Wrong decryption key shows graceful error
+- Crypto module round-trip (encrypt/decrypt)
+- Normal mode still works (regression test)
 
 **Steps:**
 1. Add paranoid mode test cases
-2. Run: `make e2e`
-3. All tests pass
+2. Add crypto.js unit tests via Playwright evaluate:
+   ```typescript
+   test('crypto roundtrip', async ({ page }) => {
+     const result = await page.evaluate(async () => {
+       const key = await generateKey();
+       const cipher = await encrypt('test', key);
+       return await decrypt(cipher, key);
+     });
+     expect(result).toBe('test');
+   });
+   ```
+3. Run: `make e2e`
+4. All tests pass
 
 **Commit:** "add paranoid mode e2e tests"
 
@@ -296,14 +360,20 @@ Update docs.
 
 ## Final Checklist
 
-- [ ] SQLite storage works
-- [ ] Short IDs (12 chars) used everywhere
+- [ ] SQLite storage works with WAL mode
+- [ ] Short IDs (12 chars) with rejection sampling (unbiased)
+- [ ] Atomic IncErr with UPDATE...RETURNING
 - [ ] `--paranoid` flag works
 - [ ] Server skips crypto in paranoid mode
 - [ ] PIN still enforces access control
-- [ ] Client-side crypto works
+- [ ] Client-side crypto works with binary type bytes (0x00/0x01)
+- [ ] Web Crypto availability check (HTTPS required)
 - [ ] URLs include `#key` fragment in paranoid mode
-- [ ] File upload/download works in paranoid mode
-- [ ] E2E tests pass
+- [ ] Missing fragment completely disables PIN form
+- [ ] File upload/download works in paranoid mode (Blob + createObjectURL)
+- [ ] Generic "Decrypt" button in paranoid mode (not Reveal/Download)
+- [ ] Size validation before encryption
+- [ ] E2E tests pass including crypto round-trip
+- [ ] Normal mode regression tests pass
 - [ ] Docs updated
 - [ ] Linter clean
