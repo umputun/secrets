@@ -110,8 +110,23 @@ PRAGMA synchronous=NORMAL;    -- good balance of safety and speed
    ```
 5. Add cleanup goroutine: `DELETE FROM messages WHERE exp < ?`
 6. Handle ID collision on Save() with retry loop (SQLite returns unique constraint error)
-7. Write tests for all operations including concurrent access
+7. Write tests (see test list below)
 8. Run tests: `go test -v ./app/store/...`
+
+**Tests for sqlite_test.go:**
+- `TestSQLite_Save` - save message, verify fields stored correctly
+- `TestSQLite_Load` - save then load, verify round-trip
+- `TestSQLite_Load_NotFound` - load non-existent key returns error
+- `TestSQLite_IncErr` - increment errors, verify count returned
+- `TestSQLite_IncErr_Concurrent` - parallel IncErr calls, verify no lost updates
+- `TestSQLite_Remove` - remove message, verify Load fails after
+- `TestSQLite_Cleanup` - create expired message, run cleanup, verify removed
+- `TestSQLite_Cleanup_KeepsValid` - create future-expiry message, run cleanup, verify kept
+
+**Tests for store_test.go:**
+- `TestGenerateID_Length` - verify 12 characters
+- `TestGenerateID_Charset` - verify only base62 chars (a-zA-Z0-9)
+- `TestGenerateID_Uniqueness` - generate 1000 IDs, verify no duplicates
 
 ### Task 1.2: Remove BoltDB, Update Main
 
@@ -147,9 +162,13 @@ Add `--paranoid` flag and wire it through the system.
 **Steps:**
 1. Add `Paranoid bool` to opts, server.Config
 2. Add `Paranoid bool` to params endpoint response
-3. Write tests for params endpoint
+3. Write tests (see test list below)
 4. Run tests: `go test -v ./app/server/...`
 5. Run linter
+
+**Tests for server_test.go:**
+- `TestGetParams_Paranoid` - with paranoid=true, verify `paranoid: true` in JSON response
+- `TestGetParams_NotParanoid` - with paranoid=false, verify `paranoid: false` in response
 
 **Commit:** "add --paranoid flag"
 
@@ -178,9 +197,16 @@ Skip server encryption/decryption in paranoid mode. All content treated as opaqu
 7. In `getMessageCtrl`: return opaque blob in `message` field (same structure, encrypted content)
 8. In paranoid mode, `generateFileLinkCtrl` (multipart) is NOT used - files go through `generateLinkCtrl` as base64 blob
 9. Disable/hide multipart file upload route in paranoid mode (client handles file→blob conversion)
-10. Write tests for paranoid mode behavior
+10. Write tests (see test list below)
 11. Run tests: `go test -v ./app/messager/...`
 12. Run linter
+
+**Tests for messager_test.go:**
+- `TestMakeMessage_Paranoid` - data stored as-is without encryption
+- `TestLoadMessage_Paranoid` - data returned as-is without decryption
+- `TestLoadMessage_Paranoid_WrongPin` - PIN validation still works
+- `TestLoadMessage_Paranoid_Expired` - expiration still works
+- `TestIsFile_Paranoid` - always returns false regardless of content
 
 ### Task 3.2: Adjust Size Limits for Paranoid Mode
 
@@ -190,8 +216,12 @@ Skip server encryption/decryption in paranoid mode. All content treated as opaqu
 **Steps:**
 1. In routes(), if paranoid mode: set sizeLimit to MaxFileSize * 1.4 (covers base64 overhead)
 2. This applies to all requests since server can't distinguish text from files
-3. Write test for size limit adjustment
+3. Write test (see test list below)
 4. Run tests
+
+**Tests for server_test.go:**
+- `TestSizeLimit_Paranoid` - verify request size limit is MaxFileSize * 1.4 when paranoid=true
+- `TestSizeLimit_Normal` - verify original limits (64KB or MaxFileSize+10KB) when paranoid=false
 
 **Commit:** "skip server-side crypto in paranoid mode"
 
@@ -218,8 +248,9 @@ Create JavaScript crypto module.
 1. Add `checkCryptoAvailable()` that returns false if `!crypto.subtle` (HTTP without localhost)
 2. Implement all crypto functions using Web Crypto API
 3. Use binary type bytes: 0x00 for text, 0x01 for files (no string prefix collision)
-4. Test in browser with manual HTML page
-5. Verify round-trip encryption works for both text and files
+4. Verify implementation compiles and loads in browser (no syntax errors)
+
+Note: crypto.js is tested via Playwright in Phase 7 (`page.evaluate()` for unit tests, full E2E for integration).
 
 **Commit:** "add client-side crypto module"
 
@@ -246,7 +277,8 @@ Integrate crypto into create forms. In paranoid mode, all content (text and file
 7. Both use same form field - server sees opaque blob either way
 8. After success: append `#key` to displayed URL
 9. Update copy button to include fragment
-10. Manual test both text and file
+
+Note: Create flow tested via Playwright E2E in Phase 7.
 
 **Commit:** "add client-side encryption to create forms"
 
@@ -292,7 +324,8 @@ Integrate crypto into reveal page. Server returns encrypted blob, client decrypt
    - Use `textContent` (not `innerHTML`) when displaying filename to prevent XSS
    - `a.download` forces download behavior regardless of content-type (no render risk)
 10. Handle decryption errors gracefully (wrong key, corrupted data)
-11. Manual test full flow
+
+Note: Reveal flow tested via Playwright E2E in Phase 7.
 
 **Commit:** "add client-side decryption to reveal page"
 
@@ -300,39 +333,74 @@ Integrate crypto into reveal page. Server returns encrypted blob, client decrypt
 
 ## Phase 7: E2E Tests
 
-Add paranoid mode e2e tests.
+Add paranoid mode e2e tests covering crypto module, create flow, and reveal flow.
 
 ### Task 7.1: Paranoid Mode Tests
 
 **Files:**
 - Modify: `e2e/tests/secrets.spec.ts`
 
-**Tests:**
-- Create text secret → URL has fragment
-- Retrieve text secret → decryption works
-- Wrong PIN rejected
-- Create/retrieve file works (verify binary round-trip)
-- One-time read enforced
-- Missing fragment shows error and disables form
-- Wrong decryption key shows graceful error
-- Crypto module round-trip (encrypt/decrypt)
-- Normal mode still works (regression test)
+**Tests (secrets.spec.ts):**
+- `test('paranoid: create text secret has fragment')` - URL contains `#` with key
+- `test('paranoid: retrieve text secret decrypts')` - full round-trip works
+- `test('paranoid: wrong PIN rejected')` - PIN validation works
+- `test('paranoid: file upload and download')` - binary round-trip, correct filename
+- `test('paranoid: one-time read enforced')` - second access fails
+- `test('paranoid: missing fragment disables form')` - navigate without hash, form disabled
+- `test('paranoid: wrong key shows error')` - tampered hash, graceful error
+- `test('paranoid: crypto module round-trip')` - unit test via page.evaluate
+- `test('normal mode still works')` - regression test without paranoid flag
 
 **Steps:**
 1. Add paranoid mode test cases
-2. Add crypto.js unit tests via Playwright evaluate:
-   ```typescript
-   test('crypto roundtrip', async ({ page }) => {
-     const result = await page.evaluate(async () => {
-       const key = await generateKey();
-       const cipher = await encrypt('test', key);
-       return await decrypt(cipher, key);
-     });
-     expect(result).toBe('test');
-   });
-   ```
+2. Add crypto.js unit tests via Playwright evaluate (see examples below)
 3. Run: `make e2e`
 4. All tests pass
+
+**Crypto Module Unit Tests (via page.evaluate):**
+```typescript
+test('crypto: key generation', async ({ page }) => {
+  await page.goto('/');
+  const key = await page.evaluate(() => generateKey());
+  expect(key).toHaveLength(22);
+  expect(key).toMatch(/^[A-Za-z0-9_-]+$/);
+});
+
+test('crypto: text round-trip', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const key = await generateKey();
+    const cipher = await encrypt('hello world', key);
+    return await decrypt(cipher, key);
+  });
+  expect(result).toBe('hello world');
+});
+
+test('crypto: file round-trip', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const key = await generateKey();
+    const data = new Uint8Array([1, 2, 3, 4, 5]);
+    const cipher = await encryptFile(data, 'test.bin', 'application/octet-stream', key);
+    return await decryptFile(cipher, key);
+  });
+  expect(result.filename).toBe('test.bin');
+  expect(result.contentType).toBe('application/octet-stream');
+  expect(result.data).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
+});
+
+test('crypto: wrong key rejected', async ({ page }) => {
+  await page.goto('/');
+  const error = await page.evaluate(async () => {
+    const key1 = await generateKey();
+    const key2 = await generateKey();
+    const cipher = await encrypt('secret', key1);
+    try { await decrypt(cipher, key2); return null; }
+    catch (e) { return e.message; }
+  });
+  expect(error).not.toBeNull();
+});
+```
 
 **Commit:** "add paranoid mode e2e tests"
 
