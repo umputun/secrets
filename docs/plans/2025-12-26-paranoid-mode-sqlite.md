@@ -197,27 +197,24 @@ PRAGMA synchronous=NORMAL;    -- good balance of safety and speed
 
 ---
 
-## Phase 2: Paranoid Mode Flag
+## Phase 2: Paranoid Mode Flag ✅ COMPLETED
 
 Add `--paranoid` flag and wire it through the system.
 
-### Task 2.1: Add Flag and Expose in API
+### Task 2.1: Add Flag and Expose in API ✅
 
 **Files:**
-- Modify: `app/main.go`
-- Modify: `app/server/server.go`
-- Modify: `app/server/server_test.go`
+- Modified: `app/main.go` - added `Paranoid bool` to opts struct, wired to server.Config
+- Modified: `app/server/server.go` - added `Paranoid bool` to Config, exposed in params endpoint
+- Modified: `app/server/server_test.go` - added test for paranoid mode in params
 
-**Steps:**
-1. Add `Paranoid bool` to opts, server.Config
-2. Add `Paranoid bool` to params endpoint response
-3. Write tests (see test list below)
-4. Run tests: `go test -v ./app/server/...`
-5. Run linter
-
-**Tests for server_test.go:**
-- `TestGetParams_Paranoid` - with paranoid=true, verify `paranoid: true` in JSON response
-- `TestGetParams_NotParanoid` - with paranoid=false, verify `paranoid: false` in response
+**Changes:**
+1. Added `--paranoid` flag (env: `PARANOID`) to main.go opts
+2. Added `Paranoid bool` to server.Config
+3. Added `paranoid` field to `/api/v1/params` response
+4. Added log message when paranoid mode is enabled
+5. Updated `TestServer_getParams` to expect `paranoid:false` in response
+6. Added `TestServer_getParams_Paranoid` to verify `paranoid:true` when enabled
 
 **Commit:** "add --paranoid flag"
 
@@ -486,7 +483,7 @@ Update docs.
 - [x] Context propagation through all layers
 - [x] Linter configuration with proper exclusions
 - [x] IP anonymization uses HMAC-SHA256 (8 chars)
-- [ ] `--paranoid` flag works
+- [x] `--paranoid` flag works
 - [ ] Server skips crypto in paranoid mode
 - [ ] PIN still enforces access control
 - [ ] Client-side crypto works with binary type bytes (0x00/0x01)

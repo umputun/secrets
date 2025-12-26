@@ -33,18 +33,22 @@ type Config struct {
 	Branding string
 	Listen   string // server listen address (ip:port or :port), defaults to :8080
 	SignKey  string // sign key (will be hashed before use for IP anonymization)
+
 	// validation parameters
 	PinSize        int
 	MaxPinAttempts int
 	MaxExpire      time.Duration
+
 	// file upload settings
 	EnableFiles bool
 	MaxFileSize int64 // bytes, 0 means use default (1MB)
+
 	// authentication (optional)
 	AuthHash   string        // bcrypt hash of password, empty disables auth
 	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
-	// email sharing (optional)
-	EmailEnabled bool
+
+	EmailEnabled bool // email sharing (optional)
+	Paranoid     bool // paranoid mode - client-side encryption only
 }
 
 //go:generate moq -out mocks/email_sender_mock.go -pkg mocks -skip-ensure -fmt goimports . EmailSender
@@ -358,12 +362,14 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 		MaxExpSecs     int   `json:"max_exp_sec"`
 		FilesEnabled   bool  `json:"files_enabled"`
 		MaxFileSize    int64 `json:"max_file_size"`
+		Paranoid       bool  `json:"paranoid"`
 	}{
 		PinSize:        s.cfg.PinSize,
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 		FilesEnabled:   s.cfg.EnableFiles,
 		MaxFileSize:    s.cfg.MaxFileSize,
+		Paranoid:       s.cfg.Paranoid,
 	}
 	rest.RenderJSON(w, params)
 }
