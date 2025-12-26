@@ -80,6 +80,7 @@ type templateData struct {
 	FilesEnabled   bool   // true if file uploads are enabled
 	MaxFileSize    int64  // max file size in bytes
 	IsFile         bool   // true if the message is a file (for show-message template)
+	Paranoid       bool   // true if paranoid mode is enabled (client-side encryption)
 }
 
 // render renders a template
@@ -341,12 +342,14 @@ func (s Server) renderSecureLink(w http.ResponseWriter, r *http.Request, key str
 		FileName     string
 		FileSize     int64
 		EmailEnabled bool
+		Paranoid     bool
 	}{
 		URL:          msgURL,
 		IsFile:       form.IsFile,
 		FileName:     form.FileName,
 		FileSize:     form.FileSize,
 		EmailEnabled: s.cfg.EmailEnabled && s.emailSender != nil,
+		Paranoid:     s.cfg.Paranoid,
 	}
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", data)
@@ -421,6 +424,15 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// paranoid mode: return raw encrypted blob for client-side decryption
+	if s.cfg.Paranoid {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(msg.Data)
+		log.Printf("[INFO] accessed message %s, type=paranoid, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
+		return
+	}
+
 	// check if decrypted data is a file message
 	if messager.IsFileMessage(msg.Data) {
 		// reject file messages when files are disabled
@@ -474,8 +486,8 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
 		// message not found or expired - return 404
 		status := http.StatusNotFound
-		if !isHTMX {
-			status = http.StatusOK
+		if !isHTMX && !s.cfg.Paranoid {
+			status = http.StatusOK // non-HTMX, non-paranoid: OK status for error page
 		}
 		s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
 		log.Printf("[INFO] accessed message %s, type=%s, status=404 (not found), ip=%s", form.Key, msgType, GetHashedIP(r))
@@ -488,9 +500,13 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	data.IsFile = isFile // use pre-checked value (message may be deleted after max attempts)
 	status := http.StatusOK
 	tmpl := baseTmpl // full page for non-HTMX (file download form uses hx-boost="false")
-	if isHTMX {
+	switch {
+	case isHTMX:
 		status = http.StatusForbidden
 		tmpl = mainTmpl // partial for HTMX swap
+	case s.cfg.Paranoid:
+		// paranoid mode JS fetch: return proper HTTP 403 so client can detect error
+		status = http.StatusForbidden
 	}
 	s.render(w, status, "show-message.tmpl.html", tmpl, data)
 	log.Printf("[INFO] accessed message %s, type=%s, status=403 (wrong pin), ip=%s", form.Key, msgType, GetHashedIP(r))

@@ -127,6 +127,7 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 		BaseURL:      baseURL,
 		FilesEnabled: s.cfg.EnableFiles,
 		MaxFileSize:  s.cfg.MaxFileSize,
+		Paranoid:     s.cfg.Paranoid,
 	}
 }
 

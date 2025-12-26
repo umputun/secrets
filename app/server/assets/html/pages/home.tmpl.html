@@ -16,14 +16,14 @@
         {{end}}
     </div>
 
-    <form id="secret-form" hx-post="/generate-link"
+    <form id="secret-form" {{if not .Paranoid}}hx-post="/generate-link"
           hx-target="#form-card"
           hx-swap="outerHTML"
           hx-indicator="#form-spinner"
           hx-target-400="#form-card"
           hx-target-401="#popup"
           hx-target-500="#notifications"
-          hx-trigger="submit, submitSecretForm from:body">
+          hx-trigger="submit, submitSecretForm from:body"{{end}}>
 
         <div id="content-input">
             {{template "text-input" .}}
@@ -115,9 +115,137 @@
     </form>
 </div>
 
+{{if .Paranoid}}
+<script>
+// paranoid mode: client-side encryption
+const paranoidMaxFileSize = {{.MaxFileSize}};
+let paranoidKey = null; // stores the encryption key for URL fragment
+
+document.addEventListener('DOMContentLoaded', function() {
+    // check Web Crypto availability (requires HTTPS or localhost)
+    if (!checkCryptoAvailable()) {
+        const formCard = document.getElementById('form-card');
+        formCard.innerHTML = '<div class="card-header"><h2 class="card-title">Encryption Unavailable</h2>' +
+            '<p class="card-description error">Paranoid mode requires HTTPS. Web Crypto API is not available on plain HTTP connections.</p></div>';
+        return;
+    }
+
+    // replace default form submission with encrypted submission
+    const form = document.getElementById('secret-form');
+    if (form) {
+        form.addEventListener('submit', handleParanoidSubmit);
+    }
+});
+
+async function handleParanoidSubmit(evt) {
+    evt.preventDefault();
+    const form = evt.target;
+
+    // clear previous errors
+    const errDiv = document.getElementById('form-errors');
+    if (errDiv) errDiv.innerHTML = '';
+
+    // show spinner
+    const spinner = document.getElementById('form-spinner');
+    if (spinner) spinner.style.display = 'inline-flex';
+
+    try {
+        // generate new key for this secret
+        paranoidKey = await generateKey();
+
+        // collect form data
+        const pin = document.getElementById('pin').value;
+        const exp = document.getElementById('exp').value;
+        const expUnit = document.getElementById('expUnit').value;
+
+        // check if it's a file upload
+        const fileInput = document.getElementById('file');
+        const isFileUpload = fileInput && fileInput.files.length > 0;
+
+        let encryptedBlob;
+        if (isFileUpload) {
+            const file = fileInput.files[0];
+            if (file.size > paranoidMaxFileSize) {
+                showParanoidError('File too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
+                return;
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', paranoidKey);
+        } else {
+            const messageEl = document.getElementById('message');
+            const message = messageEl ? messageEl.value : '';
+            if (!message) {
+                showParanoidError('Message cannot be empty');
+                return;
+            }
+            const msgBytes = new TextEncoder().encode(message).length;
+            if (msgBytes > paranoidMaxFileSize) {
+                showParanoidError('Message too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
+                return;
+            }
+            encryptedBlob = await encrypt(message, paranoidKey);
+        }
+
+        // build form data with encrypted blob
+        const formData = new URLSearchParams();
+        formData.append('message', encryptedBlob);
+        formData.append('pin', pin);
+        formData.append('exp', exp);
+        formData.append('expUnit', expUnit);
+
+        // submit via htmx
+        htmx.ajax('POST', '/generate-link', {
+            target: '#form-card',
+            swap: 'outerHTML',
+            values: Object.fromEntries(formData)
+        });
+    } catch (e) {
+        showParanoidError('Encryption failed: ' + e.message);
+    } finally {
+        if (spinner) spinner.style.display = '';
+    }
+}
+
+// after successful swap, append key to URL and update email button
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (!paranoidKey) return;
+
+    const textarea = document.getElementById('msg-text');
+    if (textarea && textarea.value.includes('/message/')) {
+        const fullUrl = textarea.value + '#' + paranoidKey;
+        textarea.value = fullUrl;
+
+        // update email button link to include the key fragment
+        const emailBtn = document.querySelector('button[hx-get^="/email-popup"]');
+        if (emailBtn) {
+            emailBtn.setAttribute('hx-get', '/email-popup?link=' + encodeURIComponent(fullUrl));
+            htmx.process(emailBtn); // re-process for htmx to recognize new attribute
+        }
+
+        paranoidKey = null;
+    }
+});
+
+function showParanoidError(msg) {
+    const spinner = document.getElementById('form-spinner');
+    if (spinner) spinner.style.display = '';
+    const errDiv = document.getElementById('form-errors');
+    if (errDiv) {
+        errDiv.innerHTML = '<span class="error">' + msg + '</span>';
+    }
+}
+
+function formatSizeParanoid(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+</script>
+{{end}}
+
 {{if .FilesEnabled}}
 <script>
-const maxFileSize = {{.MaxFileSize}};
+{{if not .Paranoid}}const maxFileSize = {{.MaxFileSize}};{{end}}
 
 function switchTab(mode) {
     const form = document.getElementById('secret-form');
@@ -183,8 +311,9 @@ function initDragDrop() {
         const sizeStr = formatSize(file.size);
         const placeholder = dropZone.querySelector('svg');
         const placeholderText = dropZone.querySelector('p:not(.file-info)');
-        if (file.size > maxFileSize) {
-            fileInfo.textContent = file.name + ' (' + sizeStr + ') - too large! Max: ' + formatSize(maxFileSize);
+        const sizeLimit = typeof paranoidMaxFileSize !== 'undefined' ? paranoidMaxFileSize : maxFileSize;
+        if (file.size > sizeLimit) {
+            fileInfo.textContent = file.name + ' (' + sizeStr + ') - too large! Max: ' + formatSize(sizeLimit);
             fileInfo.style.display = 'block';
             fileInfo.classList.add('error');
             dropZone.classList.add('error-input');
