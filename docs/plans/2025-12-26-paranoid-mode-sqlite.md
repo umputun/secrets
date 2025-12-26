@@ -265,32 +265,52 @@ Skip server encryption/decryption in paranoid mode. All content treated as opaqu
 
 ---
 
-## Phase 4: Client-Side Crypto
+## Phase 4: Client-Side Crypto ✅ COMPLETED
 
 Create JavaScript crypto module.
 
-### Task 4.1: Create Crypto Module
+### Task 4.1: Create Crypto Module ✅
 
 **Files:**
-- Create: `app/server/assets/static/js/crypto.js`
+- Created: `app/server/assets/static/js/crypto.js` (258 lines)
 
-**Functions:**
+**Functions implemented:**
 - `checkCryptoAvailable()` → boolean (checks `crypto.subtle` exists)
-- `generateKey()` → 22-char base64url (128-bit)
+- `generateKey()` → 22-char base64url (128-bit random key)
 - `encrypt(plaintext, key)` → base64url ciphertext (prepends 0x00 type byte)
 - `decrypt(ciphertext, key)` → plaintext (checks 0x00 type byte)
 - `encryptFile(data, filename, contentType, key)` → base64url (prepends 0x01 + metadata)
 - `decryptFile(ciphertext, key)` → {filename, contentType, data} (parses 0x01 format)
+- `decryptAuto(ciphertext, key)` → auto-detects text vs file, returns appropriate structure
 
-**Steps:**
-1. Add `checkCryptoAvailable()` that returns false if `!crypto.subtle` (HTTP without localhost)
-2. Implement all crypto functions using Web Crypto API
-3. Use binary type bytes: 0x00 for text, 0x01 for files (no string prefix collision)
-4. Verify implementation compiles and loads in browser (no syntax errors)
+**Helper functions:**
+- `base64urlEncode(bytes)` / `base64urlDecode(str)` - URL-safe base64 without padding
+- `importKey(keyStr)` - imports base64url key into CryptoKey object
 
-Note: crypto.js is tested via Playwright in Phase 7 (`page.evaluate()` for unit tests, full E2E for integration).
+**Format:**
+- Text payload: `0x00 || utf8(plaintext)`
+- File payload: `0x01 || len_be16(filename) || filename || len_be16(contentType) || contentType || data`
+- Ciphertext: `base64url(IV[12] || encrypted || tag[16])`
 
-**Commit:** "add client-side crypto module"
+### Task 4.2: Add Crypto Module E2E Tests ✅
+
+**Files:**
+- Created: `e2e/crypto_test.go`
+
+**Tests implemented (Playwright):**
+- `TestCrypto_CheckAvailable` - Web Crypto API detection
+- `TestCrypto_GenerateKey` - 22-char base64url key
+- `TestCrypto_TextRoundTrip` - encrypt/decrypt text
+- `TestCrypto_TextWrongKey` - wrong key rejection
+- `TestCrypto_FileRoundTrip` - file with metadata
+- `TestCrypto_DecryptAuto_Text` - auto-detect text type
+- `TestCrypto_DecryptAuto_File` - auto-detect file type
+- `TestCrypto_UnicodePlaintext` - unicode text support
+- `TestCrypto_UnicodeFilename` - unicode filename support
+- `TestCrypto_EmptyPlaintext` - empty string encryption
+- `TestCrypto_LargeBinaryFile` - 100KB binary file
+
+**Commit:** "add client-side crypto module with e2e tests"
 
 ---
 
@@ -371,7 +391,9 @@ Note: Reveal flow tested via Playwright E2E in Phase 7.
 
 ## Phase 7: E2E Tests
 
-Add paranoid mode e2e tests covering crypto module, create flow, and reveal flow.
+Add paranoid mode e2e tests covering create flow and reveal flow.
+
+**Note:** Crypto module e2e tests already completed in Phase 4 (Task 4.2).
 
 ### Task 7.1: Paranoid Mode Tests
 
@@ -478,7 +500,8 @@ Update docs.
 - [x] `--paranoid` flag works
 - [x] Server skips crypto in paranoid mode
 - [x] PIN still enforces access control
-- [ ] Client-side crypto works with binary type bytes (0x00/0x01)
+- [x] Client-side crypto works with binary type bytes (0x00/0x01)
+- [x] Crypto module E2E tests pass (all 11 tests)
 - [ ] Web Crypto availability check (HTTPS required)
 - [ ] URLs include `#key` fragment in paranoid mode
 - [ ] Missing fragment completely disables PIN form
