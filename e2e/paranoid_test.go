@@ -602,11 +602,14 @@ func TestParanoid_ReEncryptsAfterValidationError(t *testing.T) {
 	assert.Contains(t, strings.ToLower(errorText), "expire", "expected expiration validation error")
 	t.Logf("got expected validation error: %s", errorText)
 
-	// fix the form and change the message to something different
+	// verify message field was cleared (prevents double-encryption bug)
+	msgValue, err := page.Locator("#message").InputValue()
+	require.NoError(t, err)
+	assert.Empty(t, msgValue, "message field should be cleared after 400 error to prevent double-encryption")
+
+	// fill in a new message (field is now empty after 400)
 	newMessage := "DIFFERENT message after fixing error"
-	require.NoError(t, page.Locator("#message").Clear())
 	require.NoError(t, page.Locator("#message").Fill(newMessage))
-	require.NoError(t, page.Locator("#pin").Clear())
 	require.NoError(t, page.Locator("#pin").Fill(testPin)) // must re-fill PIN - server clears it on 400
 	require.NoError(t, page.Locator("#exp").Clear())
 	require.NoError(t, page.Locator("#exp").Fill("15"))

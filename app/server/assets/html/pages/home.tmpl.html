@@ -228,14 +228,49 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
         paranoidKey = null;
         encryptionDone = false;
     } else if (evt.detail.target && evt.detail.target.id === 'form-card') {
-        // validation error swapped to form-card (400) - form is re-rendered with errors
-        // reset so next submission re-encrypts fresh data
+        // validation error swapped to form-card (400) - server re-rendered form with encrypted blob
+        // clear the message field to prevent double-encryption on retry
+        const msgField = document.getElementById('message');
+        if (msgField) msgField.value = '';
+        const fileField = document.getElementById('file');
+        if (fileField) fileField.value = '';
+        paranoidKey = null;
+        encryptionDone = false;
+    } else if (evt.detail.target && evt.detail.target.id === 'notifications') {
+        // 500 error swapped to notifications toast - form still has encrypted blob
+        // clear form fields to prevent sending stale ciphertext if user edits and retries
+        const msgField = document.getElementById('message');
+        if (msgField) msgField.value = '';
+        const fileField = document.getElementById('file');
+        if (fileField) fileField.value = '';
         paranoidKey = null;
         encryptionDone = false;
     }
     // note: 401 swaps to #popup, not #form-card, so we preserve encryptionDone
     // allowing the auth flow to re-submit the already-encrypted blob
 });
+
+// handle non-swap failures (network error, timeout, 502/503/504) that don't trigger afterSwap
+document.body.addEventListener('htmx:sendError', resetParanoidState);
+document.body.addEventListener('htmx:timeout', resetParanoidState);
+document.body.addEventListener('htmx:responseError', function(evt) {
+    // responseError fires for non-2xx, but 400/401/500 are handled by afterSwap via hx-target-*
+    // only reset for errors that won't swap (502, 503, 504, etc.)
+    const status = evt.detail.xhr?.status;
+    if (status && status !== 400 && status !== 401 && status !== 500) {
+        resetParanoidState();
+    }
+});
+
+function resetParanoidState() {
+    if (!encryptionDone) return; // nothing to reset
+    const msgField = document.getElementById('message');
+    if (msgField) msgField.value = '';
+    const fileField = document.getElementById('file');
+    if (fileField) fileField.value = '';
+    paranoidKey = null;
+    encryptionDone = false;
+}
 
 function showParanoidError(msg) {
     const errDiv = document.getElementById('form-errors');
