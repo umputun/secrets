@@ -129,10 +129,10 @@ func SecurityHeaders(protocol string) func(http.Handler) http.Handler {
 				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 			}
 
-			// CSP: allow self, Google Fonts, unpkg (htmx)
+			// CSP: allow self, Google Fonts (htmx is now local)
 			w.Header().Set("Content-Security-Policy",
 				"default-src 'self'; "+
-					"script-src 'self' https://unpkg.com 'unsafe-inline'; "+
+					"script-src 'self' 'unsafe-inline'; "+
 					"style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "+
 					"font-src 'self' https://fonts.gstatic.com; "+
 					"img-src 'self' data:; "+

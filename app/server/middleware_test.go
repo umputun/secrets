@@ -320,7 +320,7 @@ func TestSecurityHeaders(t *testing.T) {
 
 		csp := rr.Header().Get("Content-Security-Policy")
 		assert.Contains(t, csp, "default-src 'self'")
-		assert.Contains(t, csp, "script-src 'self' https://unpkg.com")
+		assert.Contains(t, csp, "script-src 'self'")
 		assert.Contains(t, csp, "style-src 'self' https://fonts.googleapis.com")
 		assert.Contains(t, csp, "font-src 'self' https://fonts.gstatic.com")
 		assert.Contains(t, csp, "frame-ancestors 'none'")

@@ -83,6 +83,11 @@ async function decrypt(ciphertextStr, keyStr) {
     const key = await importKey(keyStr);
     const data = base64urlDecode(ciphertextStr);
 
+    // minimum: 12 (IV) + 16 (GCM tag) + 1 (type byte) = 29 bytes
+    if (data.length < 29) {
+        throw new Error('ciphertext too short');
+    }
+
     // extract IV (first 12 bytes) and ciphertext
     const iv = data.slice(0, 12);
     const ciphertext = data.slice(12);
@@ -168,6 +173,11 @@ async function decryptFile(ciphertextStr, keyStr) {
     const key = await importKey(keyStr);
     const data = base64urlDecode(ciphertextStr);
 
+    // minimum: 12 (IV) + 16 (GCM tag) + 1 (type) + 2 (filename len) + 2 (ct len) = 33 bytes
+    if (data.length < 33) {
+        throw new Error('ciphertext too short');
+    }
+
     // extract IV and ciphertext
     const iv = data.slice(0, 12);
     const ciphertext = data.slice(12);
@@ -186,20 +196,32 @@ async function decryptFile(ciphertextStr, keyStr) {
         throw new Error('not a file message');
     }
 
-    // read filename length (big-endian)
+    // read filename length (big-endian) with bounds check
+    if (offset + 2 > payloadBytes.length) {
+        throw new Error('truncated payload: missing filename length');
+    }
     const filenameLen = (payloadBytes[offset] << 8) | payloadBytes[offset + 1];
     offset += 2;
 
-    // read filename
+    // read filename with bounds check
+    if (offset + filenameLen > payloadBytes.length) {
+        throw new Error('truncated payload: filename');
+    }
     const decoder = new TextDecoder();
     const filename = decoder.decode(payloadBytes.slice(offset, offset + filenameLen));
     offset += filenameLen;
 
-    // read content-type length
+    // read content-type length with bounds check
+    if (offset + 2 > payloadBytes.length) {
+        throw new Error('truncated payload: missing content-type length');
+    }
     const contentTypeLen = (payloadBytes[offset] << 8) | payloadBytes[offset + 1];
     offset += 2;
 
-    // read content-type
+    // read content-type with bounds check
+    if (offset + contentTypeLen > payloadBytes.length) {
+        throw new Error('truncated payload: content-type');
+    }
     const contentType = decoder.decode(payloadBytes.slice(offset, offset + contentTypeLen));
     offset += contentTypeLen;
 
@@ -213,6 +235,11 @@ async function decryptFile(ciphertextStr, keyStr) {
 async function decryptAuto(ciphertextStr, keyStr) {
     const key = await importKey(keyStr);
     const data = base64urlDecode(ciphertextStr);
+
+    // minimum: 12 (IV) + 16 (GCM tag) + 1 (type byte) = 29 bytes
+    if (data.length < 29) {
+        throw new Error('ciphertext too short');
+    }
 
     const iv = data.slice(0, 12);
     const ciphertext = data.slice(12);
@@ -232,16 +259,32 @@ async function decryptAuto(ciphertextStr, keyStr) {
     } else if (typeByte === TYPE_FILE) {
         let offset = 1;
 
+        // read filename length with bounds check
+        if (offset + 2 > payloadBytes.length) {
+            throw new Error('truncated payload: missing filename length');
+        }
         const filenameLen = (payloadBytes[offset] << 8) | payloadBytes[offset + 1];
         offset += 2;
 
+        // read filename with bounds check
+        if (offset + filenameLen > payloadBytes.length) {
+            throw new Error('truncated payload: filename');
+        }
         const decoder = new TextDecoder();
         const filename = decoder.decode(payloadBytes.slice(offset, offset + filenameLen));
         offset += filenameLen;
 
+        // read content-type length with bounds check
+        if (offset + 2 > payloadBytes.length) {
+            throw new Error('truncated payload: missing content-type length');
+        }
         const contentTypeLen = (payloadBytes[offset] << 8) | payloadBytes[offset + 1];
         offset += 2;
 
+        // read content-type with bounds check
+        if (offset + contentTypeLen > payloadBytes.length) {
+            throw new Error('truncated payload: content-type');
+        }
         const contentType = decoder.decode(payloadBytes.slice(offset, offset + contentTypeLen));
         offset += contentTypeLen;
 
