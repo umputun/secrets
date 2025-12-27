@@ -20,6 +20,9 @@ var _ Engine = &EngineMock{}
 //
 //		// make and configure a mocked Engine
 //		mockedEngine := &EngineMock{
+//			CloseFunc: func() error {
+//				panic("mock out the Close method")
+//			},
 //			IncErrFunc: func(ctx context.Context, key string) (int, error) {
 //				panic("mock out the IncErr method")
 //			},
@@ -39,6 +42,9 @@ var _ Engine = &EngineMock{}
 //
 //	}
 type EngineMock struct {
+	// CloseFunc mocks the Close method.
+	CloseFunc func() error
+
 	// IncErrFunc mocks the IncErr method.
 	IncErrFunc func(ctx context.Context, key string) (int, error)
 
@@ -53,6 +59,9 @@ type EngineMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// Close holds details about calls to the Close method.
+		Close []struct {
+		}
 		// IncErr holds details about calls to the IncErr method.
 		IncErr []struct {
 			// Ctx is the ctx argument value.
@@ -82,10 +91,38 @@ type EngineMock struct {
 			Msg *store.Message
 		}
 	}
+	lockClose  sync.RWMutex
 	lockIncErr sync.RWMutex
 	lockLoad   sync.RWMutex
 	lockRemove sync.RWMutex
 	lockSave   sync.RWMutex
+}
+
+// Close calls CloseFunc.
+func (mock *EngineMock) Close() error {
+	if mock.CloseFunc == nil {
+		panic("EngineMock.CloseFunc: method is nil but Engine.Close was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockClose.Lock()
+	mock.calls.Close = append(mock.calls.Close, callInfo)
+	mock.lockClose.Unlock()
+	return mock.CloseFunc()
+}
+
+// CloseCalls gets all the calls that were made to Close.
+// Check the length with:
+//
+//	len(mockedEngine.CloseCalls())
+func (mock *EngineMock) CloseCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockClose.RLock()
+	calls = mock.calls.Close
+	mock.lockClose.RUnlock()
+	return calls
 }
 
 // IncErr calls IncErrFunc.

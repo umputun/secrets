@@ -122,6 +122,28 @@ File messages use a distinct storage format with encrypted metadata:
 - `ParseFileHeader(data)` - extracts filename, content-type, data start position (4KB scan limit)
 - `IsFile(key)` - loads message to check type without decrypting (used for UI to show "Download" vs "Reveal")
 
+### Paranoid Mode Architecture
+
+Zero-knowledge client-side encryption where server never sees plaintext:
+
+**Encryption flow:**
+- Client generates 128-bit AES-GCM key per message (22-char base64url)
+- Key stored only in URL fragment (`#key`) - never sent to server
+- Encryption/decryption happens entirely in browser via Web Crypto API
+- Server stores opaque encrypted blobs, validates PIN via bcrypt hash
+
+**Payload format (before encryption):**
+- Text: `0x00 || utf8(plaintext)`
+- File: `0x01 || len_be16(filename) || filename || len_be16(contentType) || contentType || data`
+
+**Ciphertext format:** `base64url(IV[12] || encrypted || tag[16])`
+
+**Implementation details:**
+- `MessageProc.Params.Paranoid` flag skips server-side encryption/decryption
+- `IsFile()` always returns false in paranoid mode (server cannot inspect content)
+- Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead
+- Client-side crypto module: `app/server/assets/static/js/crypto.js`
+
 ### Middleware Architecture
 - **rest.RealIP middleware** - Extracts client IP from headers for CDN/proxy compatibility (from go-pkgz/rest v1.20.6+)
   - Header priority: X-Real-IP → CF-Connecting-IP → leftmost public IP in X-Forwarded-For → RemoteAddr

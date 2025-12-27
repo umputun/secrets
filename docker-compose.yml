@@ -19,9 +19,9 @@ services:
 
         environment:
            - SIGN_KEY=change-this-to-smth-random # important! change it
-           - ENGINE=MEMORY # change to BOLT to make it persistent
+           - ENGINE=MEMORY # change to SQLITE to make it persistent
            - PIN_SIZE=5
-           - BOLT_FILE=/data/secrets.bd
+           - SQLITE_FILE=/data/secrets.db
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
            - DOMAIN=www.example.com # important! change to your domain(s), comma-separated

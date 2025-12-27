@@ -209,14 +209,6 @@ async function decryptFile(ciphertextStr, keyStr) {
     return { filename, contentType, data: fileData };
 }
 
-// detect content type from decrypted payload (without full decryption)
-// useful for UI to show appropriate controls
-function getContentType(ciphertextStr, keyStr) {
-    // we can't detect without decrypting due to GCM authentication
-    // caller should try decrypt() first, then decryptFile() if it fails
-    return null;
-}
-
 // unified decrypt that auto-detects text vs file
 async function decryptAuto(ciphertextStr, keyStr) {
     const key = await importKey(keyStr);

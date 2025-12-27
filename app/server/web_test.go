@@ -394,55 +394,46 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	// first save a message
-	msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
-	require.NoError(t, err)
-
 	tests := []struct {
 		name           string
-		formData       url.Values
+		setupMsg       bool   // create fresh message for this test
+		useKey         string // use specific key (empty = use created message key)
+		pin            []string
 		expectedStatus int
 		checkResponse  func(t *testing.T, body string)
 	}{
 		{
-			name: "valid pin",
-			formData: url.Values{
-				"key": {msg.Key},
-				"pin": {"1", "2", "3", "4", "5"},
-			},
+			name:           "valid pin",
+			setupMsg:       true,
+			pin:            []string{"1", "2", "3", "4", "5"},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "test secret")
 			},
 		},
 		{
-			name: "invalid pin",
-			formData: url.Values{
-				"key": {msg.Key},
-				"pin": {"9", "9", "9", "9", "9"},
-			},
+			name:           "invalid pin",
+			setupMsg:       true,
+			pin:            []string{"9", "9", "9", "9", "9"},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
 			},
 		},
 		{
-			name: "non-existent key",
-			formData: url.Values{
-				"key": {"nonexistent"},
-				"pin": {"1", "2", "3", "4", "5"},
-			},
+			name:           "non-existent key",
+			setupMsg:       false,
+			useKey:         "nonexistent",
+			pin:            []string{"1", "2", "3", "4", "5"},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
 			},
 		},
 		{
-			name: "empty pin",
-			formData: url.Values{
-				"key": {msg.Key},
-				"pin": {"", "", "", "", ""},
-			},
+			name:           "empty pin",
+			setupMsg:       true,
+			pin:            []string{"", "", "", "", ""},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
@@ -452,7 +443,15 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(tt.formData.Encode()))
+			key := tt.useKey
+			if tt.setupMsg {
+				msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+				require.NoError(t, err)
+				key = msg.Key
+			}
+
+			formData := url.Values{"key": {key}, "pin": tt.pin}
+			req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			rr := httptest.NewRecorder()
 

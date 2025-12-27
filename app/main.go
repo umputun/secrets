@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
@@ -129,8 +131,17 @@ func main() {
 		srv = srv.WithEmail(emailSender)
 	}
 
-	if err = srv.Run(context.Background()); err != nil {
+	// setup graceful shutdown with signal handling
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err = srv.Run(ctx); err != nil {
 		log.Printf("[ERROR] failed, %+v", err)
+	}
+
+	// cleanup storage on shutdown
+	if closeErr := dataStore.Close(); closeErr != nil {
+		log.Printf("[WARN] failed to close storage: %v", closeErr)
 	}
 }
 
@@ -138,15 +149,12 @@ func getEngine(engineType, sqliteFile string) messager.Engine {
 	switch engineType {
 	case "MEMORY":
 		return store.NewInMemory(time.Minute * 5)
-	case "SQLITE":
+	default: // SQLITE - validated by go-flags choice constraint
 		sqliteStore, err := store.NewSQLite(sqliteFile, time.Minute*5)
 		if err != nil {
 			log.Fatalf("[ERROR] can't open db, %v", err)
 		}
 		return sqliteStore
-	default:
-		log.Fatalf("[ERROR] unknown engine type %s", engineType)
-		return nil
 	}
 }
 

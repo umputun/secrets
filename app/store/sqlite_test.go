@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"testing"
@@ -163,12 +164,11 @@ func TestSQLite_Cleanup(t *testing.T) {
 	_, err = s.Load(t.Context(), "expired")
 	require.NoError(t, err)
 
-	// wait for cleaner to run
-	time.Sleep(time.Millisecond * 150)
-
-	// verify it's gone
-	_, err = s.Load(t.Context(), "expired")
-	assert.Equal(t, ErrLoadRejected, err)
+	// wait for cleaner to run - use Eventually to avoid flaky timing
+	require.Eventually(t, func() bool {
+		_, err := s.Load(t.Context(), "expired")
+		return errors.Is(err, ErrLoadRejected)
+	}, time.Second, time.Millisecond*25, "expired message should be cleaned up")
 }
 
 func TestSQLite_Cleanup_KeepsValid(t *testing.T) {
@@ -183,8 +183,8 @@ func TestSQLite_Cleanup_KeepsValid(t *testing.T) {
 	msg := Message{Key: "valid", Exp: time.Now().Add(time.Hour), Data: []byte("fresh data"), PinHash: "hash"}
 	require.NoError(t, s.Save(t.Context(), &msg))
 
-	// wait for cleaner to run
-	time.Sleep(time.Millisecond * 150)
+	// wait for cleaner to run multiple times to ensure it doesn't delete valid messages
+	time.Sleep(time.Millisecond * 200)
 
 	// verify it still exists
 	loaded, err := s.Load(t.Context(), "valid")
@@ -225,23 +225,23 @@ func TestInMemory_SharedAcrossConnections(t *testing.T) {
 	const iterations = 10
 	var wg sync.WaitGroup
 	wg.Add(iterations)
-	errors := make(chan error, iterations)
+	errCh := make(chan error, iterations)
 
 	for range iterations {
 		go func() {
 			defer wg.Done()
 			_, err := s.Load(ctx, "memtest")
 			if err != nil {
-				errors <- err
+				errCh <- err
 			}
 		}()
 	}
 	wg.Wait()
-	close(errors)
+	close(errCh)
 
 	// all loads should succeed - if any fail, the DB isn't shared
 	loadErrors := make([]error, 0, iterations)
-	for err := range errors {
+	for err := range errCh {
 		loadErrors = append(loadErrors, err)
 	}
 	assert.Empty(t, loadErrors, "all concurrent loads should succeed with shared in-memory DB")

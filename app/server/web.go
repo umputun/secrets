@@ -32,11 +32,11 @@ const (
 	mainTmpl  = "main"
 	errorTmpl = "error"
 
-	msgKey     = "message"
-	pinKey     = "pin"
-	expKey     = "exp"
-	expUnitKey = "expUnit"
-	keyKey     = "key"
+	msgKey       = "message"
+	pinKey       = "pin"
+	expKey       = "exp"
+	expUnitKey   = "expUnit"
+	pathKeyParam = "key" // URL path parameter for message key
 )
 
 type createMsgForm struct {
@@ -360,7 +360,7 @@ func (s Server) renderSecureLink(w http.ResponseWriter, r *http.Request, key str
 // URL Parameters:
 //   - "key" (string): A path parameter representing the unique key of the message to be displayed.
 func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue(keyKey)
+	key := r.PathValue(pathKeyParam)
 
 	// set X-Robots-Tag header for defense-in-depth beyond HTML meta
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
@@ -879,12 +879,8 @@ func (s Server) getValidatedHost(r *http.Request) string {
 	}
 
 	// host not in allowed domains, return the first configured domain as fallback
-	if len(s.cfg.Domain) > 0 {
-		return s.cfg.Domain[0]
-	}
-
-	// should not happen with required validation - fail loudly if reached
-	panic("no domains configured: validation should occur in server.New() at startup")
+	// server.New() validates at least one domain is configured
+	return s.cfg.Domain[0]
 }
 
 // jsonEscape safely escapes a string for use in JSON-LD script tags

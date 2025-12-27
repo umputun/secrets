@@ -16,9 +16,10 @@ import (
 
 // SQLite implements store.Engine with SQLite database
 type SQLite struct {
-	db   *sql.DB
-	lock sync.Mutex
-	done chan struct{}
+	db      *sql.DB
+	lock    sync.RWMutex
+	done    chan struct{}
+	cleanWg sync.WaitGroup
 }
 
 // NewInMemory creates an ephemeral in-memory SQLite store.
@@ -46,6 +47,10 @@ func NewSQLite(dbFile string, cleanupDuration time.Duration) (*SQLite, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
+	// configure connection pool for SQLite (single writer)
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	ctx := context.Background()
 
 	// configure sqlite for better performance
@@ -56,6 +61,10 @@ func NewSQLite(dbFile string, cleanupDuration time.Duration) (*SQLite, error) {
 	if _, err = db.ExecContext(ctx, "PRAGMA synchronous=NORMAL"); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("set synchronous mode: %w", err)
+	}
+	if _, err = db.ExecContext(ctx, "PRAGMA busy_timeout=5000"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("set busy timeout: %w", err)
 	}
 
 	// create table and index
@@ -98,6 +107,9 @@ func (s *SQLite) Save(ctx context.Context, msg *Message) error {
 
 // Load retrieves message by key
 func (s *SQLite) Load(ctx context.Context, key string) (*Message, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
 	var msg Message
 	var expUnix int64
 
@@ -159,6 +171,7 @@ func (s *SQLite) Remove(ctx context.Context, key string) error {
 // Close closes the database connection and stops the cleaner goroutine
 func (s *SQLite) Close() error {
 	close(s.done)
+	s.cleanWg.Wait() // wait for cleaner goroutine to finish
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("close sqlite: %w", err)
 	}
@@ -169,8 +182,10 @@ func (s *SQLite) Close() error {
 func (s *SQLite) activateCleaner(every time.Duration) {
 	log.Printf("[INFO] cleaner activated, every %v", every)
 
+	s.cleanWg.Add(1)
 	ticker := time.NewTicker(every)
 	go func() {
+		defer s.cleanWg.Done()
 		defer ticker.Stop()
 		for {
 			select {
