@@ -323,6 +323,7 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.Contains(t, csp, "script-src 'self'")
 		assert.Contains(t, csp, "style-src 'self' https://fonts.googleapis.com")
 		assert.Contains(t, csp, "font-src 'self' https://fonts.gstatic.com")
+		assert.Contains(t, csp, "form-action 'self'")
 		assert.Contains(t, csp, "frame-ancestors 'none'")
 	})
 
@@ -349,5 +350,35 @@ func TestSecurityHeaders(t *testing.T) {
 		// CSP still set
 		csp := rr.Header().Get("Content-Security-Policy")
 		assert.Contains(t, csp, "default-src 'self'")
+	})
+
+	t.Run("sets no-cache for dynamic content", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/v1/message", http.NoBody)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := SecurityHeaders("https")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		assert.Equal(t, "no-cache, no-store, must-revalidate", rr.Header().Get("Cache-Control"))
+	})
+
+	t.Run("sets long cache for static assets", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/static/js/htmx.min.js", http.NoBody)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := SecurityHeaders("https")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		assert.Equal(t, "public, max-age=31536000, immutable", rr.Header().Get("Cache-Control"))
 	})
 }

@@ -137,7 +137,15 @@ func SecurityHeaders(protocol string) func(http.Handler) http.Handler {
 					"font-src 'self' https://fonts.gstatic.com; "+
 					"img-src 'self' data:; "+
 					"connect-src 'self'; "+
+					"form-action 'self'; "+
 					"frame-ancestors 'none'")
+
+			// cache-control: static assets can be cached, everything else should not
+			if strings.HasPrefix(r.URL.Path, "/static/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			}
 
 			next.ServeHTTP(w, r)
 		})
