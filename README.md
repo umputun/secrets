@@ -78,6 +78,33 @@ For maximum security, enable paranoid mode (`--paranoid`). In this mode:
 - Server cannot distinguish text from files (all content is opaque)
 - If you lose the URL fragment, the message is unrecoverable
 
+### Security Architecture
+
+**Encryption:**
+- Server-side: AES-256-GCM for message encryption
+- Client-side (paranoid mode): AES-128-GCM via Web Crypto API
+- PIN hashing: bcrypt (cost 14)
+- Random key generation: 32-byte cryptographically secure
+
+**HTTP Security Headers:**
+- `Content-Security-Policy`: restricts scripts, styles, fonts to trusted sources; `frame-ancestors 'none'`; `form-action 'self'`
+- `Strict-Transport-Security`: HSTS with 1-year max-age (HTTPS only)
+- `X-Frame-Options: DENY` - prevents clickjacking
+- `X-Content-Type-Options: nosniff` - prevents MIME sniffing
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Cache-Control`: `no-cache, no-store, must-revalidate` for dynamic content; long cache for static assets
+
+**Rate Limiting:**
+- API requests: 10 req/sec per IP (configurable via `--limit`)
+- PIN attempts: 3 max per message (configurable via `--pinattempts`)
+- Failed attempts permanently logged with anonymized IP
+
+**Privacy:**
+- IP addresses hashed with HMAC-SHA256 before logging (8-char prefix)
+- Sensitive URL paths masked in logs (`/message/key/pin` → `/message/partial-key/*****`)
+- No cookies except theme preference
+- No analytics or tracking
+
 ## Installation
 
 ### Docker (Recommended)
