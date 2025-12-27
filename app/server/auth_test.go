@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/umputun/secrets/app/email"
-	"github.com/umputun/secrets/app/messager"
-	"github.com/umputun/secrets/app/server/mocks"
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/v2/app/email"
+	"github.com/umputun/secrets/v2/app/messager"
+	"github.com/umputun/secrets/v2/app/server/mocks"
+	"github.com/umputun/secrets/v2/app/store"
 )
 
 // helper to generate bcrypt hash for testing

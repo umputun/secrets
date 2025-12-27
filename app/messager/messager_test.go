@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/v2/app/store"
 )
 
 func TestMessageProc_NewDefault(t *testing.T) {

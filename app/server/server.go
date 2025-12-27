@@ -19,10 +19,10 @@ import (
 	"github.com/go-pkgz/rest"
 	"github.com/go-pkgz/routegroup"
 
-	"github.com/umputun/secrets/app/email"
-	"github.com/umputun/secrets/app/messager"
-	"github.com/umputun/secrets/app/server/assets"
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/v2/app/email"
+	"github.com/umputun/secrets/v2/app/messager"
+	"github.com/umputun/secrets/v2/app/server/assets"
+	"github.com/umputun/secrets/v2/app/store"
 )
 
 // Config is a configuration for the server

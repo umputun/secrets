@@ -9,10 +9,10 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
 
-	"github.com/umputun/secrets/app/email"
-	"github.com/umputun/secrets/app/messager"
-	"github.com/umputun/secrets/app/server"
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/v2/app/email"
+	"github.com/umputun/secrets/v2/app/messager"
+	"github.com/umputun/secrets/v2/app/server"
+	"github.com/umputun/secrets/v2/app/store"
 )
 
 var opts struct {

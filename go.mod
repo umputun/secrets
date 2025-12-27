@@ -1,4 +1,4 @@
-module github.com/umputun/secrets
+module github.com/umputun/secrets/v2
 
 go 1.25
 

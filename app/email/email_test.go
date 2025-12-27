@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/umputun/secrets/app/email/mocks"
+	"github.com/umputun/secrets/v2/app/email/mocks"
 )
 
 func TestNewSender(t *testing.T) {

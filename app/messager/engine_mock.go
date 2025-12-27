@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/v2/app/store"
 )
 
 // Ensure, that EngineMock does implement Engine.

@@ -14,7 +14,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/umputun/secrets/app/store"
+	"github.com/umputun/secrets/v2/app/store"
 )
 
 //go:generate moq -out crypt_mock.go -fmt goimports . Crypter

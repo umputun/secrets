@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/umputun/secrets/app/email"
+	"github.com/umputun/secrets/v2/app/email"
 )
 
 // EmailSenderMock is a mock implementation of server.EmailSender.
