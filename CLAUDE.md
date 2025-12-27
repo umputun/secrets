@@ -327,3 +327,16 @@ Core libraries used:
 - Build binary embeds UI assets, no need for `--web` flag after building
 - Run formatter, goimports, and unfuck-ai-comments before committing
 - **AUTH_HASH in environment**: When testing without auth, use `--auth.hash=""` explicitly - the env may have AUTH_HASH set which overrides the default
+
+## Deployment Process
+
+### Beta Deployment (beta.safesecret.info)
+- Master image deploys to beta after CI passes
+- Server: ssh to eclipse-love.exe.xyz
+- Deploy commands:
+  ```bash
+  cd /srv
+  docker compose pull
+  docker compose up -d
+  ```
+- Verify deployment: `curl -I https://beta.safesecret.info/ping` and check `App-Version` header

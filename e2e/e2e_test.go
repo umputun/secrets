@@ -641,3 +641,26 @@ func TestSecret_MultiDomainLinkGeneration(t *testing.T) {
 		strings.Contains(secretLink, "localhost:18084") || strings.Contains(secretLink, "127.0.0.1:18084"),
 		"link should use one of the configured domains")
 }
+
+// --- security headers tests ---
+
+func TestSecurityHeaders_Present(t *testing.T) {
+	// simple HTTP test - no Playwright needed for header verification
+	resp, err := http.Get(baseURL) // #nosec G107 - test url
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// verify security headers are set (enabled by default)
+	assert.Equal(t, "DENY", resp.Header.Get("X-Frame-Options"), "X-Frame-Options should be DENY")
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"), "X-Content-Type-Options should be nosniff")
+	assert.Equal(t, "strict-origin-when-cross-origin", resp.Header.Get("Referrer-Policy"), "Referrer-Policy should be set")
+
+	// CSP should be present
+	csp := resp.Header.Get("Content-Security-Policy")
+	assert.NotEmpty(t, csp, "Content-Security-Policy should be set")
+	assert.Contains(t, csp, "default-src 'self'", "CSP should contain default-src")
+	assert.Contains(t, csp, "frame-ancestors 'none'", "CSP should prevent framing")
+
+	// HSTS not set for HTTP protocol (test server uses http)
+	assert.Empty(t, resp.Header.Get("Strict-Transport-Security"), "HSTS should not be set for HTTP")
+}

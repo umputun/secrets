@@ -33,6 +33,8 @@ var opts struct {
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"`
 	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
 
+	ProxySecurityHeaders bool `long:"proxy-security-headers" env:"PROXY_SECURITY_HEADERS" description:"disable security headers (when proxy handles them)"`
+
 	Files struct {
 		Enabled bool  `long:"enabled" env:"ENABLED" description:"enable file uploads"`
 		MaxSize int64 `long:"max-size" env:"MAX_SIZE" default:"1048576" description:"max file size in bytes (default 1MB)"`
@@ -108,21 +110,22 @@ func main() {
 	}
 
 	srv, err := server.New(messager.New(dataStore, crypter, params), revision, server.Config{
-		Domain:         opts.Domain,
-		Protocol:       opts.Protocol,
-		Listen:         opts.Listen,
-		PinSize:        opts.PinSize,
-		MaxPinAttempts: opts.MaxPinAttempts,
-		MaxExpire:      opts.MaxExpire,
-		WebRoot:        opts.WebRoot,
-		Branding:       opts.Branding,
-		SignKey:        opts.SignKey,
-		EnableFiles:    opts.Files.Enabled,
-		MaxFileSize:    opts.Files.MaxSize,
-		AuthHash:       opts.Auth.Hash,
-		SessionTTL:     opts.Auth.SessionTTL,
-		EmailEnabled:   opts.Email.Enabled,
-		Paranoid:       opts.Paranoid,
+		Domain:                 opts.Domain,
+		Protocol:               opts.Protocol,
+		Listen:                 opts.Listen,
+		PinSize:                opts.PinSize,
+		MaxPinAttempts:         opts.MaxPinAttempts,
+		MaxExpire:              opts.MaxExpire,
+		WebRoot:                opts.WebRoot,
+		Branding:               opts.Branding,
+		SignKey:                opts.SignKey,
+		EnableFiles:            opts.Files.Enabled,
+		MaxFileSize:            opts.Files.MaxSize,
+		AuthHash:               opts.Auth.Hash,
+		SessionTTL:             opts.Auth.SessionTTL,
+		EmailEnabled:           opts.Email.Enabled,
+		Paranoid:               opts.Paranoid,
+		DisableSecurityHeaders: opts.ProxySecurityHeaders,
 	})
 	if err != nil {
 		log.Fatalf("[ERROR] can't create server, %v", err)

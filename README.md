@@ -139,6 +139,7 @@ All options work as both CLI flags and environment variables.
 | `--branding` | `BRANDING` | `Safe Secrets` | Application title |
 | `--branding-url` | `BRANDING_URL` | `https://safesecret.info` | Branding link URL for emails |
 | `--dbg` | - | `false` | Enable debug mode |
+| `--proxy-security-headers` | `PROXY_SECURITY_HEADERS` | `false` | Disable security headers (when proxy handles them) |
 
 ### Message Settings
 

@@ -47,8 +47,9 @@ type Config struct {
 	AuthHash   string        // bcrypt hash of password, empty disables auth
 	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
 
-	EmailEnabled bool // email sharing (optional)
-	Paranoid     bool // paranoid mode - client-side encryption only
+	EmailEnabled           bool // email sharing (optional)
+	Paranoid               bool // paranoid mode - client-side encryption only
+	DisableSecurityHeaders bool // skip security headers when proxy handles them
 }
 
 //go:generate moq -out mocks/email_sender_mock.go -pkg mocks -skip-ensure -fmt goimports . EmailSender
@@ -198,6 +199,11 @@ func (s Server) routes() http.Handler {
 		rest.SizeLimit(sizeLimit),
 		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
 	)
+
+	// security headers - enabled by default, disabled with --proxy-security-headers
+	if !s.cfg.DisableSecurityHeaders {
+		router.Use(SecurityHeaders(s.cfg.Protocol))
+	}
 
 	// API routes
 	router.Mount("/api/v1").Route(func(apiGroup *routegroup.Bundle) {

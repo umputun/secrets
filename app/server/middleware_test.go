@@ -299,3 +299,55 @@ func TestLoggerMaskingEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurityHeaders(t *testing.T) {
+	t.Run("sets all security headers for https", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/test", http.NoBody)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := SecurityHeaders("https")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		assert.Equal(t, "DENY", rr.Header().Get("X-Frame-Options"))
+		assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+		assert.Equal(t, "strict-origin-when-cross-origin", rr.Header().Get("Referrer-Policy"))
+		assert.Equal(t, "max-age=31536000; includeSubDomains", rr.Header().Get("Strict-Transport-Security"))
+
+		csp := rr.Header().Get("Content-Security-Policy")
+		assert.Contains(t, csp, "default-src 'self'")
+		assert.Contains(t, csp, "script-src 'self' https://unpkg.com")
+		assert.Contains(t, csp, "style-src 'self' https://fonts.googleapis.com")
+		assert.Contains(t, csp, "font-src 'self' https://fonts.gstatic.com")
+		assert.Contains(t, csp, "frame-ancestors 'none'")
+	})
+
+	t.Run("skips HSTS for http protocol", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/test", http.NoBody)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := SecurityHeaders("http")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		// other headers still set
+		assert.Equal(t, "DENY", rr.Header().Get("X-Frame-Options"))
+		assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+		assert.Equal(t, "strict-origin-when-cross-origin", rr.Header().Get("Referrer-Policy"))
+
+		// HSTS not set for HTTP
+		assert.Empty(t, rr.Header().Get("Strict-Transport-Security"))
+
+		// CSP still set
+		csp := rr.Header().Get("Content-Security-Policy")
+		assert.Contains(t, csp, "default-src 'self'")
+	})
+}
