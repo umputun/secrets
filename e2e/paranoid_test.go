@@ -570,6 +570,71 @@ func TestParanoid_WithAuth_RoundTrip(t *testing.T) {
 	assert.Equal(t, originalMessage, content, "decrypted message should match original")
 }
 
+// TestParanoid_WithAuth_WrongPasswordRetry verifies that entering wrong password
+// and then retrying with correct password still works (encrypted data preserved)
+func TestParanoid_WithAuth_WrongPasswordRetry(t *testing.T) {
+	cleanup := startParanoidAuthServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+	_, err := page.Goto(paranoidAuthServerURL)
+	require.NoError(t, err)
+
+	originalMessage := "message preserved after wrong password"
+
+	// fill in message and PIN
+	require.NoError(t, page.Locator("#message").Fill(originalMessage))
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+
+	// submit form - should trigger auth popup
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+	popup := page.Locator("#popup.active")
+	waitVisible(t, popup)
+
+	// enter WRONG password
+	require.NoError(t, page.Locator("#password").Fill("wrongpassword"))
+	require.NoError(t, page.Locator("#popup button[type='submit']").Click())
+
+	// wait for error message in popup (form re-renders with error)
+	errorDiv := page.Locator("#popup .form-error")
+	waitVisible(t, errorDiv)
+
+	errorText, err := errorDiv.TextContent()
+	require.NoError(t, err)
+	assert.Contains(t, strings.ToLower(errorText), "invalid", "should show invalid password error")
+	t.Logf("got expected login error: %s", errorText)
+
+	// now enter CORRECT password
+	require.NoError(t, page.Locator("#password").Clear())
+	require.NoError(t, page.Locator("#password").Fill("testpass123"))
+	require.NoError(t, page.Locator("#popup button[type='submit']").Click())
+
+	// after successful auth, should see the secure link with fragment
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+	t.Logf("secret link after retry: %s", secretLink)
+
+	// verify URL has paranoid mode fragment
+	assert.Contains(t, secretLink, "#", "paranoid mode URL should have fragment")
+
+	// navigate to message and decrypt to verify original message was preserved
+	_, err = page.Goto(secretLink)
+	require.NoError(t, err)
+
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	messageText := page.Locator("textarea#decoded-msg-text")
+	waitVisible(t, messageText)
+
+	content, err := messageText.InputValue()
+	require.NoError(t, err)
+	assert.Equal(t, originalMessage, content, "decrypted message should match original after wrong password retry")
+}
+
 // TestParanoid_ReEncryptsAfterValidationError verifies that after a 400 validation error,
 // the next submission properly re-encrypts the message (bug fix for encryptionDone flag not resetting)
 func TestParanoid_ReEncryptsAfterValidationError(t *testing.T) {

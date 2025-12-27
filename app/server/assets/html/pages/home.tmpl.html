@@ -250,9 +250,12 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     // allowing the auth flow to re-submit the already-encrypted blob
 });
 
-// handle non-swap failures (network error, timeout, 502/503/504) that don't trigger afterSwap
+// handle non-swap failures (network error, timeout, 502/503/504, abort) that don't trigger afterSwap
 document.body.addEventListener('htmx:sendError', resetParanoidState);
 document.body.addEventListener('htmx:timeout', resetParanoidState);
+document.body.addEventListener('htmx:sendAbort', resetParanoidState);
+document.body.addEventListener('htmx:swapError', resetParanoidState);
+document.body.addEventListener('htmx:targetError', resetParanoidState);
 document.body.addEventListener('htmx:responseError', function(evt) {
     // responseError fires for non-2xx, but 400/401/500 are handled by afterSwap via hx-target-*
     // only reset for errors that won't swap (502, 503, 504, etc.)
@@ -271,6 +274,32 @@ function resetParanoidState() {
     paranoidKey = null;
     encryptionDone = false;
 }
+
+// reset state if auth popup is closed without completing login
+// (prevents user from editing ciphertext and sending plaintext on retry)
+let authResubmitPending = false;
+document.body.addEventListener('submitSecretForm', function() {
+    // login succeeded - form will resubmit, don't reset state when popup closes
+    authResubmitPending = true;
+});
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === 'popup' && encryptionDone) {
+        // popup was swapped - check various cases:
+        // 1. login success: popup empty + authResubmitPending = true → don't reset
+        // 2. wrong password: popup has login form with error → don't reset (user can retry)
+        // 3. user closed popup: popup empty + authResubmitPending = false → reset
+        if (authResubmitPending) {
+            authResubmitPending = false; // consume flag, form will resubmit with encrypted data
+            return;
+        }
+        const popupContent = evt.detail.target.querySelector('.popup-content, .login-popup');
+        if (!popupContent) {
+            // popup is empty and not from login success - user closed it manually
+            resetParanoidState();
+        }
+        // if popup still has content (wrong password), keep encrypted data for retry
+    }
+});
 
 function showParanoidError(msg) {
     const errDiv = document.getElementById('form-errors');
