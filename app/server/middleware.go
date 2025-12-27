@@ -99,6 +99,16 @@ func (w *statusWriter) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
+// SendErrorJSON sends error response and logs with hashed IP (privacy-safe alternative to rest.SendErrorJSON)
+func SendErrorJSON(w http.ResponseWriter, r *http.Request, l log.L, code int, err error, msg string) {
+	hashedIP := GetHashedIP(r)
+	l.Logf("[INFO] %s - %s - %d - %s [caused by %v]", msg, hashedIP, code, r.URL.Path, err)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_, _ = fmt.Fprintf(w, `{"error":%q}`, msg)
+}
+
 // StripSlashes removes trailing slashes from URLs
 func StripSlashes(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

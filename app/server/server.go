@@ -253,7 +253,7 @@ func (s Server) routes() http.Handler {
 	// custom 404 handler
 	router.NotFoundHandler(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/v1") {
-			rest.SendErrorJSON(w, r, log.Default(), http.StatusNotFound, errors.New("not found"), "endpoint not found")
+			SendErrorJSON(w, r, log.Default(), http.StatusNotFound, errors.New("not found"), "endpoint not found")
 			return
 		}
 		s.render(w, http.StatusNotFound, "404.tmpl.html", baseTmpl, s.newTemplateData(r, nil))
@@ -279,7 +279,7 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	// check basic auth if auth is enabled
 	if s.cfg.AuthHash != "" && !s.checkBasicAuth(r) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="secrets"`)
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusUnauthorized, errors.New("unauthorized"), "authentication required")
+		SendErrorJSON(w, r, log.Default(), http.StatusUnauthorized, errors.New("unauthorized"), "authentication required")
 		return
 	}
 
@@ -291,19 +291,19 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if err := rest.DecodeJSON(r, &request); err != nil {
 		log.Printf("[WARN] can't bind request %v", request)
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't decode request")
+		SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't decode request")
 		return
 	}
 
 	if len(request.Pin) != s.cfg.PinSize {
 		log.Printf("[WARN] incorrect pin size %d", len(request.Pin))
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("incorrect pin size"), "incorrect pin size")
+		SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("incorrect pin size"), "incorrect pin size")
 		return
 	}
 
 	msg, err := s.messager.MakeMessage(r.Context(), time.Second*time.Duration(request.Exp), request.Message, request.Pin)
 	if err != nil {
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create message")
+		SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create message")
 		return
 	}
 	_ = rest.EncodeJSON(w, http.StatusCreated, rest.JSON{"key": msg.Key, "exp": msg.Exp})
@@ -316,7 +316,7 @@ func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	key, pin := r.PathValue("key"), r.PathValue("pin")
 	if key == "" || pin == "" || len(pin) != s.cfg.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("no key or pin passed"), "invalid request")
+		SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, errors.New("no key or pin passed"), "invalid request")
 		return
 	}
 

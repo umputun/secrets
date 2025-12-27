@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -381,4 +382,40 @@ func TestSecurityHeaders(t *testing.T) {
 
 		assert.Equal(t, "public, max-age=31536000, immutable", rr.Header().Get("Cache-Control"))
 	})
+}
+
+func TestSendErrorJSON(t *testing.T) {
+	req, err := http.NewRequest("GET", "/api/v1/test", http.NoBody)
+	require.NoError(t, err)
+	req.RemoteAddr = "192.168.1.100:12345"
+
+	// apply HashedIP middleware to set hashed IP in context
+	rr := httptest.NewRecorder()
+	out := bytes.Buffer{}
+	l := lgr.New(lgr.Out(&out))
+
+	var capturedReq *http.Request
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedReq = r
+		SendErrorJSON(w, r, l, http.StatusNotFound, errors.New("test error"), "endpoint not found")
+	})
+
+	handler := HashedIP("test-secret")(testHandler)
+	handler.ServeHTTP(rr, req)
+
+	// verify response
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+	assert.Contains(t, rr.Body.String(), `"error":"endpoint not found"`)
+
+	// verify log uses hashed IP, not real IP
+	logOutput := out.String()
+	assert.NotContains(t, logOutput, "192.168.1.100", "real IP should not appear in log")
+	assert.Contains(t, logOutput, "endpoint not found")
+	assert.Contains(t, logOutput, "/api/v1/test")
+
+	// verify hashed IP was used
+	hashedIP := GetHashedIP(capturedReq)
+	assert.Len(t, hashedIP, 8)
+	assert.Contains(t, logOutput, hashedIP)
 }
