@@ -53,8 +53,30 @@ Your recipient opens the link, enters the PIN, and sees the message. That's it. 
 - Nothing on disk by default (in-memory storage)
 - Messages are permanently destroyed after reading or expiration
 - An attacker would need both the link AND the PIN to access anything
+- **Paranoid mode** (optional): Zero-knowledge encryption where the server never sees your plaintext
 
 _Feel free to suggest any other ways to make the process safer._
+
+### Paranoid Mode
+
+For maximum security, enable paranoid mode (`--paranoid`). In this mode:
+
+- **All encryption happens in your browser** using Web Crypto API (AES-128-GCM)
+- The server stores only encrypted blobs - it cannot read your messages
+- The decryption key is stored in the URL fragment (`#key`) which never leaves your browser
+- Even if the server is compromised, your secrets remain encrypted
+
+```bash
+./secrets -k "secret-key" -d "example.com" --paranoid
+```
+
+**Requirements:**
+- HTTPS is required (Web Crypto API doesn't work on plain HTTP, except localhost)
+- The full URL including the `#key` fragment must be shared - some apps strip URL fragments
+
+**Trade-offs:**
+- Server cannot distinguish text from files (all content is opaque)
+- If you lose the URL fragment, the message is unrecoverable
 
 ## Installation
 
@@ -113,6 +135,7 @@ All options work as both CLI flags and environment variables.
 | `-d, --domain` | `DOMAIN` | *required* | Site domain(s), comma-separated for multiple |
 | `-p, --protocol` | `PROTOCOL` | `https` | Site protocol (http/https) |
 | `--listen` | `LISTEN` | `:8080` | Server listen address (ip:port or :port) |
+| `--paranoid` | `PARANOID` | `false` | Zero-knowledge mode (client-side encryption) |
 | `--branding` | `BRANDING` | `Safe Secrets` | Application title |
 | `--branding-url` | `BRANDING_URL` | `https://safesecret.info` | Branding link URL for emails |
 | `--dbg` | - | `false` | Enable debug mode |
@@ -129,8 +152,8 @@ All options work as both CLI flags and environment variables.
 
 | Flag | Env Variable | Default | Description |
 |------|--------------|---------|-------------|
-| `-e, --engine` | `ENGINE` | `MEMORY` | Storage engine: MEMORY or BOLT |
-| `--bolt` | `BOLT_FILE` | `/tmp/secrets.bd` | BoltDB file path |
+| `-e, --engine` | `ENGINE` | `MEMORY` | Storage engine: MEMORY or SQLITE |
+| `--sqlite` | `SQLITE_FILE` | `/tmp/secrets.db` | SQLite database file path |
 
 ### File Uploads
 
@@ -221,7 +244,10 @@ Mailgun requires specific configuration:
 ./secrets -k "secret-key" -d "example.com,alt.example.com"
 
 # persistent storage
-./secrets -k "secret-key" -d "example.com" -e BOLT --bolt=/data/secrets.db
+./secrets -k "secret-key" -d "example.com" -e SQLITE --sqlite=/data/secrets.db
+
+# paranoid mode (zero-knowledge)
+./secrets -k "secret-key" -d "example.com" --paranoid
 
 # with file uploads (5MB limit)
 ./secrets -k "secret-key" -d "example.com" --files.enabled --files.max-size=5242880
@@ -316,6 +342,7 @@ $ curl https://safesecret.info/api/v1/params
   "max_pin_attempts": 3,
   "pin_size": 5,
   "files_enabled": true,
-  "max_file_size": 1048576
+  "max_file_size": 1048576,
+  "paranoid": false
 }
 ```

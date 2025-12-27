@@ -21,8 +21,8 @@
         </div>
 
         {{if .Paranoid}}
-        {{/* paranoid mode: client-side decryption via JS only */}}
-        <form id="paranoid-form" onsubmit="return false;">
+        {{/* paranoid mode: client-side decryption via JS only, hx-boost=false prevents htmx from intercepting */}}
+        <form id="paranoid-form" onsubmit="return false;" hx-boost="false">
             <input type="hidden" name="key" value="{{.Form.Key}}" />
 
             <div class="form-group">
@@ -204,8 +204,8 @@
         }
         </script>
         {{else if .IsFile}}
-        {{/* file download: use JS to handle binary response and show success */}}
-        <form id="download-form">
+        {{/* file download: use JS to handle binary response, hx-boost=false prevents htmx from intercepting */}}
+        <form id="download-form" hx-boost="false">
             <input type="hidden" name="key" value="{{.Form.Key}}" />
 
             <div class="form-group">

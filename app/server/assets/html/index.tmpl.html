@@ -1,6 +1,6 @@
 {{define "base"}}
     <!DOCTYPE html>
-    <html lang="en" {{if ne .Theme "auto"}}data-theme="{{.Theme}}"{{end}}>
+    <html lang="en" {{if ne .Theme "auto"}}data-theme="{{.Theme}}"{{end}} {{if .Paranoid}}data-paranoid{{end}}>
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -35,7 +35,7 @@
         <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png">
         <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png">
         <link rel="apple-touch-icon" sizes="180x180" href="/static/img/apple-touch-icon.png">
-        <meta name="theme-color" content="#14b8a6">
+        <meta name="theme-color" content="{{if .Paranoid}}#c45850{{else}}#14b8a6{{end}}">
         
         <!-- Preconnect for performance -->
         <link rel="preconnect" href="https://fonts.googleapis.com">

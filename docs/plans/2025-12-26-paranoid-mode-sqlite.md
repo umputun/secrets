@@ -392,6 +392,8 @@ Add paranoid mode e2e tests covering create flow and reveal flow.
 - `TestParanoid_WrongPin` - PIN validation still works, shows appropriate error
 - `TestParanoid_OneTimeRead` - message deleted after first access, second fails
 - `TestParanoid_EmailButtonHasFragment` - email button link includes encoded fragment
+- `TestParanoid_TextSizeValidation` - message too large error before encryption
+- `TestParanoid_FileSizeValidation` - file too large error, submit disabled
 
 **Implementation notes:**
 - Each test starts its own paranoid server on port 18085
@@ -403,21 +405,25 @@ Add paranoid mode e2e tests covering create flow and reveal flow.
 
 ---
 
-## Phase 8: Documentation
+## Phase 8: Documentation ✅ COMPLETED
 
 Update docs.
 
-### Task 8.1: Update README and CLAUDE.md
+### Task 8.1: Update README and CLAUDE.md ✅
 
 **Files:**
-- Modify: `README.md`
-- Modify: `CLAUDE.md`
+- Modified: `README.md`
+- Modified: `CLAUDE.md`
 
-**Steps:**
-1. Document `--paranoid` flag and zero-knowledge mode
-2. Update storage engine options
-3. Final test run and linter
-4. Format code
+**Changes:**
+1. README.md: Added "Paranoid Mode" section with usage, requirements, trade-offs
+2. README.md: Updated Storage table from BOLT to SQLITE
+3. README.md: Added SQLITE configuration options
+4. CLAUDE.md: Updated Project Overview with paranoid mode description
+5. CLAUDE.md: Updated storage layer docs (SQLite, short IDs)
+6. CLAUDE.md: Updated Engine interface with context parameter
+7. CLAUDE.md: Updated Configuration with SQLITE_FILE and PARANOID
+8. CLAUDE.md: Updated Dependencies (SQLite instead of BoltDB)
 
 **Commit:** "update documentation"
 
@@ -444,8 +450,8 @@ Update docs.
 - [x] Missing fragment completely disables PIN form
 - [x] File upload/download works in paranoid mode (Blob + createObjectURL)
 - [x] Generic "Decrypt" button in paranoid mode (not Reveal/Download)
-- [ ] Size validation before encryption
-- [x] E2E tests pass including paranoid mode round-trip (6 tests)
+- [x] Size validation before encryption
+- [x] E2E tests pass including paranoid mode round-trip (8 tests)
 - [x] Normal mode regression tests pass
-- [ ] Docs updated
+- [x] Docs updated
 - [x] Linter clean

@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Safesecret is a Go-based web service for sharing sensitive information securely. It encrypts messages with a PIN, stores them temporarily, and allows one-time retrieval. The service can use either in-memory or BoltDB storage engines.
+Safesecret is a Go-based web service for sharing sensitive information securely. It encrypts messages with a PIN, stores them temporarily, and allows one-time retrieval. The service uses SQLite for storage (both in-memory and persistent modes).
+
+**Paranoid Mode:** Optional zero-knowledge encryption (`--paranoid`) where all encryption/decryption happens client-side using Web Crypto API (AES-128-GCM). The server stores only opaque encrypted blobs and never sees plaintext.
 
 ## Build and Development Commands
 
@@ -61,7 +63,8 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
   - Serves both API endpoints and web UI templates
 - **app/store/** - Storage layer implementations
   - `Engine` interface with `Save`, `Load`, `IncErr`, and `Remove` methods
-  - Two implementations: InMemory (with TTL cleanup) and BoltDB
+  - SQLite-based implementation (both in-memory and file-backed)
+  - Short 12-char base62 IDs with unbiased rejection sampling
 - **app/server/assets/** - Frontend assets embedded via Go 1.16+ embed
   - Static HTML/CSS/JS for web interface
   - Templates for dynamic content rendering
@@ -81,10 +84,10 @@ type Messager interface {
 **Engine** (app/messager/messeger.go):
 ```go
 type Engine interface {
-    Save(msg *store.Message) (err error)
-    Load(key string) (result *store.Message, err error)
-    IncErr(key string) (count int, err error)
-    Remove(key string) (err error)
+    Save(ctx context.Context, msg *store.Message) (err error)
+    Load(ctx context.Context, key string) (result *store.Message, err error)
+    IncErr(ctx context.Context, key string) (count int, err error)
+    Remove(ctx context.Context, key string) (err error)
 }
 ```
 
@@ -139,7 +142,9 @@ File messages use a distinct storage format with encrypted metadata:
 
 Key configuration via environment variables or flags:
 - `SIGN_KEY` - Encryption signing key (required)
-- `ENGINE` - Storage engine: MEMORY or BOLT (default: MEMORY)
+- `ENGINE` - Storage engine: MEMORY or SQLITE (default: MEMORY)
+- `SQLITE_FILE` - SQLite database file path (default: /tmp/secrets.db)
+- `PARANOID` - Enable zero-knowledge client-side encryption (default: false)
 - `MAX_EXPIRE` - Maximum message lifetime (default: 24h)
 - `PIN_SIZE` - PIN length in characters (default: 5)
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
@@ -164,7 +169,7 @@ Core libraries used:
 - `github.com/go-chi/chi/v5` - HTTP routing
 - `github.com/go-pkgz/lgr` - Structured logging
 - `github.com/go-pkgz/rest` - REST middleware utilities (v1.20.6+ for CDN-compatible RealIP)
-- `go.etcd.io/bbolt` - BoltDB storage engine
+- `modernc.org/sqlite` - Pure Go SQLite storage engine
 - `golang.org/x/crypto` - Encryption and bcrypt hashing
 - `github.com/stretchr/testify` - Testing assertions
 - `github.com/didip/tollbooth` - Rate limiting

@@ -16,14 +16,15 @@
         {{end}}
     </div>
 
-    <form id="secret-form" {{if not .Paranoid}}hx-post="/generate-link"
+    <form id="secret-form"
+          hx-post="/generate-link"
           hx-target="#form-card"
           hx-swap="outerHTML"
           hx-indicator="#form-spinner"
           hx-target-400="#form-card"
           hx-target-401="#popup"
           hx-target-500="#notifications"
-          hx-trigger="submit, submitSecretForm from:body"{{end}}>
+          hx-trigger="submit, submitSecretForm from:body">
 
         <div id="content-input">
             {{template "text-input" .}}
@@ -117,9 +118,10 @@
 
 {{if .Paranoid}}
 <script>
-// paranoid mode: client-side encryption
+// paranoid mode: client-side encryption before htmx submission
 const paranoidMaxFileSize = {{.MaxFileSize}};
 let paranoidKey = null; // stores the encryption key for URL fragment
+let encryptionDone = false; // flag to track if encryption was already done
 
 document.addEventListener('DOMContentLoaded', function() {
     // check Web Crypto availability (requires HTTPS or localhost)
@@ -130,81 +132,81 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // replace default form submission with encrypted submission
-    const form = document.getElementById('secret-form');
-    if (form) {
-        form.addEventListener('submit', handleParanoidSubmit);
+    // intercept htmx before it sends the request to do encryption first
+    document.body.addEventListener('htmx:configRequest', function(evt) {
+        // only handle our form
+        if (evt.detail.elt.id !== 'secret-form') return;
+
+        // if already encrypted (re-submit after auth), let it go
+        if (encryptionDone) return;
+
+        // cancel the request - we need to encrypt first (async operation)
+        evt.preventDefault();
+
+        // do encryption async and re-submit
+        doParanoidEncryption(evt.detail.elt);
+    });
+
+    async function doParanoidEncryption(form) {
+        const errDiv = document.getElementById('form-errors');
+        if (errDiv) errDiv.innerHTML = '';
+
+        try {
+            // generate new key for this secret
+            paranoidKey = await generateKey();
+
+            // check if it's a file upload
+            const fileInput = document.getElementById('file');
+            const isFileUpload = fileInput && fileInput.files.length > 0;
+
+            let encryptedBlob;
+            let messageEl = document.getElementById('message');
+
+            if (isFileUpload) {
+                const file = fileInput.files[0];
+                if (file.size > paranoidMaxFileSize) {
+                    showParanoidError('File too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
+                    return;
+                }
+                const arrayBuffer = await file.arrayBuffer();
+                encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', paranoidKey);
+                // in file mode, message textarea doesn't exist - create hidden input
+                if (!messageEl) {
+                    messageEl = document.createElement('input');
+                    messageEl.type = 'hidden';
+                    messageEl.name = 'message';
+                    messageEl.id = 'message';
+                    form.appendChild(messageEl);
+                }
+                // remove file input entirely (it's required, so would block submission)
+                fileInput.remove();
+                // remove multipart encoding since we're sending encrypted text now
+                form.removeAttribute('enctype');
+            } else {
+                const message = messageEl ? messageEl.value : '';
+                if (!message) {
+                    showParanoidError('Message cannot be empty');
+                    return;
+                }
+                const msgBytes = new TextEncoder().encode(message).length;
+                if (msgBytes > paranoidMaxFileSize) {
+                    showParanoidError('Message too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
+                    return;
+                }
+                encryptedBlob = await encrypt(message, paranoidKey);
+            }
+
+            // put encrypted blob into message field and re-submit
+            messageEl.value = encryptedBlob;
+            encryptionDone = true;
+
+            // re-trigger form submission via our custom event (avoids conflict with prevented submit)
+            htmx.trigger(document.body, 'submitSecretForm');
+        } catch (e) {
+            showParanoidError('Encryption failed: ' + e.message);
+        }
     }
 });
-
-async function handleParanoidSubmit(evt) {
-    evt.preventDefault();
-    const form = evt.target;
-
-    // clear previous errors
-    const errDiv = document.getElementById('form-errors');
-    if (errDiv) errDiv.innerHTML = '';
-
-    // show spinner
-    const spinner = document.getElementById('form-spinner');
-    if (spinner) spinner.style.display = 'inline-flex';
-
-    try {
-        // generate new key for this secret
-        paranoidKey = await generateKey();
-
-        // collect form data
-        const pin = document.getElementById('pin').value;
-        const exp = document.getElementById('exp').value;
-        const expUnit = document.getElementById('expUnit').value;
-
-        // check if it's a file upload
-        const fileInput = document.getElementById('file');
-        const isFileUpload = fileInput && fileInput.files.length > 0;
-
-        let encryptedBlob;
-        if (isFileUpload) {
-            const file = fileInput.files[0];
-            if (file.size > paranoidMaxFileSize) {
-                showParanoidError('File too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
-                return;
-            }
-            const arrayBuffer = await file.arrayBuffer();
-            encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', paranoidKey);
-        } else {
-            const messageEl = document.getElementById('message');
-            const message = messageEl ? messageEl.value : '';
-            if (!message) {
-                showParanoidError('Message cannot be empty');
-                return;
-            }
-            const msgBytes = new TextEncoder().encode(message).length;
-            if (msgBytes > paranoidMaxFileSize) {
-                showParanoidError('Message too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
-                return;
-            }
-            encryptedBlob = await encrypt(message, paranoidKey);
-        }
-
-        // build form data with encrypted blob
-        const formData = new URLSearchParams();
-        formData.append('message', encryptedBlob);
-        formData.append('pin', pin);
-        formData.append('exp', exp);
-        formData.append('expUnit', expUnit);
-
-        // submit via htmx
-        htmx.ajax('POST', '/generate-link', {
-            target: '#form-card',
-            swap: 'outerHTML',
-            values: Object.fromEntries(formData)
-        });
-    } catch (e) {
-        showParanoidError('Encryption failed: ' + e.message);
-    } finally {
-        if (spinner) spinner.style.display = '';
-    }
-}
 
 // after successful swap, append key to URL and update email button
 document.body.addEventListener('htmx:afterSwap', function(evt) {
@@ -212,6 +214,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 
     const textarea = document.getElementById('msg-text');
     if (textarea && textarea.value.includes('/message/')) {
+        // success - append key to URL
         const fullUrl = textarea.value + '#' + paranoidKey;
         textarea.value = fullUrl;
 
@@ -223,12 +226,18 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
         }
 
         paranoidKey = null;
+        encryptionDone = false;
+    } else if (evt.detail.target && evt.detail.target.id === 'form-card') {
+        // validation error swapped to form-card (400) - form is re-rendered with errors
+        // reset so next submission re-encrypts fresh data
+        paranoidKey = null;
+        encryptionDone = false;
     }
+    // note: 401 swaps to #popup, not #form-card, so we preserve encryptionDone
+    // allowing the auth flow to re-submit the already-encrypted blob
 });
 
 function showParanoidError(msg) {
-    const spinner = document.getElementById('form-spinner');
-    if (spinner) spinner.style.display = '';
     const errDiv = document.getElementById('form-errors');
     if (errDiv) {
         errDiv.innerHTML = '<span class="error">' + msg + '</span>';
