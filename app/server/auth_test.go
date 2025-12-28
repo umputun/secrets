@@ -334,6 +334,7 @@ func TestServer_generateLinkCtrl_WithAuth(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPost, ts.URL+"/generate-link", strings.NewReader(form.Encode()))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true") // required for client-side encryption
 		req.AddCookie(sessionCookie)
 
 		resp, err := client.Do(req)
@@ -445,6 +446,7 @@ func TestServer_NoAuthWhenDisabled(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPost, ts.URL+"/generate-link", strings.NewReader(form.Encode()))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true") // required for client-side encryption
 
 		client := &http.Client{}
 		resp, err := client.Do(req)

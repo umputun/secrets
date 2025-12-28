@@ -102,7 +102,7 @@ func (s Server) WithEmail(sender EmailSender) Server {
 
 // Messager interface making and loading messages
 type Messager interface {
-	MakeMessage(ctx context.Context, duration time.Duration, msg, pin string) (result *store.Message, err error)
+	MakeMessage(ctx context.Context, req messager.MsgReq) (result *store.Message, err error)
 	MakeFileMessage(ctx context.Context, req messager.FileRequest) (result *store.Message, err error)
 	LoadMessage(ctx context.Context, key, pin string) (msg *store.Message, err error)
 	IsFile(ctx context.Context, key string) bool // checks if message is a file without decrypting
@@ -223,7 +223,8 @@ func (s Server) routes() http.Handler {
 	// web routes
 	router.Group().Route(func(webGroup *routegroup.Bundle) {
 		webGroup.Use(Logger(log.Default()), StripSlashes)
-		webGroup.HandleFunc("POST /generate-link", s.generateLinkCtrl)
+		// generate-link requires HTMX (JavaScript) to ensure client-side encryption
+		webGroup.With(RequireHTMX).HandleFunc("POST /generate-link", s.generateLinkCtrl)
 		webGroup.HandleFunc("GET /message/{key}", s.showMessageViewCtrl)
 		webGroup.HandleFunc("POST /load-message", s.loadMessageCtrl)
 		webGroup.HandleFunc("POST /theme", s.themeToggleCtrl)
@@ -301,7 +302,12 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.MakeMessage(r.Context(), time.Second*time.Duration(request.Exp), request.Message, request.Pin)
+	msg, err := s.messager.MakeMessage(r.Context(), messager.MsgReq{
+		Duration:  time.Second * time.Duration(request.Exp),
+		Message:   request.Message,
+		Pin:       request.Pin,
+		ClientEnc: false, // API uses server-side encryption
+	})
 	if err != nil {
 		SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't create message")
 		return

@@ -261,6 +261,45 @@ func TestTimeout(t *testing.T) {
 	})
 }
 
+func TestRequireHTMX_WithHeader(t *testing.T) {
+	req, err := http.NewRequest("POST", "/generate-link", http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("HX-Request", "true")
+
+	rr := httptest.NewRecorder()
+	handlerCalled := false
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := RequireHTMX(testHandler)
+	handler.ServeHTTP(rr, req)
+
+	assert.True(t, handlerCalled, "handler should be called when HX-Request header present")
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestRequireHTMX_WithoutHeader(t *testing.T) {
+	req, err := http.NewRequest("POST", "/generate-link", http.NoBody)
+	require.NoError(t, err)
+	// no HX-Request header
+
+	rr := httptest.NewRecorder()
+	handlerCalled := false
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := RequireHTMX(testHandler)
+	handler.ServeHTTP(rr, req)
+
+	assert.False(t, handlerCalled, "handler should not be called without HX-Request header")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "JavaScript is required")
+}
+
 func TestLoggerMaskingEdgeCases(t *testing.T) {
 	tests := []struct {
 		name         string

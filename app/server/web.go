@@ -209,7 +209,12 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.MakeMessage(r.Context(), expDuration, form.Message, strings.Join(pinValues, ""))
+	msg, err := s.messager.MakeMessage(r.Context(), messager.MsgReq{
+		Duration:  expDuration,
+		Message:   form.Message,
+		Pin:       strings.Join(pinValues, ""),
+		ClientEnc: true, // UI always uses client-side encryption
+	})
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
 		return

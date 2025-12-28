@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"errors"
 	"os"
 	"sync"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func TestSQLite_Save(t *testing.T) {
@@ -207,6 +209,77 @@ func TestSQLite_CleanerStopsOnClose(t *testing.T) {
 
 	// if we get here without panic, cleaner stopped properly
 	// the test would have logged errors like "cleanup failed: sql: database is closed" if not fixed
+}
+
+func TestSQLite_SaveLoadClientEnc(t *testing.T) {
+	dbFile := "/tmp/test_sqlite_clientenc.db"
+	defer os.Remove(dbFile)
+
+	s, err := NewSQLite(dbFile, time.Minute)
+	require.NoError(t, err)
+	defer s.Close()
+
+	// save message with ClientEnc=true
+	msg := Message{Key: "clientenc123", Exp: time.Now().Add(time.Hour), Data: []byte("encrypted blob"), PinHash: "hash", ClientEnc: true}
+	err = s.Save(t.Context(), &msg)
+	require.NoError(t, err)
+
+	// load and verify ClientEnc is preserved
+	loaded, err := s.Load(t.Context(), "clientenc123")
+	require.NoError(t, err)
+	assert.True(t, loaded.ClientEnc, "ClientEnc should be true")
+
+	// save message with ClientEnc=false (default)
+	msg2 := Message{Key: "serverenc123", Exp: time.Now().Add(time.Hour), Data: []byte("server encrypted"), PinHash: "hash2", ClientEnc: false}
+	require.NoError(t, s.Save(t.Context(), &msg2))
+
+	loaded2, err := s.Load(t.Context(), "serverenc123")
+	require.NoError(t, err)
+	assert.False(t, loaded2.ClientEnc, "ClientEnc should be false")
+}
+
+func TestSQLite_MigrateExistingDB(t *testing.T) {
+	dbFile := "/tmp/test_sqlite_migrate.db"
+	defer os.Remove(dbFile)
+
+	// create a database with old schema (no client_enc column)
+	db, err := sql.Open("sqlite", dbFile)
+	require.NoError(t, err)
+
+	_, err = db.Exec(`
+		CREATE TABLE messages (
+			id TEXT PRIMARY KEY,
+			exp INTEGER NOT NULL,
+			data BLOB NOT NULL,
+			pin_hash TEXT NOT NULL,
+			errors INTEGER DEFAULT 0
+		)
+	`)
+	require.NoError(t, err)
+
+	// insert a message in old schema
+	_, err = db.Exec("INSERT INTO messages (id, exp, data, pin_hash, errors) VALUES (?, ?, ?, ?, ?)",
+		"oldmsg", time.Now().Add(time.Hour).Unix(), []byte("old data"), "oldhash", 0)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	// reopen with NewSQLite - should migrate
+	s, err := NewSQLite(dbFile, time.Minute)
+	require.NoError(t, err)
+	defer s.Close()
+
+	// load old message - ClientEnc should default to false
+	loaded, err := s.Load(t.Context(), "oldmsg")
+	require.NoError(t, err)
+	assert.False(t, loaded.ClientEnc, "old messages should default to ClientEnc=false")
+
+	// save new message with ClientEnc=true
+	newMsg := Message{Key: "newmsg", Exp: time.Now().Add(time.Hour), Data: []byte("new data"), PinHash: "newhash", ClientEnc: true}
+	require.NoError(t, s.Save(t.Context(), &newMsg))
+
+	loaded2, err := s.Load(t.Context(), "newmsg")
+	require.NoError(t, err)
+	assert.True(t, loaded2.ClientEnc, "new message should have ClientEnc=true")
 }
 
 func TestInMemory_SharedAcrossConnections(t *testing.T) {

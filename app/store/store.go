@@ -15,11 +15,12 @@ var (
 
 // Message with key and exp. time
 type Message struct {
-	Key     string
-	Exp     time.Time
-	Data    []byte
-	PinHash string
-	Errors  int
+	Key       string
+	Exp       time.Time
+	Data      []byte
+	PinHash   string
+	Errors    int
+	ClientEnc bool // true if client-side encrypted (UI), false if server-side (API)
 }
 
 // base62 alphabet for short ID generation

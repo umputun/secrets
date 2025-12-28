@@ -445,7 +445,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			key := tt.useKey
 			if tt.setupMsg {
-				msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+				msg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 				require.NoError(t, err)
 				key = msg.Key
 			}
@@ -1438,7 +1438,7 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("text message shows decode button", func(t *testing.T) {
-		msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+		msg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 		require.NoError(t, err)
 
 		resp, err := http.Get(ts.URL + "/message/" + msg.Key)

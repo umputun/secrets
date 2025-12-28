@@ -11,7 +11,7 @@
 ## Tasks
 
 ### Task 1: Add ClientEnc field to store.Message
-- [ ] **Status: Not started**
+- [x] **Status: Completed**
 
 **Files:**
 - Modify: `app/store/store.go` (Message struct)
@@ -33,7 +33,7 @@
 ---
 
 ### Task 2: Add requireHTMX middleware for web form routes
-- [ ] **Status: Not started**
+- [x] **Status: Completed**
 
 **Files:**
 - Modify: `app/server/server.go` (or `web.go`)
@@ -58,7 +58,7 @@
 ---
 
 ### Task 3: Update MessageProc to accept ClientEnc parameter
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (refactored to use `MsgReq` struct instead of multiple params)
 
 **Files:**
 - Modify: `app/messager/messager.go`
@@ -81,7 +81,7 @@
 ---
 
 ### Task 4: Remove Paranoid from Params
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (removed from messager.Params, kept in server.Config for now)
 
 **Files:**
 - Modify: `app/messager/messager.go`
@@ -99,7 +99,7 @@
 ---
 
 ### Task 5: Wire route-based encryption into handlers
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (used `With(RequireHTMX)` for single-route middleware)
 
 **Files:**
 - Modify: `app/server/server.go` (routes, saveMessageCtrl, getMessageCtrl)
