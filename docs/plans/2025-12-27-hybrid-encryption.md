@@ -202,7 +202,7 @@
 ---
 
 ### Task 9: Clean up file upload handling
-- [x] **Status: Completed** (updated tests for proper HTTP status codes)
+- [x] **Status: Completed** (removed generateFileLinkCtrl, multipart rejected with 400)
 
 **Files:**
 - Modify: `app/messager/messager.go`

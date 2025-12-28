@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -143,19 +142,12 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// reject multipart requests - all file uploads must use client-side JS encryption
+	// (JS encrypts file into blob and sends as text)
 	contentType := r.Header.Get("Content-Type")
-	isMultipart := strings.HasPrefix(contentType, "multipart/form-data")
-
-	// handle file upload if multipart and files enabled
-	if isMultipart && s.cfg.EnableFiles {
-		s.generateFileLinkCtrl(w, r)
-		return
-	}
-
-	// reject multipart when files disabled
-	if isMultipart && !s.cfg.EnableFiles {
-		log.Printf("[WARN] file upload rejected, files disabled")
-		s.render(w, http.StatusBadRequest, "error.tmpl.html", errorTmpl, "file uploads disabled")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		log.Printf("[WARN] multipart upload rejected, use JS encryption")
+		s.render(w, http.StatusBadRequest, "error.tmpl.html", errorTmpl, "file uploads require JavaScript encryption")
 		return
 	}
 
@@ -221,99 +213,6 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[INFO] created message %s, type=text, size=%d, exp=%s, ip=%s",
 		msg.Key, len(form.Message), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
-	s.renderSecureLink(w, r, msg.Key, form)
-}
-
-// generateFileLinkCtrl handles file upload requests
-func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
-	// note: request body size already limited by rest.SizeLimit middleware in routes()
-	err := r.ParseMultipartForm(s.cfg.MaxFileSize)
-	if err != nil {
-		log.Printf("[WARN] failed to parse multipart form: %v", err)
-		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "file too large or invalid form")
-		return
-	}
-
-	form := createMsgForm{
-		ExpUnit: r.PostForm.Get(expUnitKey),
-		MaxExp:  humanDuration(s.cfg.MaxExpire),
-		IsFile:  true,
-	}
-
-	// validate PIN
-	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
-		}
-	}
-
-	// validate expiration
-	exp := r.PostFormValue(expKey)
-	form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")
-	form.CheckField(validator.IsNumber(exp), expKey, "Expire must be a number")
-	form.CheckField(slices.Contains([]string{"m", "h", "d"}, form.ExpUnit), expUnitKey, "Only Minutes, Hours and Days are allowed")
-
-	expInt, err := strconv.Atoi(exp)
-	if err != nil {
-		form.AddFieldError(expKey, "Expire must be a number")
-	}
-	form.Exp = expInt
-	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
-
-	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, "Expire must be less than "+humanDuration(s.cfg.MaxExpire))
-
-	// get uploaded file
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		form.AddFieldError("file", "Please select a file to upload")
-	} else {
-		defer file.Close()
-		form.FileName = header.Filename
-		form.FileSize = header.Size
-	}
-
-	if !form.Valid() {
-		data := s.newTemplateData(r, form)
-		if r.Header.Get("HX-Request") == "true" {
-			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
-		} else {
-			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
-		}
-		return
-	}
-
-	// read file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		log.Printf("[ERROR] failed to read uploaded file: %v", err)
-		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "failed to read file")
-		return
-	}
-
-	// detect content type from header or fallback
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	// create file message
-	msg, err := s.messager.MakeFileMessage(r.Context(), messager.FileRequest{
-		Duration:    expDuration,
-		Pin:         strings.Join(pinValues, ""),
-		FileName:    header.Filename,
-		ContentType: contentType,
-		Data:        fileData,
-	})
-	if err != nil {
-		log.Printf("[WARN] failed to create file message: %v", err)
-		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
-		return
-	}
-
-	log.Printf("[INFO] created message %s, type=file, size=%d, exp=%s, ip=%s",
-		msg.Key, len(fileData), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
 	s.renderSecureLink(w, r, msg.Key, form)
 }
 
