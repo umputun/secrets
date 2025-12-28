@@ -116,11 +116,10 @@
     </form>
 </div>
 
-{{if .Paranoid}}
 <script>
-// paranoid mode: client-side encryption before htmx submission
-const paranoidMaxFileSize = {{.MaxFileSize}};
-let paranoidKey = null; // stores the encryption key for URL fragment
+// client-side encryption before htmx submission
+const maxEncryptedFileSize = {{.MaxFileSize}};
+let encryptionKey = null; // stores the encryption key for URL fragment
 let encryptionDone = false; // flag to track if encryption was already done
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -128,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!checkCryptoAvailable()) {
         const formCard = document.getElementById('form-card');
         formCard.innerHTML = '<div class="card-header"><h2 class="card-title">Encryption Unavailable</h2>' +
-            '<p class="card-description error">Paranoid mode requires HTTPS. Web Crypto API is not available on plain HTTP connections.</p></div>';
+            '<p class="card-description error">Client-side encryption requires HTTPS. Web Crypto API is not available on plain HTTP connections.</p></div>';
         return;
     }
 
@@ -144,16 +143,16 @@ document.addEventListener('DOMContentLoaded', function() {
         evt.preventDefault();
 
         // do encryption async and re-submit
-        doParanoidEncryption(evt.detail.elt);
+        doClientEncryption(evt.detail.elt);
     });
 
-    async function doParanoidEncryption(form) {
+    async function doClientEncryption(form) {
         const errDiv = document.getElementById('form-errors');
         if (errDiv) errDiv.innerHTML = '';
 
         try {
             // generate new key for this secret
-            paranoidKey = await generateKey();
+            encryptionKey = await generateKey();
 
             // check if it's a file upload
             const fileInput = document.getElementById('file');
@@ -164,12 +163,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (isFileUpload) {
                 const file = fileInput.files[0];
-                if (file.size > paranoidMaxFileSize) {
-                    showParanoidError('File too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
+                if (file.size > maxEncryptedFileSize) {
+                    showEncryptionError('File too large. Maximum size: ' + formatSize(maxEncryptedFileSize));
                     return;
                 }
                 const arrayBuffer = await file.arrayBuffer();
-                encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', paranoidKey);
+                encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', encryptionKey);
                 // in file mode, message textarea doesn't exist - create hidden input
                 if (!messageEl) {
                     messageEl = document.createElement('input');
@@ -185,15 +184,15 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 const message = messageEl ? messageEl.value : '';
                 if (!message) {
-                    showParanoidError('Message cannot be empty');
+                    showEncryptionError('Message cannot be empty');
                     return;
                 }
                 const msgBytes = new TextEncoder().encode(message).length;
-                if (msgBytes > paranoidMaxFileSize) {
-                    showParanoidError('Message too large. Maximum size: ' + formatSizeParanoid(paranoidMaxFileSize));
+                if (msgBytes > maxEncryptedFileSize) {
+                    showEncryptionError('Message too large. Maximum size: ' + formatSize(maxEncryptedFileSize));
                     return;
                 }
-                encryptedBlob = await encrypt(message, paranoidKey);
+                encryptedBlob = await encrypt(message, encryptionKey);
             }
 
             // put encrypted blob into message field and re-submit
@@ -203,19 +202,19 @@ document.addEventListener('DOMContentLoaded', function() {
             // re-trigger form submission via our custom event (avoids conflict with prevented submit)
             htmx.trigger(document.body, 'submitSecretForm');
         } catch (e) {
-            showParanoidError('Encryption failed: ' + e.message);
+            showEncryptionError('Encryption failed: ' + e.message);
         }
     }
 });
 
 // after successful swap, append key to URL and update email button
 document.body.addEventListener('htmx:afterSwap', function(evt) {
-    if (!paranoidKey) return;
+    if (!encryptionKey) return;
 
     const textarea = document.getElementById('msg-text');
     if (textarea && textarea.value.includes('/message/')) {
         // success - append key to URL
-        const fullUrl = textarea.value + '#' + paranoidKey;
+        const fullUrl = textarea.value + '#' + encryptionKey;
         textarea.value = fullUrl;
 
         // update email button link to include the key fragment
@@ -225,7 +224,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
             htmx.process(emailBtn); // re-process for htmx to recognize new attribute
         }
 
-        paranoidKey = null;
+        encryptionKey = null;
         encryptionDone = false;
     } else if (evt.detail.target && evt.detail.target.id === 'form-card') {
         // validation error swapped to form-card (400) - server re-rendered form with encrypted blob
@@ -234,7 +233,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
         if (msgField) msgField.value = '';
         const fileField = document.getElementById('file');
         if (fileField) fileField.value = '';
-        paranoidKey = null;
+        encryptionKey = null;
         encryptionDone = false;
     } else if (evt.detail.target && evt.detail.target.id === 'notifications') {
         // 500 error swapped to notifications toast - form still has encrypted blob
@@ -243,7 +242,7 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
         if (msgField) msgField.value = '';
         const fileField = document.getElementById('file');
         if (fileField) fileField.value = '';
-        paranoidKey = null;
+        encryptionKey = null;
         encryptionDone = false;
     }
     // note: 401 swaps to #popup, not #form-card, so we preserve encryptionDone
@@ -251,27 +250,27 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 });
 
 // handle non-swap failures (network error, timeout, 502/503/504, abort) that don't trigger afterSwap
-document.body.addEventListener('htmx:sendError', resetParanoidState);
-document.body.addEventListener('htmx:timeout', resetParanoidState);
-document.body.addEventListener('htmx:sendAbort', resetParanoidState);
-document.body.addEventListener('htmx:swapError', resetParanoidState);
-document.body.addEventListener('htmx:targetError', resetParanoidState);
+document.body.addEventListener('htmx:sendError', resetEncryptionState);
+document.body.addEventListener('htmx:timeout', resetEncryptionState);
+document.body.addEventListener('htmx:sendAbort', resetEncryptionState);
+document.body.addEventListener('htmx:swapError', resetEncryptionState);
+document.body.addEventListener('htmx:targetError', resetEncryptionState);
 document.body.addEventListener('htmx:responseError', function(evt) {
     // responseError fires for non-2xx, but 400/401/500 are handled by afterSwap via hx-target-*
     // only reset for errors that won't swap (502, 503, 504, etc.)
     const status = evt.detail.xhr?.status;
     if (status && status !== 400 && status !== 401 && status !== 500) {
-        resetParanoidState();
+        resetEncryptionState();
     }
 });
 
-function resetParanoidState() {
+function resetEncryptionState() {
     if (!encryptionDone) return; // nothing to reset
     const msgField = document.getElementById('message');
     if (msgField) msgField.value = '';
     const fileField = document.getElementById('file');
     if (fileField) fileField.value = '';
-    paranoidKey = null;
+    encryptionKey = null;
     encryptionDone = false;
 }
 
@@ -295,31 +294,28 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
         const popupContent = evt.detail.target.querySelector('.popup-content, .login-popup');
         if (!popupContent) {
             // popup is empty and not from login success - user closed it manually
-            resetParanoidState();
+            resetEncryptionState();
         }
         // if popup still has content (wrong password), keep encrypted data for retry
     }
 });
 
-function showParanoidError(msg) {
+function showEncryptionError(msg) {
     const errDiv = document.getElementById('form-errors');
     if (errDiv) {
         errDiv.innerHTML = '<span class="error">' + msg + '</span>';
     }
 }
 
-function formatSizeParanoid(bytes) {
+function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
 }
 </script>
-{{end}}
 
 {{if .FilesEnabled}}
 <script>
-{{if not .Paranoid}}const maxFileSize = {{.MaxFileSize}};{{end}}
-
 function switchTab(mode) {
     const form = document.getElementById('secret-form');
     const textTab = document.getElementById('text-tab');
@@ -384,7 +380,7 @@ function initDragDrop() {
         const sizeStr = formatSize(file.size);
         const placeholder = dropZone.querySelector('svg');
         const placeholderText = dropZone.querySelector('p:not(.file-info)');
-        const sizeLimit = typeof paranoidMaxFileSize !== 'undefined' ? paranoidMaxFileSize : maxFileSize;
+        const sizeLimit = maxEncryptedFileSize;
         if (file.size > sizeLimit) {
             fileInfo.textContent = file.name + ' (' + sizeStr + ') - too large! Max: ' + formatSize(sizeLimit);
             fileInfo.style.display = 'block';

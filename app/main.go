@@ -28,7 +28,6 @@ var opts struct {
 	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
 	BrandingURL    string        `long:"branding-url" env:"BRANDING_URL" default:"https://safesecret.info" description:"branding link URL for emails"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
-	Paranoid       bool          `long:"paranoid" env:"PARANOID" description:"paranoid mode - client-side encryption only"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"`
 	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
@@ -73,14 +72,10 @@ func main() {
 
 	dataStore := getEngine(opts.Engine, opts.SQLiteDB)
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
-	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize, Paranoid: opts.Paranoid}
+	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize}
 
 	if opts.Auth.Hash != "" {
 		log.Printf("[INFO]  authentication enabled (session TTL: %v)", opts.Auth.SessionTTL)
-	}
-
-	if opts.Paranoid {
-		log.Printf("[INFO]  paranoid mode enabled (client-side encryption only)")
 	}
 
 	// create email sender if enabled
@@ -124,7 +119,6 @@ func main() {
 		AuthHash:               opts.Auth.Hash,
 		SessionTTL:             opts.Auth.SessionTTL,
 		EmailEnabled:           opts.Email.Enabled,
-		Paranoid:               opts.Paranoid,
 		DisableSecurityHeaders: opts.ProxySecurityHeaders,
 	})
 	if err != nil {

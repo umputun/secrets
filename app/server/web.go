@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -80,7 +79,6 @@ type templateData struct {
 	FilesEnabled   bool   // true if file uploads are enabled
 	MaxFileSize    int64  // max file size in bytes
 	IsFile         bool   // true if the message is a file (for show-message template)
-	Paranoid       bool   // true if paranoid mode is enabled (client-side encryption)
 }
 
 // render renders a template
@@ -144,19 +142,12 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// reject multipart requests - all file uploads must use client-side JS encryption
+	// (JS encrypts file into blob and sends as text)
 	contentType := r.Header.Get("Content-Type")
-	isMultipart := strings.HasPrefix(contentType, "multipart/form-data")
-
-	// handle file upload if multipart and files enabled
-	if isMultipart && s.cfg.EnableFiles {
-		s.generateFileLinkCtrl(w, r)
-		return
-	}
-
-	// reject multipart when files disabled
-	if isMultipart && !s.cfg.EnableFiles {
-		log.Printf("[WARN] file upload rejected, files disabled")
-		s.render(w, http.StatusBadRequest, "error.tmpl.html", errorTmpl, "file uploads disabled")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		log.Printf("[WARN] multipart upload rejected, use JS encryption")
+		s.render(w, http.StatusBadRequest, "error.tmpl.html", errorTmpl, "file uploads require JavaScript encryption")
 		return
 	}
 
@@ -209,7 +200,12 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := s.messager.MakeMessage(r.Context(), expDuration, form.Message, strings.Join(pinValues, ""))
+	msg, err := s.messager.MakeMessage(r.Context(), messager.MsgReq{
+		Duration:  expDuration,
+		Message:   form.Message,
+		Pin:       strings.Join(pinValues, ""),
+		ClientEnc: true, // UI always uses client-side encryption
+	})
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
 		return
@@ -217,99 +213,6 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[INFO] created message %s, type=text, size=%d, exp=%s, ip=%s",
 		msg.Key, len(form.Message), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
-	s.renderSecureLink(w, r, msg.Key, form)
-}
-
-// generateFileLinkCtrl handles file upload requests
-func (s Server) generateFileLinkCtrl(w http.ResponseWriter, r *http.Request) {
-	// note: request body size already limited by rest.SizeLimit middleware in routes()
-	err := r.ParseMultipartForm(s.cfg.MaxFileSize)
-	if err != nil {
-		log.Printf("[WARN] failed to parse multipart form: %v", err)
-		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "file too large or invalid form")
-		return
-	}
-
-	form := createMsgForm{
-		ExpUnit: r.PostForm.Get(expUnitKey),
-		MaxExp:  humanDuration(s.cfg.MaxExpire),
-		IsFile:  true,
-	}
-
-	// validate PIN
-	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
-		}
-	}
-
-	// validate expiration
-	exp := r.PostFormValue(expKey)
-	form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")
-	form.CheckField(validator.IsNumber(exp), expKey, "Expire must be a number")
-	form.CheckField(slices.Contains([]string{"m", "h", "d"}, form.ExpUnit), expUnitKey, "Only Minutes, Hours and Days are allowed")
-
-	expInt, err := strconv.Atoi(exp)
-	if err != nil {
-		form.AddFieldError(expKey, "Expire must be a number")
-	}
-	form.Exp = expInt
-	expDuration := duration(expInt, r.PostFormValue(expUnitKey))
-
-	form.CheckField(validator.MaxDuration(expDuration, s.cfg.MaxExpire), expKey, "Expire must be less than "+humanDuration(s.cfg.MaxExpire))
-
-	// get uploaded file
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		form.AddFieldError("file", "Please select a file to upload")
-	} else {
-		defer file.Close()
-		form.FileName = header.Filename
-		form.FileSize = header.Size
-	}
-
-	if !form.Valid() {
-		data := s.newTemplateData(r, form)
-		if r.Header.Get("HX-Request") == "true" {
-			s.render(w, http.StatusBadRequest, "home.tmpl.html", mainTmpl, data)
-		} else {
-			s.render(w, http.StatusOK, "home.tmpl.html", mainTmpl, data)
-		}
-		return
-	}
-
-	// read file data
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		log.Printf("[ERROR] failed to read uploaded file: %v", err)
-		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl, "failed to read file")
-		return
-	}
-
-	// detect content type from header or fallback
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	// create file message
-	msg, err := s.messager.MakeFileMessage(r.Context(), messager.FileRequest{
-		Duration:    expDuration,
-		Pin:         strings.Join(pinValues, ""),
-		FileName:    header.Filename,
-		ContentType: contentType,
-		Data:        fileData,
-	})
-	if err != nil {
-		log.Printf("[WARN] failed to create file message: %v", err)
-		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
-		return
-	}
-
-	log.Printf("[INFO] created message %s, type=file, size=%d, exp=%s, ip=%s",
-		msg.Key, len(fileData), msg.Exp.Format(time.RFC3339), GetHashedIP(r))
 	s.renderSecureLink(w, r, msg.Key, form)
 }
 
@@ -342,14 +245,12 @@ func (s Server) renderSecureLink(w http.ResponseWriter, r *http.Request, key str
 		FileName     string
 		FileSize     int64
 		EmailEnabled bool
-		Paranoid     bool
 	}{
 		URL:          msgURL,
 		IsFile:       form.IsFile,
 		FileName:     form.FileName,
 		FileSize:     form.FileSize,
 		EmailEnabled: s.cfg.EmailEnabled && s.emailSender != nil,
-		Paranoid:     s.cfg.Paranoid,
 	}
 
 	s.render(w, http.StatusOK, "secure-link.tmpl.html", "secure-link", data)
@@ -424,12 +325,21 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// paranoid mode: return raw encrypted blob for client-side decryption
-	if s.cfg.Paranoid {
+	// client-encrypted message: return raw encrypted blob for client-side decryption
+	if msg.ClientEnc {
+		// if this is an HTMX request (from server-side form), the user doesn't have the decryption key
+		// this happens when URL fragment (#key) was stripped during sharing
+		if r.Header.Get("HX-Request") == "true" {
+			log.Printf("[WARN] accessed client-enc message %s via HTMX (missing key), ip=%s", form.Key, GetHashedIP(r))
+			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl,
+				"The decryption key is missing from the URL. This can happen when sharing links through apps that strip URL fragments. Please ask the sender to share the complete link including the # portion.")
+			return
+		}
+		// non-HTMX request (from client-side JS with fetch) - return blob for decryption
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(msg.Data)
-		log.Printf("[INFO] accessed message %s, type=paranoid, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
+		log.Printf("[INFO] accessed message %s, type=client-enc, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
 		return
 	}
 
@@ -485,11 +395,8 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 
 	if errors.Is(err, messager.ErrExpired) || errors.Is(err, store.ErrLoadRejected) {
 		// message not found or expired - return 404
-		status := http.StatusNotFound
-		if !isHTMX && !s.cfg.Paranoid {
-			status = http.StatusOK // non-HTMX, non-paranoid: OK status for error page
-		}
-		s.render(w, status, "error.tmpl.html", errorTmpl, err.Error())
+		// always use proper status code (JS fetch handles it correctly)
+		s.render(w, http.StatusNotFound, "error.tmpl.html", errorTmpl, err.Error())
 		log.Printf("[INFO] accessed message %s, type=%s, status=404 (not found), ip=%s", form.Key, msgType, GetHashedIP(r))
 		return
 	}
@@ -498,17 +405,12 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	form.AddFieldError("pin", err.Error())
 	data := s.newTemplateData(r, form)
 	data.IsFile = isFile // use pre-checked value (message may be deleted after max attempts)
-	status := http.StatusOK
-	tmpl := baseTmpl // full page for non-HTMX (file download form uses hx-boost="false")
-	switch {
-	case isHTMX:
-		status = http.StatusForbidden
+	tmpl := baseTmpl     // full page for non-HTMX (JS fetch handles full page)
+	if isHTMX {
 		tmpl = mainTmpl // partial for HTMX swap
-	case s.cfg.Paranoid:
-		// paranoid mode JS fetch: return proper HTTP 403 so client can detect error
-		status = http.StatusForbidden
 	}
-	s.render(w, status, "show-message.tmpl.html", tmpl, data)
+	// always return 403 for wrong PIN - both HTMX and JS fetch handle it correctly
+	s.render(w, http.StatusForbidden, "show-message.tmpl.html", tmpl, data)
 	log.Printf("[INFO] accessed message %s, type=%s, status=403 (wrong pin), ip=%s", form.Key, msgType, GetHashedIP(r))
 }
 

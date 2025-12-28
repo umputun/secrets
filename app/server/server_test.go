@@ -249,56 +249,7 @@ func TestServer_getParams(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":1048576,"paranoid":false}`+"\n", string(body))
-}
-
-func TestServer_getParams_Paranoid(t *testing.T) {
-	eng := store.NewInMemory(time.Second)
-	srv, err := New(
-		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
-			MaxDuration:    10 * time.Hour,
-			MaxPinAttempts: 3,
-		}),
-		"1",
-		Config{
-			Domain:         []string{"example.com"},
-			PinSize:        5,
-			MaxPinAttempts: 3,
-			MaxExpire:      10 * time.Hour,
-			Branding:       "Safe Secrets",
-			MaxFileSize:    1048576,
-			Paranoid:       true,
-		})
-	require.NoError(t, err)
-
-	ts := httptest.NewServer(srv.routes())
-	defer ts.Close()
-
-	client := http.Client{Timeout: time.Second}
-	url := ts.URL + "/api/v1/params"
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, 200, resp.StatusCode)
-
-	var params struct {
-		PinSize        int   `json:"pin_size"`
-		MaxPinAttempts int   `json:"max_pin_attempts"`
-		MaxExpSecs     int   `json:"max_exp_sec"`
-		FilesEnabled   bool  `json:"files_enabled"`
-		MaxFileSize    int64 `json:"max_file_size"`
-		Paranoid       bool  `json:"paranoid"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&params)
-	require.NoError(t, err)
-	assert.Equal(t, 5, params.PinSize)
-	assert.Equal(t, 3, params.MaxPinAttempts)
-	assert.Equal(t, 36000, params.MaxExpSecs)
-	assert.False(t, params.FilesEnabled)
-	assert.Equal(t, int64(1048576), params.MaxFileSize)
-	assert.True(t, params.Paranoid)
+	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":1048576}`+"\n", string(body))
 }
 
 func TestServer_saveMessageCtrl(t *testing.T) {
@@ -377,7 +328,7 @@ func TestServer_getMessageCtrl(t *testing.T) {
 	defer ts.Close()
 
 	// save a message first
-	msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+	msg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -960,51 +911,8 @@ func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	assert.Equal(t, "file downloads disabled", result["error"])
 }
 
-func TestServer_SizeLimit_Paranoid(t *testing.T) {
-	// test that paranoid mode uses larger size limit (MaxFileSize * 1.4)
-	eng := store.NewInMemory(time.Second)
-	maxFileSize := int64(100 * 1024) // 100KB
-	srv, err := New(
-		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
-			MaxDuration:    10 * time.Hour,
-			MaxPinAttempts: 3,
-			MaxFileSize:    maxFileSize,
-			Paranoid:       true,
-		}),
-		"1",
-		Config{
-			Domain:         []string{"example.com"},
-			PinSize:        5,
-			MaxPinAttempts: 3,
-			MaxExpire:      10 * time.Hour,
-			Branding:       "Safe Secrets",
-			MaxFileSize:    maxFileSize,
-			Paranoid:       true,
-		})
-	require.NoError(t, err)
-
-	ts := httptest.NewServer(srv.routes())
-	defer ts.Close()
-
-	// send a message larger than 64KB but less than maxFileSize*1.4 (140KB)
-	// this should succeed in paranoid mode but would fail in normal text-only mode (64KB limit)
-	largeMessage := strings.Repeat("a", 80*1024) // 80KB of base64-like data
-	body := `{"message": "` + largeMessage + `","exp": 600,"pin": "12345"}`
-
-	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, 201, resp.StatusCode, "large request should succeed in paranoid mode")
-}
-
-func TestServer_SizeLimit_Normal(t *testing.T) {
-	// test that normal mode uses 64KB limit for text-only
+func TestServer_SizeLimit_TextOnly(t *testing.T) {
+	// test that text-only mode uses ~90KB limit (64KB * 1.4 for base64 overhead)
 	eng := store.NewInMemory(time.Second)
 	srv, err := New(
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
@@ -1018,7 +926,6 @@ func TestServer_SizeLimit_Normal(t *testing.T) {
 			MaxPinAttempts: 3,
 			MaxExpire:      10 * time.Hour,
 			Branding:       "Safe Secrets",
-			Paranoid:       false,
 			EnableFiles:    false,
 		})
 	require.NoError(t, err)
@@ -1026,8 +933,8 @@ func TestServer_SizeLimit_Normal(t *testing.T) {
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
 
-	// send a message larger than 64KB - should fail in normal text-only mode
-	largeMessage := strings.Repeat("a", 80*1024) // 80KB of data
+	// send a message larger than ~90KB (64KB * 1.4) - should fail
+	largeMessage := strings.Repeat("a", 100*1024) // 100KB of data, exceeds ~90KB limit
 	body := `{"message": "` + largeMessage + `","exp": 600,"pin": "12345"}`
 
 	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
@@ -1040,17 +947,16 @@ func TestServer_SizeLimit_Normal(t *testing.T) {
 	defer resp.Body.Close()
 
 	// request should be rejected due to size limit (http.StatusRequestEntityTooLarge or similar error)
-	assert.NotEqual(t, 201, resp.StatusCode, "large request should fail in normal text-only mode")
+	assert.NotEqual(t, 201, resp.StatusCode, "large request should fail in text-only mode")
 }
 
-func TestServer_Paranoid_DataPassthrough(t *testing.T) {
-	// test that paranoid mode stores and retrieves data without server-side encryption
+func TestServer_API_ServerSideEncryption(t *testing.T) {
+	// test that API endpoint uses server-side encryption (encrypts on save, decrypts on load)
 	eng := store.NewInMemory(time.Second * 30)
 	srv, err := New(
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
-			Paranoid:       true,
 		}),
 		"1",
 		Config{
@@ -1060,16 +966,15 @@ func TestServer_Paranoid_DataPassthrough(t *testing.T) {
 			MaxExpire:      10 * time.Hour,
 			Branding:       "Safe Secrets",
 			MaxFileSize:    1048576,
-			Paranoid:       true,
 		})
 	require.NoError(t, err)
 
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
 
-	// save a pre-encrypted message (simulating client-side encryption)
-	clientEncryptedData := "base64EncodedClientEncryptedBlob_abc123"
-	body := `{"message": "` + clientEncryptedData + `","exp": 600,"pin": "12345"}`
+	// save a message via API - will be encrypted server-side
+	messageData := "plainTextMessage_abc123"
+	body := `{"message": "` + messageData + `","exp": 600,"pin": "12345"}`
 
 	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
 	require.NoError(t, err)
@@ -1085,7 +990,7 @@ func TestServer_Paranoid_DataPassthrough(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&respSave)
 	require.NoError(t, err)
 
-	// retrieve the message - should get back the exact same data (no server decryption)
+	// retrieve the message - should get back decrypted data
 	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, respSave.Key)
 	req, err = http.NewRequest("GET", url, http.NoBody)
 	require.NoError(t, err)
@@ -1098,8 +1003,8 @@ func TestServer_Paranoid_DataPassthrough(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&respLoad)
 	require.NoError(t, err)
 
-	// in paranoid mode, the message should be returned exactly as stored (pass-through)
-	assert.Equal(t, clientEncryptedData, respLoad.Message, "data should be returned as-is in paranoid mode")
+	// server-side encryption means data is encrypted on save and decrypted on load
+	assert.Equal(t, messageData, respLoad.Message, "decrypted data should match original")
 }
 
 func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
@@ -1123,7 +1028,7 @@ func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
 	defer ts.Close()
 
 	// save a message first
-	msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+	msg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1141,7 +1046,7 @@ func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
 			// save a new message for each valid test since message is deleted after successful read
 			testKey := tt.key
 			if tt.name == "valid credentials" {
-				newMsg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+				newMsg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 				require.NoError(t, err)
 				testKey = newMsg.Key
 			}

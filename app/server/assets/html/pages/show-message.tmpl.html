@@ -4,8 +4,8 @@
 
 <div id="show-msg" class="show-msg">
   <div id="message-container">
-    {{if .Paranoid}}
-    <div id="paranoid-error" class="card error-card" style="display:none;">
+    {{/* error div for client-encrypted messages with missing key */}}
+    <div id="key-error" class="card error-card" style="display:none;">
         <div class="card-header">
             <h2 class="card-title">Decryption Key Missing</h2>
         </div>
@@ -13,22 +13,21 @@
         <p class="error-message">Please ask the sender to share the complete link including the # portion.</p>
         <a href="/" class="main-btn">Back to Main Page</a>
     </div>
-    {{end}}
-    <div class="card load-msg-form" id="pin-form-card">
+
+    {{/* client-side decryption form - shown when URL has #key */}}
+    <div id="client-decrypt-form" class="card load-msg-form" style="display:none;">
         <div class="card-header">
-            <h2 class="card-title">{{if .Paranoid}}Decrypt Secret{{else if .IsFile}}Download File{{else}}Access Message{{end}}</h2>
-            <p class="card-description">Enter your {{.PinSize}}-digit PIN to {{if .Paranoid}}decrypt the secret{{else if .IsFile}}download the encrypted file{{else}}decrypt and view the message{{end}}</p>
+            <h2 class="card-title">Decrypt Secret</h2>
+            <p class="card-description">Enter your {{.PinSize}}-digit PIN to decrypt the secret</p>
         </div>
 
-        {{if .Paranoid}}
-        {{/* paranoid mode: client-side decryption via JS only, hx-boost=false prevents htmx from intercepting */}}
-        <form id="paranoid-form" onsubmit="return false;" hx-boost="false">
+        <form id="decrypt-form" onsubmit="return false;" hx-boost="false">
             <input type="hidden" name="key" value="{{.Form.Key}}" />
 
             <div class="form-group">
                 <input type="text"
                        name="pin"
-                       id="pin"
+                       id="client-pin"
                        class="pin-input"
                        required
                        maxlength="{{.PinSize}}"
@@ -37,9 +36,8 @@
                        placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
                        title="PIN must be exactly {{.PinSize}} digits"
                        aria-label="{{.PinSize}}-digit PIN"
-                       autofocus
-                       oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
-                <div id="pin-error">
+                       oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('client-pin-error').innerHTML=''; this.classList.remove('error-input');" />
+                <div id="client-pin-error">
                     {{with .Form.FieldErrors.pin}}
                     <span class='error'>{{.}}</span>
                     {{end}}
@@ -58,40 +56,261 @@
                 <span class="button-text" id="btn-loading" style="display:none;">Decrypting...</span>
             </button>
         </form>
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const cryptoKey = window.location.hash.slice(1); // remove #
+    </div>
 
-            // check for missing key
-            if (!cryptoKey) {
-                document.getElementById('paranoid-error').style.display = 'block';
-                document.getElementById('pin-form-card').style.display = 'none';
-                return;
+    {{/* server-side forms - shown when no #key in URL */}}
+    <div id="server-forms">
+        {{if .IsFile}}
+        {{/* file download: use JS to handle binary response */}}
+        <div class="card load-msg-form" id="pin-form-card">
+            <div class="card-header">
+                <h2 class="card-title">Download File</h2>
+                <p class="card-description">Enter your {{.PinSize}}-digit PIN to download the encrypted file</p>
+            </div>
+
+            <form id="download-form" hx-boost="false">
+                <input type="hidden" name="key" value="{{.Form.Key}}" />
+
+                <div class="form-group">
+                    <input type="text"
+                           name="pin"
+                           id="pin"
+                           class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
+                           required
+                           maxlength="{{.PinSize}}"
+                           inputmode="numeric"
+                           pattern="[0-9]{{printf "{%d}" .PinSize}}"
+                           placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
+                           title="PIN must be exactly {{.PinSize}} digits"
+                           aria-label="{{.PinSize}}-digit PIN"
+                           autofocus
+                           oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
+                    <div id="pin-error">
+                        {{with .Form.FieldErrors.pin}}
+                        <span class='error'>{{.}}</span>
+                        {{end}}
+                    </div>
+                </div>
+
+                <button class="main-btn" type="submit" id="download-btn">
+                    <span class="button-text" id="download-btn-text">
+                        <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2"/>
+                            <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2"/>
+                            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        Download File
+                    </span>
+                    <span class="button-text" id="download-btn-loading" style="display:none;">Downloading...</span>
+                </button>
+            </form>
+        </div>
+        {{else}}
+        {{/* text message: use HTMX for inline decryption */}}
+        <div class="card load-msg-form" id="pin-form-card">
+            <div class="card-header">
+                <h2 class="card-title">Access Message</h2>
+                <p class="card-description">Enter your {{.PinSize}}-digit PIN to decrypt and view the message</p>
+            </div>
+
+            <form hx-post="/load-message"
+                  hx-target="#message-container"
+                  hx-swap="innerHTML"
+                  hx-indicator="#decrypt-spinner"
+                  hx-target-404="#message-container"
+                  hx-target-403="#message-container"
+                  id="load-msg-form">
+                <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
+
+                <div class="form-group">
+                    <input type="text"
+                           name="pin"
+                           id="pin"
+                           class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
+                           required
+                           maxlength="{{.PinSize}}"
+                           inputmode="numeric"
+                           pattern="[0-9]{{printf "{%d}" .PinSize}}"
+                           placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
+                           title="PIN must be exactly {{.PinSize}} digits"
+                           aria-label="{{.PinSize}}-digit PIN"
+                           autofocus
+                           oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
+                    <div id="pin-error">
+                        {{with .Form.FieldErrors.pin}}
+                        <span class='error'>{{.}}</span>
+                        {{end}}
+                    </div>
+                </div>
+
+                <button class="main-btn" type="submit">
+                    <span class="htmx-indicator" id="decrypt-spinner">
+                        <svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        Decrypting...
+                    </span>
+                    <span class="button-text">Decode Message</span>
+                </button>
+            </form>
+        </div>
+        {{end}}
+    </div>
+  </div>
+</div>
+
+<script>
+// runtime detection: check for encryption key in URL fragment
+document.addEventListener('DOMContentLoaded', function() {
+    const cryptoKey = window.location.hash.slice(1); // remove #
+    const hasKey = cryptoKey && cryptoKey.length > 0;
+
+    const keyError = document.getElementById('key-error');
+    const clientForm = document.getElementById('client-decrypt-form');
+    const serverForms = document.getElementById('server-forms');
+
+    if (hasKey) {
+        // client-encrypted message - use client-side decryption
+        serverForms.style.display = 'none';
+
+        // check crypto availability
+        if (typeof checkCryptoAvailable !== 'function' || !checkCryptoAvailable()) {
+            document.getElementById('message-container').innerHTML =
+                '<div class="card error-card"><div class="card-header">' +
+                '<h2 class="card-title">Encryption Unavailable</h2></div>' +
+                '<p class="error-message">Web Crypto API is not available. HTTPS is required for encrypted messages.</p>' +
+                '<a href="/" class="main-btn">Back to Main Page</a></div>';
+            return;
+        }
+
+        clientForm.style.display = 'block';
+        document.getElementById('client-pin').focus();
+
+        // handle client-side decryption form
+        document.getElementById('decrypt-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const btn = document.getElementById('decrypt-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnLoading = document.getElementById('btn-loading');
+            const pinError = document.getElementById('client-pin-error');
+            const pinInput = document.getElementById('client-pin');
+
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline';
+            pinError.innerHTML = '';
+
+            try {
+                const formData = new URLSearchParams(new FormData(form));
+                const resp = await fetch('/load-message', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: formData
+                });
+
+                // check Content-Type to distinguish encrypted blob from HTML error pages
+                const contentType = resp.headers.get('Content-Type') || '';
+                const isEncryptedBlob = contentType.includes('text/plain');
+
+                if (resp.ok && isEncryptedBlob) {
+                    // server returns encrypted blob as text/plain
+                    const encryptedBlob = await resp.text();
+
+                    // decrypt using key from URL fragment
+                    const result = await decryptAuto(encryptedBlob, cryptoKey);
+
+                    if (result.type === 'text') {
+                        // display decrypted text message
+                        document.getElementById('message-container').innerHTML =
+                            '<div class="card decoded-message">' +
+                            '<div class="card-header"><h2 class="card-title">Decrypted Message</h2>' +
+                            '<p class="card-description">This message has been permanently deleted from the server.</p></div>' +
+                            '<div class="form-group"><textarea id="decoded-msg-text" readonly class="message-output">' +
+                            escapeHtml(result.text) + '</textarea></div>' +
+                            '<div class="form-row two-cols">' +
+                            '<button type="button" class="main-btn" id="copy-msg-btn" onclick="copyMessage()">Copy</button>' +
+                            '<a href="/" class="second-btn">New Secret</a></div></div>';
+                    } else if (result.type === 'file') {
+                        // trigger file download
+                        const blob = new Blob([result.data], { type: result.contentType });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = result.filename;
+                        a.click();
+                        URL.revokeObjectURL(url);
+
+                        document.getElementById('message-container').innerHTML =
+                            '<div class="card success-card"><div class="card-header">' +
+                            '<h2 class="card-title">File Downloaded</h2></div>' +
+                            '<p class="success-message">The file "<span id="downloaded-filename"></span>" has been decrypted and downloaded. ' +
+                            'It has been permanently deleted from the server.</p>' +
+                            '<a href="/" class="main-btn">Create New Secret</a></div>';
+                        document.getElementById('downloaded-filename').textContent = result.filename;
+                    }
+                } else {
+                    // error response - parse HTML for error message
+                    const html = await resp.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    const pinErr = doc.querySelector('.error');
+                    if (pinErr) {
+                        pinError.innerHTML = '<span class="error">' + escapeHtml(pinErr.textContent) + '</span>';
+                        pinInput.classList.add('error-input');
+                        pinInput.value = '';
+                        pinInput.focus();
+                        btn.disabled = false;
+                        btnText.style.display = 'inline-flex';
+                        btnLoading.style.display = 'none';
+                        return;
+                    }
+
+                    const expiredErr = doc.querySelector('.error-message');
+                    if (expiredErr) {
+                        document.getElementById('message-container').innerHTML =
+                            '<div class="card error-card"><div class="card-header">' +
+                            '<h2 class="card-title">Message Unavailable</h2></div>' +
+                            '<p class="error-message">' + escapeHtml(expiredErr.textContent) + '</p>' +
+                            '<a href="/" class="main-btn">Back to Main Page</a></div>';
+                        return;
+                    }
+
+                    pinError.innerHTML = '<span class="error">Failed to load message.</span>';
+                    btn.disabled = false;
+                    btnText.style.display = 'inline-flex';
+                    btnLoading.style.display = 'none';
+                }
+            } catch (err) {
+                // decryption error (wrong key or corrupted data)
+                pinError.innerHTML = '<span class="error">Decryption failed. The key may be incorrect or data corrupted.</span>';
+                pinInput.value = '';
+                pinInput.focus();
+                btn.disabled = false;
+                btnText.style.display = 'inline-flex';
+                btnLoading.style.display = 'none';
             }
+        });
+    } else {
+        // no key - use server-side decryption (forms already visible)
+        clientForm.style.display = 'none';
 
-            // check crypto availability
-            if (typeof checkCryptoAvailable !== 'function' || !checkCryptoAvailable()) {
-                document.getElementById('message-container').innerHTML =
-                    '<div class="card error-card"><div class="card-header">' +
-                    '<h2 class="card-title">Encryption Unavailable</h2></div>' +
-                    '<p class="error-message">Web Crypto API is not available. HTTPS is required for paranoid mode.</p>' +
-                    '<a href="/" class="main-btn">Back to Main Page</a></div>';
-                return;
-            }
-
-            document.getElementById('paranoid-form').addEventListener('submit', async function(e) {
+        // setup file download handler if present
+        const downloadForm = document.getElementById('download-form');
+        if (downloadForm) {
+            downloadForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const form = e.target;
-                const btn = document.getElementById('decrypt-btn');
-                const btnText = document.getElementById('btn-text');
-                const btnLoading = document.getElementById('btn-loading');
+                const btn = document.getElementById('download-btn');
+                const btnText = document.getElementById('download-btn-text');
+                const btnLoading = document.getElementById('download-btn-loading');
                 const pinError = document.getElementById('pin-error');
                 const pinInput = document.getElementById('pin');
 
                 btn.disabled = true;
                 btnText.style.display = 'none';
                 btnLoading.style.display = 'inline';
-                pinError.innerHTML = '';
 
                 try {
                     const formData = new URLSearchParams(new FormData(form));
@@ -101,56 +320,35 @@
                         body: formData
                     });
 
-                    // check Content-Type to distinguish encrypted blob from HTML error pages
-                    // server returns text/plain for encrypted blob, text/html for errors
-                    const contentType = resp.headers.get('Content-Type') || '';
-                    const isEncryptedBlob = contentType.includes('text/plain');
+                    if (resp.ok && resp.headers.get('Content-Disposition')) {
+                        // success - download file
+                        const blob = await resp.blob();
+                        const disposition = resp.headers.get('Content-Disposition');
+                        const match = disposition.match(/filename="([^"]+)"/);
+                        const filename = match ? match[1] : 'download';
 
-                    if (resp.ok && isEncryptedBlob) {
-                        // server returns encrypted blob as text/plain
-                        const encryptedBlob = await resp.text();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        a.click();
+                        URL.revokeObjectURL(url);
 
-                        // decrypt using key from URL fragment
-                        const result = await decryptAuto(encryptedBlob, cryptoKey);
-
-                        if (result.type === 'text') {
-                            // display decrypted text message
-                            document.getElementById('message-container').innerHTML =
-                                '<div class="card decoded-message">' +
-                                '<div class="card-header"><h2 class="card-title">Decrypted Message</h2>' +
-                                '<p class="card-description">This message has been permanently deleted from the server.</p></div>' +
-                                '<div class="form-group"><textarea id="decoded-msg-text" readonly class="message-output">' +
-                                escapeHtml(result.text) + '</textarea></div>' +
-                                '<div class="form-row two-cols">' +
-                                '<button type="button" class="main-btn" id="copy-msg-btn" onclick="copyMessage()">Copy</button>' +
-                                '<a href="/" class="second-btn">New Secret</a></div></div>';
-                        } else if (result.type === 'file') {
-                            // trigger file download
-                            const blob = new Blob([result.data], { type: result.contentType });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = result.filename;
-                            a.click();
-                            URL.revokeObjectURL(url);
-
-                            document.getElementById('message-container').innerHTML =
-                                '<div class="card success-card"><div class="card-header">' +
-                                '<h2 class="card-title">File Downloaded</h2></div>' +
-                                '<p class="success-message">The file "<span id="downloaded-filename"></span>" has been decrypted and downloaded. ' +
-                                'It has been permanently deleted from the server.</p>' +
-                                '<a href="/" class="main-btn">Create New Secret</a></div>';
-                            document.getElementById('downloaded-filename').textContent = result.filename;
-                        }
+                        // show success message
+                        document.getElementById('message-container').innerHTML =
+                            '<div class="card success-card">' +
+                            '<div class="card-header"><h2 class="card-title">File Downloaded</h2></div>' +
+                            '<p class="success-message">The file has been decrypted, downloaded, and permanently deleted from the server.</p>' +
+                            '<a href="/" class="main-btn">Create New Secret</a></div>';
                     } else {
-                        // error response - parse HTML for error message
+                        // error - show error message
                         const html = await resp.text();
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, 'text/html');
 
-                        const pinErr = doc.querySelector('.error');
-                        if (pinErr) {
-                            pinError.innerHTML = '<span class="error">' + escapeHtml(pinErr.textContent) + '</span>';
+                        const pinErr = doc.querySelector('#pin-error');
+                        if (pinErr && pinErr.innerHTML.trim()) {
+                            pinError.innerHTML = pinErr.innerHTML;
                             pinInput.classList.add('error-input');
                             pinInput.value = '';
                             pinInput.focus();
@@ -163,225 +361,48 @@
                         const expiredErr = doc.querySelector('.error-message');
                         if (expiredErr) {
                             document.getElementById('message-container').innerHTML =
-                                '<div class="card error-card"><div class="card-header">' +
-                                '<h2 class="card-title">Message Unavailable</h2></div>' +
+                                '<div class="card error-card">' +
+                                '<div class="card-header"><h2 class="card-title">Message Unavailable</h2></div>' +
                                 '<p class="error-message">' + escapeHtml(expiredErr.textContent) + '</p>' +
                                 '<a href="/" class="main-btn">Back to Main Page</a></div>';
                             return;
                         }
 
-                        pinError.innerHTML = '<span class="error">Failed to load message.</span>';
-                        btn.disabled = false;
-                        btnText.style.display = 'inline-flex';
-                        btnLoading.style.display = 'none';
-                    }
-                } catch (err) {
-                    // decryption error (wrong key or corrupted data)
-                    pinError.innerHTML = '<span class="error">Decryption failed. The key may be incorrect or data corrupted.</span>';
-                    pinInput.value = '';
-                    pinInput.focus();
-                    btn.disabled = false;
-                    btnText.style.display = 'inline-flex';
-                    btnLoading.style.display = 'none';
-                }
-            });
-
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-        });
-
-        function copyMessage() {
-            const textarea = document.getElementById('decoded-msg-text');
-            const btn = document.getElementById('copy-msg-btn');
-            navigator.clipboard.writeText(textarea.value).then(() => {
-                btn.textContent = 'Copied!';
-                btn.style.background = 'var(--color-success)';
-                setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; }, 2000);
-            });
-        }
-        </script>
-        {{else if .IsFile}}
-        {{/* file download: use JS to handle binary response, hx-boost=false prevents htmx from intercepting */}}
-        <form id="download-form" hx-boost="false">
-            <input type="hidden" name="key" value="{{.Form.Key}}" />
-
-            <div class="form-group">
-                <input type="text"
-                       name="pin"
-                       id="pin"
-                       class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
-                       required
-                       maxlength="{{.PinSize}}"
-                       inputmode="numeric"
-                       pattern="[0-9]{{printf "{%d}" .PinSize}}"
-                       placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
-                       title="PIN must be exactly {{.PinSize}} digits"
-                       aria-label="{{.PinSize}}-digit PIN"
-                       autofocus
-                       oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
-                <div id="pin-error">
-                    {{with .Form.FieldErrors.pin}}
-                    <span class='error'>{{.}}</span>
-                    {{end}}
-                </div>
-            </div>
-
-            <button class="main-btn" type="submit" id="download-btn">
-                <span class="button-text" id="btn-text">
-                    <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2"/>
-                        <polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2"/>
-                        <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2"/>
-                    </svg>
-                    Download File
-                </span>
-                <span class="button-text" id="btn-loading" style="display:none;">Downloading...</span>
-            </button>
-        </form>
-        <script>
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        document.getElementById('download-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const form = e.target;
-            const btn = document.getElementById('download-btn');
-            const btnText = document.getElementById('btn-text');
-            const btnLoading = document.getElementById('btn-loading');
-            const pinError = document.getElementById('pin-error');
-            const pinInput = document.getElementById('pin');
-
-            btn.disabled = true;
-            btnText.style.display = 'none';
-            btnLoading.style.display = 'inline';
-
-            try {
-                const formData = new URLSearchParams(new FormData(form));
-                const resp = await fetch('/load-message', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: formData
-                });
-
-                if (resp.ok && resp.headers.get('Content-Disposition')) {
-                    // success - download file
-                    const blob = await resp.blob();
-                    const disposition = resp.headers.get('Content-Disposition');
-                    const match = disposition.match(/filename="([^"]+)"/);
-                    const filename = match ? match[1] : 'download';
-
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    a.click();
-                    URL.revokeObjectURL(url);
-
-                    // show success message - file is now deleted
-                    document.getElementById('message-container').innerHTML =
-                        '<div class="card success-card">' +
-                        '<div class="card-header"><h2 class="card-title">File Downloaded</h2></div>' +
-                        '<p class="success-message">The file has been decrypted, downloaded, and permanently deleted from the server.</p>' +
-                        '<a href="/" class="main-btn">Create New Secret</a></div>';
-                } else {
-                    // error - show error message
-                    const html = await resp.text();
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-
-                    // check for pin error (wrong PIN, message still exists)
-                    const pinErr = doc.querySelector('#pin-error');
-                    if (pinErr && pinErr.innerHTML.trim()) {
-                        pinError.innerHTML = pinErr.innerHTML;
+                        pinError.innerHTML = '<span class="error">An error occurred. Please try again.</span>';
                         pinInput.classList.add('error-input');
                         pinInput.value = '';
                         pinInput.focus();
                         btn.disabled = false;
                         btnText.style.display = 'inline-flex';
                         btnLoading.style.display = 'none';
-                        return;
                     }
-
-                    // check for message expired/deleted error (after too many attempts)
-                    const expiredErr = doc.querySelector('.error-message');
-                    if (expiredErr) {
-                        document.getElementById('message-container').innerHTML =
-                            '<div class="card error-card">' +
-                            '<div class="card-header"><h2 class="card-title">Message Unavailable</h2></div>' +
-                            '<p class="error-message">' + escapeHtml(expiredErr.textContent) + '</p>' +
-                            '<a href="/" class="main-btn">Back to Main Page</a></div>';
-                        return;
-                    }
-
-                    // fallback for unknown error
-                    pinError.innerHTML = '<span class="error">An error occurred. Please try again.</span>';
-                    pinInput.classList.add('error-input');
+                } catch (err) {
+                    pinError.innerHTML = '<span class="error">Download failed. Please try again.</span>';
                     pinInput.value = '';
                     pinInput.focus();
                     btn.disabled = false;
                     btnText.style.display = 'inline-flex';
                     btnLoading.style.display = 'none';
                 }
-            } catch (err) {
-                pinError.innerHTML = '<span class="error">Download failed. Please try again.</span>';
-                pinInput.value = '';
-                pinInput.focus();
-                btn.disabled = false;
-                btnText.style.display = 'inline-flex';
-                btnLoading.style.display = 'none';
-            }
-        });
-        </script>
-        {{else}}
-        {{/* text message: use HTMX for inline decryption */}}
-        <form hx-post="/load-message"
-              hx-target="#message-container"
-              hx-swap="innerHTML"
-              hx-indicator="#decrypt-spinner"
-              hx-target-404="#message-container"
-              hx-target-403="#message-container"
-              id="load-msg-form">
-            <input type="hidden" name="key" id="key" value="{{.Form.Key}}" />
+            });
+        }
+    }
 
-            <div class="form-group">
-                <input type="text"
-                       name="pin"
-                       id="pin"
-                       class="pin-input {{if .Form.FieldErrors.pin}}error-input{{end}}"
-                       required
-                       maxlength="{{.PinSize}}"
-                       inputmode="numeric"
-                       pattern="[0-9]{{printf "{%d}" .PinSize}}"
-                       placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
-                       title="PIN must be exactly {{.PinSize}} digits"
-                       aria-label="{{.PinSize}}-digit PIN"
-                       autofocus
-                       oninput="this.value=this.value.replace(/[^0-9]/g,''); document.getElementById('pin-error').innerHTML=''; this.classList.remove('error-input');" />
-                <div id="pin-error">
-                    {{with .Form.FieldErrors.pin}}
-                    <span class='error'>{{.}}</span>
-                    {{end}}
-                </div>
-            </div>
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+});
 
-            <button class="main-btn" type="submit">
-                <span class="htmx-indicator" id="decrypt-spinner">
-                    <svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    Decrypting...
-                </span>
-                <span class="button-text">Decode Message</span>
-            </button>
-        </form>
-        {{end}}
-    </div>
-  </div>
-</div>
+function copyMessage() {
+    const textarea = document.getElementById('decoded-msg-text');
+    const btn = document.getElementById('copy-msg-btn');
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        btn.textContent = 'Copied!';
+        btn.style.background = 'var(--color-success)';
+        setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; }, 2000);
+    });
+}
+</script>
 {{end}}

@@ -33,7 +33,7 @@ func TestMessageProc_MakeMessage(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.MakeMessage(t.Context(), time.Second*30, "message", "56789")
+	r, err := m.MakeMessage(t.Context(), MsgReq{Duration: time.Second * 30, Message: "message", Pin: "56789", ClientEnc: false})
 	t.Logf("%+v", r)
 	require.NoError(t, err)
 	assert.Equal(t, "encrypted blah", string(r.Data))
@@ -87,7 +87,7 @@ func TestMessageProc_MakeMessage_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-			r, err := m.MakeMessage(t.Context(), tt.args.duration, "message", tt.args.pin)
+			r, err := m.MakeMessage(t.Context(), MsgReq{Duration: tt.args.duration, Message: "message", Pin: tt.args.pin})
 			t.Logf("%+v", r)
 			require.EqualError(t, err, tt.wantErr.Error())
 
@@ -106,7 +106,7 @@ func TestMessageProc_MakeMessage_CrypterError(t *testing.T) {
 	}
 
 	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
-	r, err := m.MakeMessage(t.Context(), time.Second*30, "message", "56789")
+	r, err := m.MakeMessage(t.Context(), MsgReq{Duration: time.Second * 30, Message: "message", Pin: "56789", ClientEnc: false})
 	t.Logf("%+v", r)
 	require.EqualError(t, err, "crypto error")
 
@@ -472,14 +472,17 @@ func TestMessageProc_MakeFileMessage_SaveError(t *testing.T) {
 
 func TestMessageProc_IsFile(t *testing.T) {
 	tests := []struct {
-		name    string
-		loadErr error
-		data    []byte
-		want    bool
+		name      string
+		loadErr   error
+		data      []byte
+		clientEnc bool
+		want      bool
 	}{
-		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), want: true},
-		{name: "text message", loadErr: nil, data: []byte("encrypted text"), want: false},
-		{name: "load error", loadErr: errors.New("not found"), data: nil, want: false},
+		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), clientEnc: false, want: true},
+		{name: "text message", loadErr: nil, data: []byte("encrypted text"), clientEnc: false, want: false},
+		{name: "load error", loadErr: errors.New("not found"), data: nil, clientEnc: false, want: false},
+		{name: "client-enc file", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), clientEnc: true, want: false},
+		{name: "client-enc text", loadErr: nil, data: []byte("encrypted blob"), clientEnc: true, want: false},
 	}
 
 	for _, tt := range tests {
@@ -489,12 +492,14 @@ func TestMessageProc_IsFile(t *testing.T) {
 					if tt.loadErr != nil {
 						return nil, tt.loadErr
 					}
-					return &store.Message{Data: tt.data}, nil
+					return &store.Message{Data: tt.data, ClientEnc: tt.clientEnc}, nil
 				},
 			}
 			m := New(s, nil, Params{})
 			assert.Equal(t, tt.want, m.IsFile(t.Context(), "test-key"))
-			assert.Len(t, s.LoadCalls(), 1)
+			if tt.loadErr == nil {
+				assert.Len(t, s.LoadCalls(), 1)
+			}
 		})
 	}
 }
@@ -551,48 +556,70 @@ func TestParseFileHeader(t *testing.T) {
 	}
 }
 
-func TestMessageProc_MakeMessage_Paranoid(t *testing.T) {
+func TestMessageProc_MakeMessage_ClientEnc(t *testing.T) {
 	s := &EngineMock{
 		SaveFunc: func(ctx context.Context, msg *store.Message) error { return nil },
 	}
 	c := &CrypterMock{
 		EncryptFunc: func(req Request) ([]byte, error) {
-			t.Fatal("encrypt should not be called in paranoid mode")
+			t.Fatal("encrypt should not be called with ClientEnc=true")
 			return nil, nil
 		},
 	}
 
-	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, Paranoid: true})
-	r, err := m.MakeMessage(t.Context(), time.Second*30, "plain text message", "56789")
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.MakeMessage(t.Context(), MsgReq{Duration: time.Second * 30, Message: "plain text message", Pin: "56789", ClientEnc: true})
 
 	require.NoError(t, err)
 	assert.Equal(t, "plain text message", string(r.Data), "data should be stored as-is")
+	assert.True(t, r.ClientEnc, "ClientEnc should be true")
 	assert.Contains(t, r.PinHash, "$2a$", "pin should still be hashed")
 	assert.Len(t, s.SaveCalls(), 1)
 	assert.Empty(t, c.EncryptCalls(), "encrypt should not be called")
 }
 
-func TestMessageProc_LoadMessage_Paranoid(t *testing.T) {
+func TestMessageProc_MakeMessage_ServerEnc(t *testing.T) {
+	s := &EngineMock{
+		SaveFunc: func(ctx context.Context, msg *store.Message) error { return nil },
+	}
+	c := &CrypterMock{
+		EncryptFunc: func(req Request) ([]byte, error) {
+			return []byte("encrypted-data"), nil
+		},
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.MakeMessage(t.Context(), MsgReq{Duration: time.Second * 30, Message: "plain text message", Pin: "56789", ClientEnc: false})
+
+	require.NoError(t, err)
+	assert.Equal(t, "encrypted-data", string(r.Data), "data should be encrypted")
+	assert.False(t, r.ClientEnc, "ClientEnc should be false")
+	assert.Len(t, c.EncryptCalls(), 1, "encrypt should be called")
+	assert.Len(t, s.SaveCalls(), 1)
+}
+
+func TestMessageProc_LoadMessage_ClientEnc(t *testing.T) {
 	storedData := []byte("client-encrypted-blob")
 	s := &EngineMock{
 		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
-				Key:     "test-key",
-				Data:    storedData,
-				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu", // hash of "123456"
-				Exp:     time.Now().Add(1 * time.Minute),
+				Key:       "test-key",
+				Data:      storedData,
+				PinHash:   "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu", // hash of "123456"
+				Exp:       time.Now().Add(1 * time.Minute),
+				ClientEnc: true,
 			}, nil
 		},
 		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
 	c := &CrypterMock{
 		DecryptFunc: func(req Request) ([]byte, error) {
-			t.Fatal("decrypt should not be called in paranoid mode")
+			t.Fatal("decrypt should not be called for ClientEnc message")
 			return nil, nil
 		},
 	}
 
-	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, Paranoid: true})
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
 	r, err := m.LoadMessage(t.Context(), "test-key", "123456")
 
 	require.NoError(t, err)
@@ -602,75 +629,31 @@ func TestMessageProc_LoadMessage_Paranoid(t *testing.T) {
 	assert.Empty(t, c.DecryptCalls(), "decrypt should not be called")
 }
 
-func TestMessageProc_LoadMessage_Paranoid_WrongPin(t *testing.T) {
+func TestMessageProc_LoadMessage_ServerEnc(t *testing.T) {
 	s := &EngineMock{
 		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
-				Key:     "test-key",
-				Data:    []byte("encrypted"),
-				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu", // hash of "123456"
-				Exp:     time.Now().Add(1 * time.Minute),
-			}, nil
-		},
-		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
-	}
-
-	m := New(s, nil, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, Paranoid: true})
-	_, err := m.LoadMessage(t.Context(), "test-key", "wrong-pin")
-
-	require.ErrorIs(t, err, ErrBadPinAttempt, "wrong pin should still be rejected")
-	assert.Len(t, s.LoadCalls(), 1)
-	assert.Len(t, s.IncErrCalls(), 1, "error count should be incremented")
-}
-
-func TestMessageProc_LoadMessage_Paranoid_Expired(t *testing.T) {
-	s := &EngineMock{
-		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
-			return &store.Message{
-				Key:     "test-key",
-				Data:    []byte("encrypted"),
-				PinHash: "hash",
-				Exp:     time.Now().Add(-1 * time.Minute), // expired
+				Key:       "test-key",
+				Data:      []byte("server-encrypted-data"),
+				PinHash:   "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu", // hash of "123456"
+				Exp:       time.Now().Add(1 * time.Minute),
+				ClientEnc: false,
 			}, nil
 		},
 		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
-
-	m := New(s, nil, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, Paranoid: true})
-	_, err := m.LoadMessage(t.Context(), "test-key", "any-pin")
-
-	require.ErrorIs(t, err, ErrExpired, "expired messages should still be rejected")
-	assert.Len(t, s.RemoveCalls(), 1, "expired message should be removed")
-}
-
-func TestMessageProc_IsFile_Paranoid(t *testing.T) {
-	s := &EngineMock{
-		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
-			return &store.Message{Data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata")}, nil
+	c := &CrypterMock{
+		DecryptFunc: func(req Request) ([]byte, error) {
+			return []byte("decrypted plaintext"), nil
 		},
 	}
 
-	m := New(s, nil, Params{Paranoid: true})
-	result := m.IsFile(t.Context(), "test-key")
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(t.Context(), "test-key", "123456")
 
-	assert.False(t, result, "should return false in paranoid mode regardless of content")
-	assert.Empty(t, s.LoadCalls(), "should not even load the message in paranoid mode")
-}
-
-func TestMessageProc_MakeFileMessage_Paranoid(t *testing.T) {
-	s := &EngineMock{}
-	c := &CrypterMock{}
-
-	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024, Paranoid: true})
-	_, err := m.MakeFileMessage(t.Context(), FileRequest{
-		Duration:    time.Second * 30,
-		Pin:         "12345",
-		FileName:    "test.pdf",
-		ContentType: "application/pdf",
-		Data:        []byte("file content"),
-	})
-
-	require.ErrorIs(t, err, ErrParanoidFile, "file upload should be rejected in paranoid mode")
-	assert.Empty(t, s.SaveCalls(), "should not save anything")
-	assert.Empty(t, c.EncryptCalls(), "should not encrypt anything")
+	require.NoError(t, err)
+	assert.Equal(t, "decrypted plaintext", string(r.Data), "data should be decrypted")
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Len(t, c.DecryptCalls(), 1, "decrypt should be called")
 }

@@ -161,3 +161,15 @@ func SecurityHeaders(protocol string) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// RequireHTMX middleware rejects requests without HX-Request header.
+// Used for web form routes that require client-side JavaScript encryption.
+func RequireHTMX(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("HX-Request") != "true" {
+			http.Error(w, "JavaScript is required for this service", http.StatusBadRequest)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

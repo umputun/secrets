@@ -415,7 +415,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 			name:           "invalid pin",
 			setupMsg:       true,
 			pin:            []string{"9", "9", "9", "9", "9"},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusForbidden,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
 			},
@@ -425,7 +425,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 			setupMsg:       false,
 			useKey:         "nonexistent",
 			pin:            []string{"1", "2", "3", "4", "5"},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusNotFound,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
 			},
@@ -445,7 +445,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			key := tt.useKey
 			if tt.setupMsg {
-				msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+				msg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 				require.NoError(t, err)
 				key = msg.Key
 			}
@@ -1157,7 +1157,8 @@ func TestServer_formatSize(t *testing.T) {
 	}
 }
 
-func TestServer_generateFileLinkCtrl(t *testing.T) {
+func TestServer_generateLinkCtrl_RejectsMultipart(t *testing.T) {
+	// multipart uploads are rejected - files must use client-side JS encryption
 	eng := store.NewInMemory(time.Second)
 	srv, err := New(
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
@@ -1177,135 +1178,27 @@ func TestServer_generateFileLinkCtrl(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	t.Run("valid file upload", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
 
-		// add file
-		part, err := writer.CreateFormFile("file", "test.txt")
-		require.NoError(t, err)
-		_, err = part.Write([]byte("test file content"))
-		require.NoError(t, err)
+	part, err := writer.CreateFormFile("file", "test.txt")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("test file content"))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteField("exp", "15"))
+	require.NoError(t, writer.WriteField("expUnit", "m"))
+	require.NoError(t, writer.WriteField("pin", "12345"))
+	require.NoError(t, writer.Close())
 
-		// add form fields
-		require.NoError(t, writer.WriteField("exp", "15"))
-		require.NoError(t, writer.WriteField("expUnit", "m"))
-		require.NoError(t, writer.WriteField("pin", "1"))
-		require.NoError(t, writer.WriteField("pin", "2"))
-		require.NoError(t, writer.WriteField("pin", "3"))
-		require.NoError(t, writer.WriteField("pin", "4"))
-		require.NoError(t, writer.WriteField("pin", "5"))
-		require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
 
-		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rr := httptest.NewRecorder()
+	srv.generateLinkCtrl(rr, req)
 
-		srv.generateLinkCtrl(rr, req)
-
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "https://example.com/message/")
-		assert.Contains(t, rr.Body.String(), "test.txt")
-	})
-
-	t.Run("file upload with invalid pin", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		part, err := writer.CreateFormFile("file", "test.txt")
-		require.NoError(t, err)
-		_, err = part.Write([]byte("test file content"))
-		require.NoError(t, err)
-
-		require.NoError(t, writer.WriteField("exp", "15"))
-		require.NoError(t, writer.WriteField("expUnit", "m"))
-		require.NoError(t, writer.WriteField("pin", "1"))
-		require.NoError(t, writer.WriteField("pin", "2"))
-		require.NoError(t, writer.WriteField("pin", ""))
-		require.NoError(t, writer.WriteField("pin", "4"))
-		require.NoError(t, writer.WriteField("pin", "5"))
-		require.NoError(t, writer.Close())
-
-		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rr := httptest.NewRecorder()
-
-		srv.generateLinkCtrl(rr, req)
-
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Pin must be 5 digits long without empty values")
-	})
-
-	t.Run("file upload with no file returns form for re-entry", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		require.NoError(t, writer.WriteField("exp", "15"))
-		require.NoError(t, writer.WriteField("expUnit", "m"))
-		require.NoError(t, writer.WriteField("pin", "1"))
-		require.NoError(t, writer.WriteField("pin", "2"))
-		require.NoError(t, writer.WriteField("pin", "3"))
-		require.NoError(t, writer.WriteField("pin", "4"))
-		require.NoError(t, writer.WriteField("pin", "5"))
-		require.NoError(t, writer.Close())
-
-		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rr := httptest.NewRecorder()
-
-		srv.generateLinkCtrl(rr, req)
-
-		// without file, returns form for re-entry
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Create a Secure Message")  // form is returned
-		assert.NotContains(t, rr.Body.String(), "Secure Link Generated") // no success message
-	})
-
-	t.Run("file upload exceeds max duration", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		part, err := writer.CreateFormFile("file", "test.txt")
-		require.NoError(t, err)
-		_, err = part.Write([]byte("test file content"))
-		require.NoError(t, err)
-
-		require.NoError(t, writer.WriteField("exp", "100"))
-		require.NoError(t, writer.WriteField("expUnit", "d"))
-		require.NoError(t, writer.WriteField("pin", "12345"))
-		require.NoError(t, writer.Close())
-
-		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rr := httptest.NewRecorder()
-
-		srv.generateLinkCtrl(rr, req)
-
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Expire must be less than")
-	})
-
-	t.Run("htmx file upload with validation error returns 400", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		require.NoError(t, writer.WriteField("exp", "15"))
-		require.NoError(t, writer.WriteField("expUnit", "m"))
-		require.NoError(t, writer.WriteField("pin", "12345"))
-		require.NoError(t, writer.Close())
-
-		req := httptest.NewRequest(http.MethodPost, "/generate-link", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		req.Header.Set("HX-Request", "true")
-		rr := httptest.NewRecorder()
-
-		srv.generateLinkCtrl(rr, req)
-
-		// htmx request with validation error returns 400 for hx-target-400
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Create a Secure Message")  // form is returned
-		assert.NotContains(t, rr.Body.String(), "Secure Link Generated") // no success message
-	})
+	// multipart requests are rejected - must use JS encryption
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "file uploads require JavaScript encryption")
 }
 
 func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
@@ -1378,7 +1271,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 
 		srv.loadMessageCtrl(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusForbidden, rr.Code)
 		assert.Contains(t, rr.Body.String(), "error")
 		assert.Empty(t, rr.Header().Get("Content-Disposition")) // no download headers
 	})
@@ -1438,7 +1331,7 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 	defer ts.Close()
 
 	t.Run("text message shows decode button", func(t *testing.T) {
-		msg, err := srv.messager.MakeMessage(t.Context(), time.Hour, "test secret", "12345")
+		msg, err := srv.messager.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
 		require.NoError(t, err)
 
 		resp, err := http.Get(ts.URL + "/message/" + msg.Key)
@@ -1531,7 +1424,8 @@ func TestServer_CanonicalURL(t *testing.T) {
 	})
 }
 
-func TestServer_generateLinkCtrl_MultipartWhenFilesDisabled(t *testing.T) {
+func TestServer_generateLinkCtrl_MultipartRejected(t *testing.T) {
+	// all multipart requests are rejected - files must use JS encryption
 	eng := store.NewInMemory(time.Second * 30)
 	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 		MaxDuration:    10 * time.Hour,
@@ -1545,7 +1439,7 @@ func TestServer_generateLinkCtrl_MultipartWhenFilesDisabled(t *testing.T) {
 		MaxPinAttempts: 3,
 		MaxExpire:      10 * time.Hour,
 		Branding:       "Safe Secrets",
-		EnableFiles:    false, // files disabled
+		EnableFiles:    false, // even with files disabled, same rejection message
 		MaxFileSize:    1024 * 1024,
 	})
 	require.NoError(t, err)
@@ -1572,7 +1466,7 @@ func TestServer_generateLinkCtrl_MultipartWhenFilesDisabled(t *testing.T) {
 	srv.generateLinkCtrl(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), "file uploads disabled")
+	assert.Contains(t, rr.Body.String(), "file uploads require JavaScript encryption")
 }
 
 func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
@@ -1622,6 +1516,78 @@ func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.Contains(t, rr.Body.String(), "file downloads disabled")
+}
+
+func TestServer_loadMessageCtrl_ClientEncHTMX(t *testing.T) {
+	// test that ClientEnc messages accessed via HTMX show error page (missing key scenario)
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+
+	t.Run("HTMX request for ClientEnc message shows error page", func(t *testing.T) {
+		// create a client-encrypted message via messager (ClientEnc=true skips server encryption)
+		createdMsg, err := msg.MakeMessage(t.Context(), messager.MsgReq{
+			Duration:  time.Hour,
+			Message:   "encrypted-blob-base64", // simulates client-encrypted blob
+			Pin:       "12345",
+			ClientEnc: true,
+		})
+		require.NoError(t, err)
+
+		form := url.Values{}
+		form.Set("key", createdMsg.Key)
+		form.Add("pin", "1")
+		form.Add("pin", "2")
+		form.Add("pin", "3")
+		form.Add("pin", "4")
+		form.Add("pin", "5")
+
+		req := httptest.NewRequest("POST", "/load-message", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true") // simulate HTMX request from server-side form
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "decryption key is missing")
+		assert.Contains(t, rr.Body.String(), "URL fragments")
+	})
+
+	t.Run("non-HTMX request for ClientEnc message returns blob", func(t *testing.T) {
+		// create a new client-encrypted message
+		createdMsg, err := msg.MakeMessage(t.Context(), messager.MsgReq{
+			Duration:  time.Hour,
+			Message:   "encrypted-blob-base64",
+			Pin:       "12345",
+			ClientEnc: true,
+		})
+		require.NoError(t, err)
+
+		form := url.Values{}
+		form.Set("key", createdMsg.Key)
+		form.Add("pin", "1")
+		form.Add("pin", "2")
+		form.Add("pin", "3")
+		form.Add("pin", "4")
+		form.Add("pin", "5")
+
+		req := httptest.NewRequest("POST", "/load-message", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		// no HX-Request header - simulates fetch() from client-side JS
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "text/plain; charset=utf-8", rr.Header().Get("Content-Type"))
+		assert.Equal(t, "encrypted-blob-base64", rr.Body.String())
+	})
 }
 
 func TestServer_emailPopupCtrl(t *testing.T) {

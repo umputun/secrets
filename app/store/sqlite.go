@@ -74,13 +74,20 @@ func NewSQLite(dbFile string, cleanupDuration time.Duration) (*SQLite, error) {
 			exp INTEGER NOT NULL,
 			data BLOB NOT NULL,
 			pin_hash TEXT NOT NULL,
-			errors INTEGER DEFAULT 0
+			errors INTEGER DEFAULT 0,
+			client_enc INTEGER NOT NULL DEFAULT 0
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_exp ON messages(exp);
 	`
 	if _, err = db.ExecContext(ctx, schema); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
+	}
+
+	// migrate existing databases: add client_enc column if missing
+	if err = migrateClientEnc(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("migrate client_enc: %w", err)
 	}
 
 	result := &SQLite{db: db, done: make(chan struct{})}
@@ -93,9 +100,14 @@ func (s *SQLite) Save(ctx context.Context, msg *Message) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
+	clientEnc := 0
+	if msg.ClientEnc {
+		clientEnc = 1
+	}
+
 	_, err := s.db.ExecContext(ctx,
-		"INSERT INTO messages (id, exp, data, pin_hash, errors) VALUES (?, ?, ?, ?, ?)",
-		msg.Key, msg.Exp.Unix(), msg.Data, msg.PinHash, msg.Errors,
+		"INSERT INTO messages (id, exp, data, pin_hash, errors, client_enc) VALUES (?, ?, ?, ?, ?, ?)",
+		msg.Key, msg.Exp.Unix(), msg.Data, msg.PinHash, msg.Errors, clientEnc,
 	)
 	if err != nil {
 		log.Printf("[ERROR] failed to save message: %v", err)
@@ -112,11 +124,12 @@ func (s *SQLite) Load(ctx context.Context, key string) (*Message, error) {
 
 	var msg Message
 	var expUnix int64
+	var clientEnc int
 
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, exp, data, pin_hash, errors FROM messages WHERE id = ?",
+		"SELECT id, exp, data, pin_hash, errors, client_enc FROM messages WHERE id = ?",
 		key,
-	).Scan(&msg.Key, &expUnix, &msg.Data, &msg.PinHash, &msg.Errors)
+	).Scan(&msg.Key, &expUnix, &msg.Data, &msg.PinHash, &msg.Errors, &clientEnc)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Printf("[DEBUG] not found %s", key)
@@ -128,6 +141,7 @@ func (s *SQLite) Load(ctx context.Context, key string) (*Message, error) {
 	}
 
 	msg.Exp = time.Unix(expUnix, 0)
+	msg.ClientEnc = clientEnc != 0
 	return &msg, nil
 }
 
@@ -205,4 +219,41 @@ func (s *SQLite) activateCleaner(every time.Duration) {
 			}
 		}
 	}()
+}
+
+// migrateClientEnc adds client_enc column to existing databases
+func migrateClientEnc(ctx context.Context, db *sql.DB) error {
+	// check if column exists using PRAGMA table_info
+	rows, err := db.QueryContext(ctx, "PRAGMA table_info(messages)")
+	if err != nil {
+		return fmt.Errorf("query table info: %w", err)
+	}
+	defer rows.Close()
+
+	hasClientEnc := false
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull, pk int
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dfltValue, &pk); err != nil {
+			return fmt.Errorf("scan table info: %w", err)
+		}
+		if name == "client_enc" {
+			hasClientEnc = true
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate table info: %w", err)
+	}
+
+	if !hasClientEnc {
+		log.Printf("[INFO] migrating database: adding client_enc column")
+		_, err := db.ExecContext(ctx, "ALTER TABLE messages ADD COLUMN client_enc INTEGER NOT NULL DEFAULT 0")
+		if err != nil {
+			return fmt.Errorf("add client_enc column: %w", err)
+		}
+	}
+	return nil
 }
