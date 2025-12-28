@@ -85,9 +85,10 @@ The service uses **hybrid encryption** based on how you access it:
 
 **Encryption:**
 - Server-side: AES-256-GCM for message encryption
-- Client-side (paranoid mode): AES-128-GCM via Web Crypto API
+- Client-side (web UI): AES-128-GCM via Web Crypto API
 - PIN hashing: bcrypt (cost 14)
 - Random key generation: 32-byte cryptographically secure
+- Server rejects unencrypted content from web clients (ciphertext format validation)
 
 **HTTP Security Headers:**
 - `Content-Security-Policy`: restricts scripts, styles, fonts to trusted sources; `frame-ancestors 'none'`; `form-action 'self'`

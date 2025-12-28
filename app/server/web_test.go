@@ -204,7 +204,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 		{
 			name: "valid request",
 			formData: url.Values{
-				"message": {"secret message"},
+				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 				"exp":     {"15"},
 				"expUnit": {"m"},
 				"pin":     {"1", "2", "3", "4", "5"},
@@ -231,7 +231,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 		{
 			name: "invalid pin",
 			formData: url.Values{
-				"message": {"secret message"},
+				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 				"exp":     {"15"},
 				"expUnit": {"m"},
 				"pin":     {"1", "2", "", "4", "5"},
@@ -244,7 +244,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 		{
 			name: "exceed max duration",
 			formData: url.Values{
-				"message": {"secret message"},
+				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 				"exp":     {"100"},
 				"expUnit": {"d"},
 				"pin":     {"1", "2", "3", "4", "5"},
@@ -257,7 +257,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 		{
 			name: "invalid exp unit",
 			formData: url.Values{
-				"message": {"secret message"},
+				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 				"exp":     {"15"},
 				"expUnit": {"x"},
 				"pin":     {"1", "2", "3", "4", "5"},
@@ -270,7 +270,7 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 		{
 			name: "non-numeric exp",
 			formData: url.Values{
-				"message": {"secret message"},
+				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 				"exp":     {"abc"},
 				"expUnit": {"m"},
 				"pin":     {"1", "2", "3", "4", "5"},
@@ -278,6 +278,32 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "Expire must be a number")
+			},
+		},
+		{
+			name: "plaintext message rejected",
+			formData: url.Values{
+				"message": {"Hello, this is a secret message!"},
+				"exp":     {"15"},
+				"expUnit": {"m"},
+				"pin":     {"1", "2", "3", "4", "5"},
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, body string) {
+				assert.Contains(t, body, "invalid encrypted format")
+			},
+		},
+		{
+			name: "short message rejected",
+			formData: url.Values{
+				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabc"},
+				"exp":     {"15"},
+				"expUnit": {"m"},
+				"pin":     {"1", "2", "3", "4", "5"},
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, body string) {
+				assert.Contains(t, body, "invalid encrypted format")
 			},
 		},
 	}
@@ -357,7 +383,7 @@ func TestServer_generateLinkCtrl_HTMX(t *testing.T) {
 
 	t.Run("htmx request with valid data returns partial", func(t *testing.T) {
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"12345"},
@@ -772,7 +798,7 @@ func TestServer_generateLinkCtrl_MultipleDomain(t *testing.T) {
 
 	t.Run("uses request domain when allowed", func(t *testing.T) {
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"1", "2", "3", "4", "5"},
@@ -791,7 +817,7 @@ func TestServer_generateLinkCtrl_MultipleDomain(t *testing.T) {
 
 	t.Run("falls back to first domain when disallowed", func(t *testing.T) {
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"1", "2", "3", "4", "5"},
@@ -828,7 +854,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 
 	t.Run("IPv6 with standard port gets bracketed", func(t *testing.T) {
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"1", "2", "3", "4", "5"},
@@ -848,7 +874,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 
 	t.Run("IPv6 with non-standard port stays bracketed", func(t *testing.T) {
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"1", "2", "3", "4", "5"},
@@ -867,7 +893,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 
 	t.Run("IPv6 without port gets bracketed", func(t *testing.T) {
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"1", "2", "3", "4", "5"},
@@ -888,7 +914,7 @@ func TestServer_IPv6LinkGeneration(t *testing.T) {
 		// this tests the edge case where getValidatedHost might return IPv6:port without brackets
 		// though this shouldn't normally happen with our current getValidatedHost implementation
 		formData := url.Values{
-			"message": {"secret message"},
+			"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 			"exp":     {"15"},
 			"expUnit": {"m"},
 			"pin":     {"1", "2", "3", "4", "5"},

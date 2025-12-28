@@ -173,6 +173,7 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	form.CheckField(validator.NotBlank(form.Message), msgKey, "Message can't be empty")
+	form.CheckField(validator.IsBase64URL(form.Message), msgKey, "invalid encrypted format")
 
 	exp := r.PostFormValue(expKey)
 	form.CheckField(validator.NotBlank(exp), expKey, "Expire can't be empty")

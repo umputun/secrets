@@ -282,7 +282,7 @@ func TestServer_generateLinkCtrl_WithAuth(t *testing.T) {
 
 	t.Run("unauthenticated request returns 401 with login popup", func(t *testing.T) {
 		form := url.Values{}
-		form.Set("message", "test message")
+		form.Set("message", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop")
 		form.Set("pin", "12345")
 		form.Set("exp", "10")
 		form.Set("expUnit", "m")
@@ -326,7 +326,7 @@ func TestServer_generateLinkCtrl_WithAuth(t *testing.T) {
 
 		// now make authenticated request
 		form := url.Values{}
-		form.Set("message", "test message")
+		form.Set("message", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop")
 		form.Set("pin", "12345")
 		form.Set("exp", "10")
 		form.Set("expUnit", "m")
@@ -438,7 +438,7 @@ func TestServer_NoAuthWhenDisabled(t *testing.T) {
 
 	t.Run("generate-link works without auth when disabled", func(t *testing.T) {
 		form := url.Values{}
-		form.Set("message", "test message")
+		form.Set("message", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop")
 		form.Set("pin", "12345")
 		form.Set("exp", "10")
 		form.Set("expUnit", "m")
