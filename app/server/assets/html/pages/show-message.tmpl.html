@@ -404,11 +404,5 @@ function copyMessage() {
         setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; }, 2000);
     });
 }
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 </script>
 {{end}}

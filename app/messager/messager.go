@@ -244,8 +244,8 @@ func (p MessageProc) IsFile(ctx context.Context, key string) bool {
 
 // MakeFileMessage creates a message from file data with unencrypted prefix for metadata.
 // Format: !!FILE!!filename!!content-type!!\n<encrypted binary>
-// Note: For client-side encrypted files, clients should use MakeMessage with the encrypted
-// blob via the regular text endpoint.
+// This function is for API file uploads only (server-side encryption).
+// UI file uploads use client-side encryption via MakeMessage with the encrypted blob.
 func (p MessageProc) MakeFileMessage(ctx context.Context, req FileRequest) (result *store.Message, err error) {
 	if req.Pin == "" {
 		log.Printf("[WARN] save rejected, empty pin")

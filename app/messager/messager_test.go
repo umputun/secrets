@@ -472,14 +472,17 @@ func TestMessageProc_MakeFileMessage_SaveError(t *testing.T) {
 
 func TestMessageProc_IsFile(t *testing.T) {
 	tests := []struct {
-		name    string
-		loadErr error
-		data    []byte
-		want    bool
+		name      string
+		loadErr   error
+		data      []byte
+		clientEnc bool
+		want      bool
 	}{
-		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), want: true},
-		{name: "text message", loadErr: nil, data: []byte("encrypted text"), want: false},
-		{name: "load error", loadErr: errors.New("not found"), data: nil, want: false},
+		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), clientEnc: false, want: true},
+		{name: "text message", loadErr: nil, data: []byte("encrypted text"), clientEnc: false, want: false},
+		{name: "load error", loadErr: errors.New("not found"), data: nil, clientEnc: false, want: false},
+		{name: "client-enc file", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), clientEnc: true, want: false},
+		{name: "client-enc text", loadErr: nil, data: []byte("encrypted blob"), clientEnc: true, want: false},
 	}
 
 	for _, tt := range tests {
@@ -489,12 +492,14 @@ func TestMessageProc_IsFile(t *testing.T) {
 					if tt.loadErr != nil {
 						return nil, tt.loadErr
 					}
-					return &store.Message{Data: tt.data}, nil
+					return &store.Message{Data: tt.data, ClientEnc: tt.clientEnc}, nil
 				},
 			}
 			m := New(s, nil, Params{})
 			assert.Equal(t, tt.want, m.IsFile(t.Context(), "test-key"))
-			assert.Len(t, s.LoadCalls(), 1)
+			if tt.loadErr == nil {
+				assert.Len(t, s.LoadCalls(), 1)
+			}
 		})
 	}
 }
