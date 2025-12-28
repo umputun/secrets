@@ -666,3 +666,48 @@ func TestSecurityHeaders_Present(t *testing.T) {
 	// HSTS not set for HTTP protocol (test server uses http)
 	assert.Empty(t, resp.Header.Get("Strict-Transport-Security"), "HSTS should not be set for HTTP")
 }
+
+func TestSecret_MissingKeyFragment(t *testing.T) {
+	// test that accessing a secret without the #key fragment shows an error
+	// this simulates when sharing apps strip URL fragments
+	page := newPage(t)
+	_, err := page.Goto(baseURL)
+	require.NoError(t, err)
+
+	// create a secret
+	require.NoError(t, page.Locator("#message").Fill("test secret for missing key"))
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	// get the generated link (includes #key fragment)
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+	assert.Contains(t, secretLink, "#", "link should contain # fragment with decryption key")
+
+	// strip the fragment to simulate apps that remove URL fragments
+	urlWithoutFragment := strings.Split(secretLink, "#")[0]
+
+	// navigate to message page WITHOUT the #key fragment
+	_, err = page.Goto(urlWithoutFragment)
+	require.NoError(t, err)
+
+	// without #key, the page shows server-side PIN form (single input with id="pin")
+	// the server-forms section contains the HTMX form with id="load-msg-form"
+	pinInput := page.Locator("#server-forms #pin")
+	waitVisible(t, pinInput)
+
+	// enter PIN using server-side form (single input accepts full PIN)
+	require.NoError(t, pinInput.Fill(testPin))
+	require.NoError(t, page.Locator("#load-msg-form button[type='submit']").Click())
+
+	// wait for HTMX to complete and show error about missing decryption key
+	// the error card replaces message-container content via hx-target
+	errorText := page.Locator("#message-container .error-message").First()
+	waitVisible(t, errorText)
+
+	content, err := errorText.TextContent()
+	require.NoError(t, err)
+	assert.Contains(t, strings.ToLower(content), "decryption key", "should show error about missing decryption key")
+}

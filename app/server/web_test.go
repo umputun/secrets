@@ -1518,6 +1518,78 @@ func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "file downloads disabled")
 }
 
+func TestServer_loadMessageCtrl_ClientEncHTMX(t *testing.T) {
+	// test that ClientEnc messages accessed via HTMX show error page (missing key scenario)
+	eng := store.NewInMemory(time.Second * 30)
+	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+	})
+	srv, err := New(msg, "test", Config{
+		Domain: []string{"example.com"}, Protocol: "https", PinSize: 5, MaxExpire: 10 * time.Hour, Branding: "Test",
+	})
+	require.NoError(t, err)
+
+	t.Run("HTMX request for ClientEnc message shows error page", func(t *testing.T) {
+		// create a client-encrypted message via messager (ClientEnc=true skips server encryption)
+		createdMsg, err := msg.MakeMessage(t.Context(), messager.MsgReq{
+			Duration:  time.Hour,
+			Message:   "encrypted-blob-base64", // simulates client-encrypted blob
+			Pin:       "12345",
+			ClientEnc: true,
+		})
+		require.NoError(t, err)
+
+		form := url.Values{}
+		form.Set("key", createdMsg.Key)
+		form.Add("pin", "1")
+		form.Add("pin", "2")
+		form.Add("pin", "3")
+		form.Add("pin", "4")
+		form.Add("pin", "5")
+
+		req := httptest.NewRequest("POST", "/load-message", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true") // simulate HTMX request from server-side form
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "decryption key is missing")
+		assert.Contains(t, rr.Body.String(), "URL fragments")
+	})
+
+	t.Run("non-HTMX request for ClientEnc message returns blob", func(t *testing.T) {
+		// create a new client-encrypted message
+		createdMsg, err := msg.MakeMessage(t.Context(), messager.MsgReq{
+			Duration:  time.Hour,
+			Message:   "encrypted-blob-base64",
+			Pin:       "12345",
+			ClientEnc: true,
+		})
+		require.NoError(t, err)
+
+		form := url.Values{}
+		form.Set("key", createdMsg.Key)
+		form.Add("pin", "1")
+		form.Add("pin", "2")
+		form.Add("pin", "3")
+		form.Add("pin", "4")
+		form.Add("pin", "5")
+
+		req := httptest.NewRequest("POST", "/load-message", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		// no HX-Request header - simulates fetch() from client-side JS
+		rr := httptest.NewRecorder()
+
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "text/plain; charset=utf-8", rr.Header().Get("Content-Type"))
+		assert.Equal(t, "encrypted-blob-base64", rr.Body.String())
+	})
+}
+
 func TestServer_emailPopupCtrl(t *testing.T) {
 	eng := store.NewInMemory(time.Second * 30)
 	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{

@@ -912,7 +912,7 @@ func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 }
 
 func TestServer_SizeLimit_TextOnly(t *testing.T) {
-	// test that text-only mode (no files) uses 64KB limit
+	// test that text-only mode uses ~90KB limit (64KB * 1.4 for base64 overhead)
 	eng := store.NewInMemory(time.Second)
 	srv, err := New(
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
@@ -933,8 +933,8 @@ func TestServer_SizeLimit_TextOnly(t *testing.T) {
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
 
-	// send a message larger than 64KB - should fail in normal text-only mode
-	largeMessage := strings.Repeat("a", 80*1024) // 80KB of data
+	// send a message larger than ~90KB (64KB * 1.4) - should fail
+	largeMessage := strings.Repeat("a", 100*1024) // 100KB of data, exceeds ~90KB limit
 	body := `{"message": "` + largeMessage + `","exp": 600,"pin": "12345"}`
 
 	req, err := http.NewRequest("POST", ts.URL+"/api/v1/message", strings.NewReader(body))
@@ -947,7 +947,7 @@ func TestServer_SizeLimit_TextOnly(t *testing.T) {
 	defer resp.Body.Close()
 
 	// request should be rejected due to size limit (http.StatusRequestEntityTooLarge or similar error)
-	assert.NotEqual(t, 201, resp.StatusCode, "large request should fail in normal text-only mode")
+	assert.NotEqual(t, 201, resp.StatusCode, "large request should fail in text-only mode")
 }
 
 func TestServer_API_ServerSideEncryption(t *testing.T) {

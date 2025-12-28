@@ -175,10 +175,11 @@ func (s Server) Run(ctx context.Context) error {
 func (s Server) routes() http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
-	// determine size limit based on whether files are enabled
-	sizeLimit := int64(64 * 1024) // 64KB default for text-only
+	// determine size limit: use 1.4x multiplier for base64 overhead from client-side encryption
+	// UI always encrypts client-side, which base64-encodes the ciphertext (~33% expansion)
+	sizeLimit := int64(64*1024) * 14 / 10 // ~90KB for text-only (64KB * 1.4)
 	if s.cfg.EnableFiles {
-		sizeLimit = s.cfg.MaxFileSize + 10*1024 // file size + 10KB for form overhead
+		sizeLimit = s.cfg.MaxFileSize * 14 / 10 // file size * 1.4 for base64 overhead
 	}
 
 	// global middleware - applied to all routes

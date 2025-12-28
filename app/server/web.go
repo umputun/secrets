@@ -327,6 +327,15 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// client-encrypted message: return raw encrypted blob for client-side decryption
 	if msg.ClientEnc {
+		// if this is an HTMX request (from server-side form), the user doesn't have the decryption key
+		// this happens when URL fragment (#key) was stripped during sharing
+		if r.Header.Get("HX-Request") == "true" {
+			log.Printf("[WARN] accessed client-enc message %s via HTMX (missing key), ip=%s", form.Key, GetHashedIP(r))
+			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl,
+				"The decryption key is missing from the URL. This can happen when sharing links through apps that strip URL fragments. Please ask the sender to share the complete link including the # portion.")
+			return
+		}
+		// non-HTMX request (from client-side JS with fetch) - return blob for decryption
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(msg.Data)
