@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.1.0] - 2025-12-28
+
+### Changed
+- Replace paranoid mode with hybrid encryption (#96)
+- UI always uses client-side AES-128-GCM encryption, API uses server-side encryption
+- Add RequireHTMX middleware to ensure JavaScript for UI encryption
+- Add security headers middleware (CSP, X-Frame-Options, HSTS)
+
 ## [2.0.0] - 2025-12-26
 
 ### Added
