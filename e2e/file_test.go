@@ -144,29 +144,25 @@ func TestFile_UploadAndDownload(t *testing.T) {
 	linkTextarea := page.Locator("textarea#msg-text")
 	waitVisible(t, linkTextarea)
 
-	// get the generated link
+	// get the generated link (with #key for client-side decryption)
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
 	assert.Contains(t, secretLink, "/message/")
+	assert.Contains(t, secretLink, "#", "file link should have encryption key fragment")
 
-	// extract key from link
-	messageKey := extractMessageKey(t, secretLink)
-
-	// navigate to message page
-	_, err = page.Goto(baseURL + "/message/" + messageKey)
+	// navigate to message page (use full link with #key for client-side decryption)
+	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
 
-	// verify this is a file download page (button says "Download File")
-	downloadBtn := page.Locator("button:has-text('Download File')")
-	visible, err = downloadBtn.IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "download file button should be visible for file messages")
+	// enter PIN and trigger client-side decryption (file is embedded in encrypted blob)
+	clientPin := page.Locator("#client-pin")
+	waitVisible(t, clientPin)
+	require.NoError(t, clientPin.Fill(testPin))
+	require.NoError(t, page.Locator("#decrypt-btn").Click())
 
-	// enter PIN and trigger download
-	require.NoError(t, page.Locator("#pin").Fill(testPin))
-	require.NoError(t, downloadBtn.Click())
-	successIndicator := page.Locator(".card:has-text('File Downloaded'), .card:has-text('downloaded')")
-	waitVisible(t, successIndicator)
+	// wait for file download success card
+	successCard := page.Locator(".success-card")
+	waitVisible(t, successCard)
 }
 
 func TestFile_InfoDisplay(t *testing.T) {

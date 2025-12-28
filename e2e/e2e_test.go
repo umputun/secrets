@@ -235,21 +235,17 @@ func TestSecret_CreateAndReveal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, secretLink, "/message/")
 
-	// extract key from link
-	messageKey := extractMessageKey(t, secretLink)
-
-	// navigate to message page
-	_, err = page.Goto(baseURL + "/message/" + messageKey)
+	// navigate to message page (use full link with #key for client-side decryption)
+	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
 
-	// check PIN input is visible on message page
-	visible, err := page.Locator("#pin").IsVisible()
-	require.NoError(t, err)
-	assert.True(t, visible, "PIN input should be visible on message page")
+	// check PIN input is visible on message page (client-side form uses #client-pin)
+	clientPin := page.Locator("#client-pin")
+	waitVisible(t, clientPin)
 
 	// enter PIN to reveal message
-	require.NoError(t, page.Locator("#pin").Fill(testPin))
-	require.NoError(t, page.Locator("button[type='submit']").Click())
+	require.NoError(t, clientPin.Fill(testPin))
+	require.NoError(t, page.Locator("#decrypt-btn").Click())
 	messageText := page.Locator("textarea#decoded-msg-text")
 	waitVisible(t, messageText)
 
@@ -274,17 +270,16 @@ func TestSecret_WrongPin(t *testing.T) {
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
 
-	// extract key from link
-	messageKey := extractMessageKey(t, secretLink)
-
-	// navigate to message page
-	_, err = page.Goto(baseURL + "/message/" + messageKey)
+	// navigate to message page (use full link with #key for client-side decryption)
+	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
 
-	// enter wrong PIN
-	require.NoError(t, page.Locator("#pin").Fill("99999"))
-	require.NoError(t, page.Locator("button[type='submit']").Click())
-	errorSpan := page.Locator(".error")
+	// enter wrong PIN (client-side form uses #client-pin)
+	clientPin := page.Locator("#client-pin")
+	waitVisible(t, clientPin)
+	require.NoError(t, clientPin.Fill("99999"))
+	require.NoError(t, page.Locator("#decrypt-btn").Click())
+	errorSpan := page.Locator("#client-pin-error .error")
 	waitVisible(t, errorSpan)
 
 	errorText, err := errorSpan.TextContent()
@@ -308,26 +303,27 @@ func TestSecret_MaxAttempts(t *testing.T) {
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
 
-	// extract key from link
-	messageKey := extractMessageKey(t, secretLink)
-
 	// try wrong PIN 3 times (max attempts)
 	for range 3 {
-		_, err = page.Goto(baseURL + "/message/" + messageKey)
+		_, err = page.Goto(secretLink)
 		require.NoError(t, err)
-		require.NoError(t, page.Locator("#pin").Fill("99999"))
-		require.NoError(t, page.Locator("button[type='submit']").Click())
-		errorSpan := page.Locator(".error")
+		clientPin := page.Locator("#client-pin")
+		waitVisible(t, clientPin)
+		require.NoError(t, clientPin.Fill("99999"))
+		require.NoError(t, page.Locator("#decrypt-btn").Click())
+		errorSpan := page.Locator("#client-pin-error .error")
 		waitVisible(t, errorSpan)
 	}
 
 	// after max attempts, message should be deleted
 	// navigate again and check for error
-	_, err = page.Goto(baseURL + "/message/" + messageKey)
+	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
-	require.NoError(t, page.Locator("#pin").Fill(testPin)) // even correct PIN
-	require.NoError(t, page.Locator("button[type='submit']").Click())
-	errorCard := page.Locator(".card:has-text('Message Unavailable')")
+	clientPin := page.Locator("#client-pin")
+	waitVisible(t, clientPin)
+	require.NoError(t, clientPin.Fill(testPin)) // even correct PIN
+	require.NoError(t, page.Locator("#decrypt-btn").Click())
+	errorCard := page.Locator(".error-card .error-message, #client-pin-error .error")
 	waitVisible(t, errorCard)
 }
 
@@ -346,24 +342,30 @@ func TestSecret_AlreadyViewed(t *testing.T) {
 	// get the generated link
 	secretLink, err := linkTextarea.InputValue()
 	require.NoError(t, err)
+	assert.Contains(t, secretLink, "/message/")
 
-	// extract key from link
-	messageKey := extractMessageKey(t, secretLink)
-
-	// first access - should succeed
-	_, err = page.Goto(baseURL + "/message/" + messageKey)
+	// first access - should succeed (use full link with #key for client-side decryption)
+	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
-	require.NoError(t, page.Locator("#pin").Fill(testPin))
-	require.NoError(t, page.Locator("button[type='submit']").Click())
+	clientPin := page.Locator("#client-pin")
+	waitVisible(t, clientPin)
+	require.NoError(t, clientPin.Fill(testPin))
+	require.NoError(t, page.Locator("#decrypt-btn").Click())
 	messageText := page.Locator("textarea#decoded-msg-text")
 	waitVisible(t, messageText)
 
 	// second access - should fail (message deleted after first view)
-	_, err = page.Goto(baseURL + "/message/" + messageKey)
+	// navigate to home first to ensure page reloads when going back to secretLink
+	_, err = page.Goto(baseURL)
 	require.NoError(t, err)
-	require.NoError(t, page.Locator("#pin").Fill(testPin))
-	require.NoError(t, page.Locator("button[type='submit']").Click())
-	errorCard := page.Locator(".card:has-text('Message Unavailable')")
+	_, err = page.Goto(secretLink)
+	require.NoError(t, err)
+	clientPin2 := page.Locator("#client-pin")
+	waitVisible(t, clientPin2)
+	require.NoError(t, clientPin2.Fill(testPin))
+	require.NoError(t, page.Locator("#decrypt-btn").Click())
+	// message was deleted, JS replaces form with "Message Unavailable" error card
+	errorCard := page.Locator(".error-card")
 	waitVisible(t, errorCard)
 }
 

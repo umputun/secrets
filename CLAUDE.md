@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Safesecret is a Go-based web service for sharing sensitive information securely. It encrypts messages with a PIN, stores them temporarily, and allows one-time retrieval. The service uses SQLite for storage (both in-memory and persistent modes).
 
-**Paranoid Mode:** Optional zero-knowledge encryption (`--paranoid`) where all encryption/decryption happens client-side using Web Crypto API (AES-128-GCM). The server stores only opaque encrypted blobs and never sees plaintext.
+**Hybrid Encryption:** Route-based encryption mode where UI (web browser) always uses zero-knowledge client-side encryption (Web Crypto API AES-128-GCM), while API always uses server-side encryption. This provides maximum security for interactive users while maintaining API simplicity.
 
 ## Build and Development Commands
 
@@ -74,10 +74,9 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 **Messager** (app/server/server.go):
 ```go
 type Messager interface {
-    MakeMessage(duration time.Duration, msg, pin string) (result *store.Message, err error)
-    MakeFileMessage(req messager.FileRequest) (result *store.Message, err error)
+    MakeMessage(req messager.MsgReq) (result *store.Message, err error)
     LoadMessage(key, pin string) (msg *store.Message, err error)
-    IsFile(key string) bool // checks if message is a file without decrypting
+    IsFile(key string) bool // checks if message is a file without decrypting (false for ClientEnc)
 }
 ```
 
@@ -122,26 +121,32 @@ File messages use a distinct storage format with encrypted metadata:
 - `ParseFileHeader(data)` - extracts filename, content-type, data start position (4KB scan limit)
 - `IsFile(key)` - loads message to check type without decrypting (used for UI to show "Download" vs "Reveal")
 
-### Paranoid Mode Architecture
+### Hybrid Encryption Architecture
 
-Zero-knowledge client-side encryption where server never sees plaintext:
+Route-based encryption where UI uses client-side encryption and API uses server-side encryption:
 
-**Encryption flow:**
+**Encryption modes:**
+- **UI routes** (`/generate-link`): Always client-side encryption (`ClientEnc=true`)
+- **API routes** (`/api/v1/message`): Always server-side encryption (`ClientEnc=false`)
+- The `ClientEnc` field in `store.Message` tracks which mode was used
+
+**Client-side encryption (UI):**
 - Client generates 128-bit AES-GCM key per message (22-char base64url)
 - Key stored only in URL fragment (`#key`) - never sent to server
 - Encryption/decryption happens entirely in browser via Web Crypto API
 - Server stores opaque encrypted blobs, validates PIN via bcrypt hash
+- RequireHTMX middleware ensures JavaScript is present (prevents plaintext storage)
 
-**Payload format (before encryption):**
+**Payload format (client-encrypted, before encryption):**
 - Text: `0x00 || utf8(plaintext)`
 - File: `0x01 || len_be16(filename) || filename || len_be16(contentType) || contentType || data`
 
 **Ciphertext format:** `base64url(IV[12] || encrypted || tag[16])`
 
 **Implementation details:**
-- `MessageProc.Params.Paranoid` flag skips server-side encryption/decryption
-- `IsFile()` always returns false in paranoid mode (server cannot inspect content)
-- Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead
+- `msg.ClientEnc` field determines encryption/decryption path on retrieval
+- `IsFile()` returns false for `ClientEnc=true` messages (server cannot inspect content)
+- Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead (UI route)
 - Client-side crypto module: `app/server/assets/static/js/crypto.js`
 
 ### Middleware Architecture
@@ -166,7 +171,6 @@ Key configuration via environment variables or flags:
 - `SIGN_KEY` - Encryption signing key (required)
 - `ENGINE` - Storage engine: MEMORY or SQLITE (default: MEMORY)
 - `SQLITE_FILE` - SQLite database file path (default: /tmp/secrets.db)
-- `PARANOID` - Enable zero-knowledge client-side encryption (default: false)
 - `MAX_EXPIRE` - Maximum message lifetime (default: 24h)
 - `PIN_SIZE` - PIN length in characters (default: 5)
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)

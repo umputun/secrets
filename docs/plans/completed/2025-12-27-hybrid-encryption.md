@@ -234,7 +234,7 @@
 ---
 
 ### Task 10: Write e2e tests for hybrid mode
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (migrated paranoid tests to hybrid_test.go)
 
 **Files:**
 - Modify: `e2e/hybrid_test.go` (new file)
@@ -258,7 +258,7 @@
 ---
 
 ### Task 11: Remove old paranoid e2e tests
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (removed paranoid_test.go, tests migrated to hybrid_test.go)
 
 **Files:**
 - Delete or modify: `e2e/paranoid_test.go`
@@ -273,7 +273,7 @@
 ---
 
 ### Task 12: Update documentation
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (updated CLAUDE.md and README.md)
 
 **Files:**
 - Modify: `CLAUDE.md`
@@ -290,7 +290,7 @@
 ---
 
 ### Task 13: Final validation
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (all tests pass, linter clean)
 
 **Steps:**
 1. Run `go test -race ./...`
