@@ -48,7 +48,6 @@ type Config struct {
 	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
 
 	EmailEnabled           bool // email sharing (optional)
-	Paranoid               bool // paranoid mode - client-side encryption only
 	DisableSecurityHeaders bool // skip security headers when proxy handles them
 }
 
@@ -128,7 +127,6 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 		BaseURL:      baseURL,
 		FilesEnabled: s.cfg.EnableFiles,
 		MaxFileSize:  s.cfg.MaxFileSize,
-		Paranoid:     s.cfg.Paranoid,
 	}
 }
 
@@ -177,13 +175,9 @@ func (s Server) Run(ctx context.Context) error {
 func (s Server) routes() http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
-	// determine size limit based on mode and whether files are enabled
+	// determine size limit based on whether files are enabled
 	sizeLimit := int64(64 * 1024) // 64KB default for text-only
-	if s.cfg.Paranoid {
-		// paranoid mode: base64 adds ~33% overhead, use MaxFileSize * 1.4 for all requests
-		// (server can't distinguish text from files in paranoid mode)
-		sizeLimit = int64(float64(s.cfg.MaxFileSize) * 1.4)
-	} else if s.cfg.EnableFiles {
+	if s.cfg.EnableFiles {
 		sizeLimit = s.cfg.MaxFileSize + 10*1024 // file size + 10KB for form overhead
 	}
 
@@ -379,14 +373,12 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 		MaxExpSecs     int   `json:"max_exp_sec"`
 		FilesEnabled   bool  `json:"files_enabled"`
 		MaxFileSize    int64 `json:"max_file_size"`
-		Paranoid       bool  `json:"paranoid"`
 	}{
 		PinSize:        s.cfg.PinSize,
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 		FilesEnabled:   s.cfg.EnableFiles,
 		MaxFileSize:    s.cfg.MaxFileSize,
-		Paranoid:       s.cfg.Paranoid,
 	}
 	rest.RenderJSON(w, params)
 }

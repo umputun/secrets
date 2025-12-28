@@ -28,7 +28,6 @@ var opts struct {
 	Branding       string        `long:"branding" env:"BRANDING" default:"Safe Secrets" description:"application branding/title"`
 	BrandingURL    string        `long:"branding-url" env:"BRANDING_URL" default:"https://safesecret.info" description:"branding link URL for emails"`
 	Dbg            bool          `long:"dbg" description:"debug mode"`
-	Paranoid       bool          `long:"paranoid" env:"PARANOID" description:"paranoid mode - client-side encryption only"`
 	Domain         []string      `short:"d" long:"domain" env:"DOMAIN" env-delim:"," description:"site domain(s)" required:"true"`
 	Protocol       string        `short:"p" long:"protocol" env:"PROTOCOL" description:"site protocol" choice:"http" choice:"https" default:"https" required:"true"`
 	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
@@ -79,10 +78,6 @@ func main() {
 		log.Printf("[INFO]  authentication enabled (session TTL: %v)", opts.Auth.SessionTTL)
 	}
 
-	if opts.Paranoid {
-		log.Printf("[INFO]  paranoid mode enabled (client-side encryption only)")
-	}
-
 	// create email sender if enabled
 	var emailSender *email.Sender
 	if opts.Email.Enabled {
@@ -124,7 +119,6 @@ func main() {
 		AuthHash:               opts.Auth.Hash,
 		SessionTTL:             opts.Auth.SessionTTL,
 		EmailEnabled:           opts.Email.Enabled,
-		Paranoid:               opts.Paranoid,
 		DisableSecurityHeaders: opts.ProxySecurityHeaders,
 	})
 	if err != nil {

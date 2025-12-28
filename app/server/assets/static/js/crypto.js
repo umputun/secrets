@@ -1,4 +1,4 @@
-// crypto.js - client-side AES-128-GCM encryption for paranoid mode
+// crypto.js - client-side AES-128-GCM encryption for UI messages
 // uses Web Crypto API, requires HTTPS (or localhost)
 
 'use strict';

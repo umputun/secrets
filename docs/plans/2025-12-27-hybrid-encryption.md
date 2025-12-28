@@ -129,7 +129,7 @@
 ---
 
 ### Task 6: Update templates and JS for hybrid mode
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (removed Paranoid conditionals, runtime #key detection for retrieval)
 
 **Files:**
 - Modify: `app/server/assets/html/index.tmpl.html`
@@ -167,7 +167,7 @@
 ---
 
 ### Task 7: Update params endpoint
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (removed Paranoid from params response)
 
 **Files:**
 - Modify: `app/server/server.go`
@@ -185,7 +185,7 @@
 ---
 
 ### Task 8: Update Server struct and initialization
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (removed Paranoid from Config, main.go, templateData)
 
 **Files:**
 - Modify: `app/server/server.go`
@@ -202,7 +202,7 @@
 ---
 
 ### Task 9: Clean up file upload handling
-- [ ] **Status: Not started**
+- [x] **Status: Completed** (updated tests for proper HTTP status codes)
 
 **Files:**
 - Modify: `app/messager/messager.go`

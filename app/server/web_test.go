@@ -415,7 +415,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 			name:           "invalid pin",
 			setupMsg:       true,
 			pin:            []string{"9", "9", "9", "9", "9"},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusForbidden,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
 			},
@@ -425,7 +425,7 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 			setupMsg:       false,
 			useKey:         "nonexistent",
 			pin:            []string{"1", "2", "3", "4", "5"},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusNotFound,
 			checkResponse: func(t *testing.T, body string) {
 				assert.Contains(t, body, "error")
 			},
@@ -1378,7 +1378,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 
 		srv.loadMessageCtrl(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusForbidden, rr.Code)
 		assert.Contains(t, rr.Body.String(), "error")
 		assert.Empty(t, rr.Header().Get("Content-Disposition")) // no download headers
 	})
