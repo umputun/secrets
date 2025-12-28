@@ -72,3 +72,22 @@ func IsNumber(value string) bool {
 func MaxDuration(d, maxDuration time.Duration) bool {
 	return d <= maxDuration
 }
+
+// IsBase64URL validates that a string is valid base64url format with minimum length for encrypted content.
+// checks: valid base64url characters (A-Za-z0-9-_), no padding (=), minimum 39 chars (12-byte IV + 1-byte type + 16-byte tag = 29 bytes).
+func IsBase64URL(value string) bool {
+	const minLen = 39 // 29 bytes raw (12 IV + 1 type + 16 tag) → 39 base64 chars
+	if len(value) < minLen {
+		return false
+	}
+	for _, c := range value {
+		if !isBase64URLChar(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func isBase64URLChar(c rune) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+}

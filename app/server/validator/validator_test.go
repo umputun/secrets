@@ -405,3 +405,28 @@ func TestValidator_MinChars(t *testing.T) {
 		})
 	}
 }
+
+func TestValidator_IsBase64URL(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "valid base64url, exact minimum length", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm", want: true},
+		{name: "valid base64url, longer than minimum", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop", want: true},
+		{name: "valid base64url with dash and underscore", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ-_abcdefghijk", want: true},
+		{name: "too short 38 chars", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl", want: false},
+		{name: "empty string", value: "", want: false},
+		{name: "contains space", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghi", want: false},
+		{name: "contains plus (standard base64)", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ+abcdefghi", want: false},
+		{name: "contains slash (standard base64)", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghi", want: false},
+		{name: "contains padding (standard base64)", value: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh==", want: false},
+		{name: "plaintext with punctuation", value: "Hello, this is a secret message!", want: false},
+		{name: "plaintext without special chars but short", value: "HelloWorld", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsBase64URL(tt.value))
+		})
+	}
+}
