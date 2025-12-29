@@ -79,6 +79,8 @@ type templateData struct {
 	FilesEnabled   bool   // true if file uploads are enabled
 	MaxFileSize    int64  // max file size in bytes
 	IsFile         bool   // true if the message is a file (for show-message template)
+	AllowNoPin     bool   // true if PIN-less secrets are allowed
+	HasPin         bool   // true if the message requires PIN (for show-message template)
 }
 
 // render renders a template
@@ -165,11 +167,19 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
+	pin := strings.Join(pinValues, "")
+	pinIsEmpty := pin == ""
+
+	// validate PIN: skip validation if AllowNoPin and PIN is empty, otherwise require valid digits
+	if !pinIsEmpty {
+		for _, p := range pinValues {
+			if validator.Blank(p) || !validator.IsNumber(p) {
+				form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+				break
+			}
 		}
+	} else if !s.cfg.AllowNoPin {
+		form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long", s.cfg.PinSize))
 	}
 
 	form.CheckField(validator.NotBlank(form.Message), msgKey, "Message can't be empty")
@@ -202,10 +212,11 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg, err := s.messager.MakeMessage(r.Context(), messager.MsgReq{
-		Duration:  expDuration,
-		Message:   form.Message,
-		Pin:       strings.Join(pinValues, ""),
-		ClientEnc: true, // UI always uses client-side encryption
+		Duration:      expDuration,
+		Message:       form.Message,
+		Pin:           pin,
+		ClientEnc:     true, // UI always uses client-side encryption
+		AllowEmptyPin: s.cfg.AllowNoPin && pinIsEmpty,
 	})
 	if err != nil {
 		s.render(w, http.StatusOK, "secure-link.tmpl.html", errorTmpl, err.Error())
@@ -273,6 +284,14 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	data.IsMessagePage = true                         // prevent indexing of sensitive message pages
 	data.IsFile = s.messager.IsFile(r.Context(), key) // check if message is a file for button label
 
+	// check if message requires PIN (for conditional UI rendering)
+	// default to true (show PIN form) if message not found - let loadMessageCtrl handle the error
+	hasPin, err := s.messager.HasPin(r.Context(), key)
+	if err != nil {
+		hasPin = true // default to PIN form if message not found
+	}
+	data.HasPin = hasPin
+
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
 
@@ -302,16 +321,29 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		Key: r.PostForm.Get("key"),
 	}
 
+	// check if message requires PIN before validating PIN input
+	// default to true (require PIN) if HasPin fails - let LoadMessage handle the actual error
+	hasPin, hasPinErr := s.messager.HasPin(r.Context(), form.Key)
+	if hasPinErr != nil {
+		hasPin = true // default to PIN form if message not found
+	}
+
 	pinValues := r.Form["pin"]
-	for _, p := range pinValues {
-		if validator.Blank(p) || !validator.IsNumber(p) {
-			form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-			break
+	pin := strings.Join(pinValues, "")
+
+	// validate PIN only if message requires it (or if we couldn't check)
+	if hasPin {
+		for _, p := range pinValues {
+			if validator.Blank(p) || !validator.IsNumber(p) {
+				form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
+				break
+			}
 		}
 	}
 
 	if !form.Valid() {
 		data := s.newTemplateData(r, form)
+		data.HasPin = hasPin
 
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
 		return
@@ -320,7 +352,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	// check if message is file BEFORE loading (LoadMessage may delete on max attempts)
 	isFile := s.messager.IsFile(r.Context(), form.Key)
 
-	msg, err := s.messager.LoadMessage(r.Context(), form.Key, strings.Join(pinValues, ""))
+	msg, err := s.messager.LoadMessage(r.Context(), form.Key, pin)
 	if err != nil {
 		s.handleLoadMessageError(w, r, &form, err, isFile)
 		return
@@ -406,6 +438,7 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	form.AddFieldError("pin", err.Error())
 	data := s.newTemplateData(r, form)
 	data.IsFile = isFile // use pre-checked value (message may be deleted after max attempts)
+	data.HasPin = true   // message has PIN (otherwise we wouldn't get wrong PIN error)
 	tmpl := baseTmpl     // full page for non-HTMX (JS fetch handles full page)
 	if isHTMX {
 		tmpl = mainTmpl // partial for HTMX swap

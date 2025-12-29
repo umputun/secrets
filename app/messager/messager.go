@@ -54,10 +54,11 @@ type Params struct {
 
 // MsgReq contains data for message creation
 type MsgReq struct {
-	Duration  time.Duration
-	Pin       string
-	Message   string
-	ClientEnc bool // true for client-side encryption (UI), false for server-side (API)
+	Duration      time.Duration
+	Pin           string
+	Message       string
+	ClientEnc     bool // true for client-side encryption (UI), false for server-side (API)
+	AllowEmptyPin bool // true to allow creating messages without PIN protection
 }
 
 // FileRequest contains data for file message creation
@@ -108,16 +109,20 @@ func New(engine Engine, crypter Crypter, params Params) *MessageProc {
 // If ClientEnc is true, data is stored as-is (client handles encryption).
 // If ClientEnc is false, data is encrypted server-side with pin.
 func (p MessageProc) MakeMessage(ctx context.Context, req MsgReq) (result *store.Message, err error) {
-	if req.Pin == "" {
+	if req.Pin == "" && !req.AllowEmptyPin {
 		log.Printf("[WARN] save rejected, empty pin")
 		return nil, ErrBadPin
 	}
 
-	pinHash, err := p.makeHash(req.Pin)
-	if err != nil {
-		log.Printf("[ERROR] can't hash pin, %v", err)
-		return nil, ErrInternal
+	var pinHash string
+	if req.Pin != "" {
+		pinHash, err = p.makeHash(req.Pin)
+		if err != nil {
+			log.Printf("[ERROR] can't hash pin, %v", err)
+			return nil, ErrInternal
+		}
 	}
+	// when Pin is empty and AllowEmptyPin is true, pinHash stays empty string
 
 	if req.Duration > p.MaxDuration {
 		log.Printf("[ERROR] can't use duration, %v > %v", req.Duration, p.MaxDuration)
@@ -214,8 +219,15 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 	return msg, nil
 }
 
-// checkHash verifies msg.PinHash with provided pin
+// checkHash verifies msg.PinHash with provided pin.
+// Returns true when both stored hash and provided pin are empty (PIN-less message).
 func (p MessageProc) checkHash(msg *store.Message, pin string) bool {
+	if msg.PinHash == "" && pin == "" {
+		return true // PIN-less message accessed without PIN
+	}
+	if msg.PinHash == "" || pin == "" {
+		return false // mismatch: one is empty, the other is not
+	}
 	return bcrypt.CompareHashAndPassword([]byte(msg.PinHash), []byte(pin)) == nil
 }
 
@@ -240,6 +252,17 @@ func (p MessageProc) IsFile(ctx context.Context, key string) bool {
 		return false // server can't inspect client-encrypted content
 	}
 	return IsFileMessage(msg.Data)
+}
+
+// HasPin checks if a message requires PIN for access.
+// Returns true if message has a PIN hash, false if PIN-less.
+// Returns error if message doesn't exist.
+func (p MessageProc) HasPin(ctx context.Context, key string) (bool, error) {
+	msg, err := p.engine.Load(ctx, key)
+	if err != nil {
+		return false, fmt.Errorf("load message: %w", err)
+	}
+	return msg.PinHash != "", nil
 }
 
 // MakeFileMessage creates a message from file data with unencrypted prefix for metadata.

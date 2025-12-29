@@ -965,6 +965,56 @@ button[type="submit"]:disabled {
     filter: invert(1);
 }
 
+/* No-PIN confirmation modal */
+.no-pin-modal-content {
+    max-width: 480px;
+    text-align: center;
+}
+
+.no-pin-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-lg);
+}
+
+.no-pin-title svg {
+    color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.no-pin-description {
+    font-size: var(--text-base);
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.no-pin-hint {
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-xl);
+}
+
+.no-pin-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+}
+
+.no-pin-actions .second-btn,
+.no-pin-actions .main-btn {
+    flex: 1;
+    max-width: 160px;
+    white-space: nowrap;
+}
+
 /* Form popups (login, email) */
 .login-popup,
 .email-popup {

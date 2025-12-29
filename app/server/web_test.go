@@ -77,7 +77,7 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Len(t, cache, 12)
+	assert.Len(t, cache, 13)
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
@@ -90,6 +90,7 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 	assert.NotNil(t, cache["login-popup.tmpl.html"])
 	assert.NotNil(t, cache["email-popup.tmpl.html"])
 	assert.NotNil(t, cache["email-sent.tmpl.html"])
+	assert.NotNil(t, cache["no-pin-modal.tmpl.html"])
 }
 
 func TestServer_indexCtrl(t *testing.T) {
@@ -322,6 +323,64 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServer_generateLinkCtrl_EmptyPinAllowed(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			PinSize: 5, MaxPinAttempts: 3, MaxExpire: 10 * time.Hour,
+			Protocol: "https", Domain: []string{"example.com"}, AllowNoPin: true,
+		})
+	require.NoError(t, err)
+
+	formData := url.Values{
+		"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
+		"exp":     {"15"},
+		"expUnit": {"m"},
+		"pin":     {"", "", "", "", ""}, // empty PIN
+	}
+	req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	srv.generateLinkCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "https://example.com/message/") // link generated
+}
+
+func TestServer_generateLinkCtrl_EmptyPinRejected(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration: 10 * time.Hour, MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			PinSize: 5, MaxPinAttempts: 3, MaxExpire: 10 * time.Hour,
+			Protocol: "https", Domain: []string{"example.com"}, AllowNoPin: false,
+		})
+	require.NoError(t, err)
+
+	formData := url.Values{
+		"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
+		"exp":     {"15"},
+		"expUnit": {"m"},
+		"pin":     {"", "", "", "", ""}, // empty PIN
+	}
+	req := httptest.NewRequest(http.MethodPost, "/generate-link", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	srv.generateLinkCtrl(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Pin must be 5 digits long") // error shown
 }
 
 func TestServer_generateLinkCtrl_HTMX(t *testing.T) {

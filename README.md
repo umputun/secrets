@@ -178,6 +178,9 @@ All options work as both CLI flags and environment variables.
 | `--pinsize` | `PIN_SIZE` | `5` | PIN length in characters |
 | `--expire` | `MAX_EXPIRE` | `24h` | Maximum message lifetime |
 | `--pinattempts` | `PIN_ATTEMPTS` | `3` | Max wrong PIN attempts |
+| `--allow-no-pin` | `ALLOW_NO_PIN` | `false` | Allow creating secrets without PIN protection |
+
+When `--allow-no-pin` is enabled, users can skip PIN entry during secret creation. A confirmation modal ensures this is intentional. Use this for workflows where the sharing channel itself is already secure (e.g., Signal, iMessage, or other E2E encrypted messengers).
 
 ### Storage
 
