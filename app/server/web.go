@@ -172,13 +172,11 @@ func (s Server) generateLinkCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate PIN: skip validation if AllowNoPin and PIN is empty, otherwise require valid digits
 	if !pinIsEmpty {
-		for _, p := range pinValues {
-			if validator.Blank(p) || !validator.IsNumber(p) {
-				form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-				break
-			}
+		if err := validatePIN(pin, pinValues, s.cfg.PinSize); err != "" {
+			form.AddFieldError(pinKey, err)
 		}
-	} else if !s.cfg.AllowNoPin {
+	}
+	if pinIsEmpty && !s.cfg.AllowNoPin {
 		form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long", s.cfg.PinSize))
 	}
 
@@ -333,11 +331,8 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// validate PIN only if message requires it (or if we couldn't check)
 	if hasPin {
-		for _, p := range pinValues {
-			if validator.Blank(p) || !validator.IsNumber(p) {
-				form.AddFieldError(pinKey, fmt.Sprintf("Pin must be %d digits long without empty values", s.cfg.PinSize))
-				break
-			}
+		if err := validatePIN(pin, pinValues, s.cfg.PinSize); err != "" {
+			form.AddFieldError(pinKey, err)
 		}
 	}
 
@@ -460,6 +455,20 @@ func duration(n int, unit string) time.Duration {
 	default:
 		return time.Duration(0)
 	}
+}
+
+// validatePIN checks if PIN has correct length and contains only digits.
+// returns error message or empty string if valid.
+func validatePIN(pin string, pinValues []string, pinSize int) string {
+	if len(pin) != pinSize {
+		return fmt.Sprintf("Pin must be exactly %d digits", pinSize)
+	}
+	for _, p := range pinValues {
+		if validator.Blank(p) || !validator.IsNumber(p) {
+			return fmt.Sprintf("Pin must be %d digits long without empty values", pinSize)
+		}
+	}
+	return ""
 }
 
 // humanDuration converts a time.Duration into a human readable string like "5 minutes"

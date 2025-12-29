@@ -235,11 +235,11 @@ func TestServer_generateLinkCtrl(t *testing.T) {
 				"message": {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"},
 				"exp":     {"15"},
 				"expUnit": {"m"},
-				"pin":     {"1", "2", "", "4", "5"},
+				"pin":     {"1", "2", "", "4", "5"}, // joined = "1245" which is 4 chars, not 5
 			},
 			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, body string) {
-				assert.Contains(t, body, "Pin must be 5 digits long without empty values")
+				assert.Contains(t, body, "Pin must be exactly 5 digits")
 			},
 		},
 		{
