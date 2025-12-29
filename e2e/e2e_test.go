@@ -323,7 +323,8 @@ func TestSecret_MaxAttempts(t *testing.T) {
 	waitVisible(t, clientPin)
 	require.NoError(t, clientPin.Fill(testPin)) // even correct PIN
 	require.NoError(t, page.Locator("#decrypt-btn").Click())
-	errorCard := page.Locator(".error-card .error-message, #client-pin-error .error")
+	// use .First() because error-card may have multiple .error-message paragraphs
+	errorCard := page.Locator(".error-card .error-message, #client-pin-error .error").First()
 	waitVisible(t, errorCard)
 }
 
