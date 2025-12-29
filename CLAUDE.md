@@ -149,6 +149,36 @@ Route-based encryption where UI uses client-side encryption and API uses server-
 - Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead (UI route)
 - Client-side crypto module: `app/server/assets/static/js/crypto.js`
 
+### Optional PIN Architecture
+
+When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created without PIN protection for use cases where the sharing channel is already secure (Signal, iMessage, etc.).
+
+**Feature control:**
+- Operator-controlled flag (default: false)
+- Only affects web UI routes - API always requires PIN
+- `AllowNoPin` in server.Config, passed to templates via `templateData.AllowNoPin`
+
+**Creation flow (UI only):**
+1. User leaves PIN field empty during secret creation
+2. JavaScript detects empty PIN, shows confirmation modal
+3. On confirm: proceeds with client-side encryption, stores empty `PinHash`
+4. On cancel: refocuses PIN field
+
+**Storage:**
+- `PinHash` stored as empty string (`""`) for PIN-less messages
+- No schema changes - empty string is valid
+- `MsgReq.AllowEmptyPin` flag controls whether empty PIN is accepted
+
+**Retrieval flow:**
+- `HasPin(key)` checks if message requires PIN (`msg.PinHash != ""`)
+- UI adapts: PIN-less shows "Reveal Secret" button, with-PIN shows decrypt form
+- `checkHash()` returns true when both stored hash and provided PIN are empty
+
+**Key methods:**
+- `HasPin(ctx, key) (bool, error)` - checks if message requires PIN
+- `checkHash(msg, pin)` - returns true when both are empty
+- `validatePIN(pin, pinValues, pinSize) error` - validates PIN format
+
 ### Middleware Architecture
 - **rest.RealIP middleware** - Extracts client IP from headers for CDN/proxy compatibility (from go-pkgz/rest v1.20.6+)
   - Header priority: X-Real-IP → CF-Connecting-IP → leftmost public IP in X-Forwarded-For → RemoteAddr
@@ -174,6 +204,7 @@ Key configuration via environment variables or flags:
 - `MAX_EXPIRE` - Maximum message lifetime (default: 24h)
 - `PIN_SIZE` - PIN length in characters (default: 5)
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
+- `ALLOW_NO_PIN` - Allow creating secrets without PIN protection (default: false)
 - `DOMAIN` - Allowed domain(s), supports comma-separated list (e.g., "example.com,alt.example.com")
 - `PROTOCOL` - http or https (default: https)
 - `LISTEN` - Server listen address, ip:port or :port format (default: :8080)

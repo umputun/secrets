@@ -1,0 +1,26 @@
+{{define "no-pin-modal"}}
+{{if .AllowNoPin}}
+<div id="no-pin-modal" class="popup">
+    <div class="popup-content no-pin-modal-content">
+        <h2 class="no-pin-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            Create without PIN?
+        </h2>
+        <p class="no-pin-description">
+            Anyone with this link can access your secret once. After viewing, it will be permanently deleted.
+        </p>
+        <p class="no-pin-hint">
+            Use this option when sharing via secure channels like Signal, iMessage, or other encrypted messengers.
+        </p>
+        <div class="no-pin-actions">
+            <button type="button" id="no-pin-cancel" class="second-btn">Add PIN</button>
+            <button type="button" id="no-pin-confirm" class="main-btn">Continue</button>
+        </div>
+    </div>
+</div>
+{{end}}
+{{end}}

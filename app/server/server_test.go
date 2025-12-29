@@ -249,7 +249,69 @@ func TestServer_getParams(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":1048576}`+"\n", string(body))
+	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":1048576,"allow_no_pin":false}`+"\n", string(body))
+}
+
+func TestServer_getParams_AllowNoPin(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			AllowNoPin:     true,
+		})
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+
+	client := http.Client{Timeout: time.Second}
+	url := ts.URL + "/api/v1/params"
+	req, err := http.NewRequest("GET", url, http.NoBody)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":0,"allow_no_pin":true}`+"\n", string(body))
+}
+
+// TestServer_saveMessageCtrl_APIRejectsEmptyPinEvenWithAllowNoPin verifies that API endpoint
+// still requires PIN even when AllowNoPin is enabled (AllowNoPin only affects web UI)
+func TestServer_saveMessageCtrl_APIRejectsEmptyPinEvenWithAllowNoPin(t *testing.T) {
+	eng := store.NewInMemory(time.Second)
+	srv, err := New(
+		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+			MaxDuration:    10 * time.Hour,
+			MaxPinAttempts: 3,
+		}),
+		"1",
+		Config{
+			Domain:         []string{"example.com"},
+			PinSize:        5,
+			MaxPinAttempts: 3,
+			MaxExpire:      10 * time.Hour,
+			AllowNoPin:     true, // enabled, but API should still reject empty PIN
+		})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/message", strings.NewReader(`{"message": "secret", "exp": 600, "pin": ""}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	srv.saveMessageCtrl(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "incorrect pin size")
 }
 
 func TestServer_saveMessageCtrl(t *testing.T) {

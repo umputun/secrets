@@ -48,6 +48,7 @@ type Config struct {
 	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
 
 	EmailEnabled           bool // email sharing (optional)
+	AllowNoPin             bool // allow creating secrets without PIN protection
 	DisableSecurityHeaders bool // skip security headers when proxy handles them
 }
 
@@ -104,7 +105,8 @@ type Messager interface {
 	MakeMessage(ctx context.Context, req messager.MsgReq) (result *store.Message, err error)
 	MakeFileMessage(ctx context.Context, req messager.FileRequest) (result *store.Message, err error)
 	LoadMessage(ctx context.Context, key, pin string) (msg *store.Message, err error)
-	IsFile(ctx context.Context, key string) bool // checks if message is a file without decrypting
+	IsFile(ctx context.Context, key string) bool          // checks if message is a file without decrypting
+	HasPin(ctx context.Context, key string) (bool, error) // checks if message requires PIN
 }
 
 // newTemplateData creates a templateData with common fields populated
@@ -127,6 +129,7 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 		BaseURL:      baseURL,
 		FilesEnabled: s.cfg.EnableFiles,
 		MaxFileSize:  s.cfg.MaxFileSize,
+		AllowNoPin:   s.cfg.AllowNoPin,
 	}
 }
 
@@ -374,12 +377,14 @@ func (s Server) getParamsCtrl(w http.ResponseWriter, _ *http.Request) {
 		MaxExpSecs     int   `json:"max_exp_sec"`
 		FilesEnabled   bool  `json:"files_enabled"`
 		MaxFileSize    int64 `json:"max_file_size"`
+		AllowNoPin     bool  `json:"allow_no_pin"`
 	}{
 		PinSize:        s.cfg.PinSize,
 		MaxPinAttempts: s.cfg.MaxPinAttempts,
 		MaxExpSecs:     int(s.cfg.MaxExpire.Seconds()),
 		FilesEnabled:   s.cfg.EnableFiles,
 		MaxFileSize:    s.cfg.MaxFileSize,
+		AllowNoPin:     s.cfg.AllowNoPin,
 	}
 	rest.RenderJSON(w, params)
 }

@@ -44,6 +44,38 @@ func TestMessageProc_MakeMessage(t *testing.T) {
 	assert.Len(t, c.EncryptCalls(), 1)
 }
 
+func TestMessageProc_MakeMessage_EmptyPinAllowed(t *testing.T) {
+	s := &EngineMock{
+		SaveFunc: func(ctx context.Context, msg *store.Message) error { return nil },
+	}
+	c := &CrypterMock{
+		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted blah"), nil },
+	}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.MakeMessage(t.Context(), MsgReq{
+		Duration: time.Second * 30, Message: "message", Pin: "", ClientEnc: true, AllowEmptyPin: true,
+	})
+	t.Logf("%+v", r)
+	require.NoError(t, err)
+	assert.Equal(t, "message", string(r.Data), "data should be stored as-is for client-enc")
+	assert.Empty(t, r.PinHash, "pin hash should be empty")
+	assert.Len(t, s.SaveCalls(), 1)
+	assert.Empty(t, c.EncryptCalls(), "no encryption for client-enc")
+}
+
+func TestMessageProc_MakeMessage_EmptyPinRejected(t *testing.T) {
+	s := &EngineMock{}
+	c := &CrypterMock{}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	_, err := m.MakeMessage(t.Context(), MsgReq{
+		Duration: time.Second * 30, Message: "message", Pin: "", ClientEnc: true, AllowEmptyPin: false,
+	})
+	require.EqualError(t, err, ErrBadPin.Error())
+	assert.Empty(t, s.SaveCalls())
+}
+
 func TestMessageProc_MakeMessage_Errors(t *testing.T) {
 	s := &EngineMock{}
 	c := &CrypterMock{}
@@ -320,6 +352,87 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 	assert.Len(t, s.RemoveCalls(), 1)
 	assert.Empty(t, s.IncErrCalls())
 	assert.Len(t, c.DecryptCalls(), 1)
+}
+
+func TestMessageProc_LoadMessage_NoPinMessage(t *testing.T) {
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:      []byte("client-encrypted-blob"),
+				PinHash:   "", // no PIN
+				Exp:       time.Now().Add(1 * time.Minute),
+				ClientEnc: true,
+			}, nil
+		},
+		RemoveFunc: func(ctx context.Context, key string) error { return nil },
+	}
+	c := &CrypterMock{}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(t.Context(), "somekey", "") // empty PIN
+
+	require.NoError(t, err)
+	assert.Equal(t, "client-encrypted-blob", string(r.Data))
+	assert.Empty(t, r.PinHash)
+	assert.Len(t, s.LoadCalls(), 1)
+	assert.Len(t, s.RemoveCalls(), 1)
+	assert.Empty(t, c.DecryptCalls(), "no decryption for client-enc")
+}
+
+func TestMessageProc_LoadMessage_NoPinMessage_WithPinProvided(t *testing.T) {
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:      []byte("client-encrypted-blob"),
+				PinHash:   "", // no PIN stored
+				Exp:       time.Now().Add(1 * time.Minute),
+				ClientEnc: true,
+			}, nil
+		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
+	}
+	c := &CrypterMock{}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	_, err := m.LoadMessage(t.Context(), "somekey", "12345") // PIN provided but message has no PIN
+
+	require.EqualError(t, err, "wrong pin attempt")
+	assert.Len(t, s.IncErrCalls(), 1)
+}
+
+func TestMessageProc_HasPin(t *testing.T) {
+	tests := []struct {
+		name    string
+		pinHash string
+		loadErr error
+		want    bool
+		wantErr bool
+	}{
+		{name: "has pin", pinHash: "$2a$10$hash", loadErr: nil, want: true, wantErr: false},
+		{name: "no pin", pinHash: "", loadErr: nil, want: false, wantErr: false},
+		{name: "load error", pinHash: "", loadErr: errors.New("not found"), want: false, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &EngineMock{
+				LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+					if tt.loadErr != nil {
+						return nil, tt.loadErr
+					}
+					return &store.Message{PinHash: tt.pinHash}, nil
+				},
+			}
+			m := New(s, nil, Params{})
+			got, err := m.HasPin(t.Context(), "test-key")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestMessageProc_MakeFileMessage(t *testing.T) {

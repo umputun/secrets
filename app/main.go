@@ -33,6 +33,7 @@ var opts struct {
 	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
 
 	ProxySecurityHeaders bool `long:"proxy-security-headers" env:"PROXY_SECURITY_HEADERS" description:"disable security headers (when proxy handles them)"`
+	AllowNoPin           bool `long:"allow-no-pin" env:"ALLOW_NO_PIN" description:"allow creating secrets without PIN protection"`
 
 	Files struct {
 		Enabled bool  `long:"enabled" env:"ENABLED" description:"enable file uploads"`
@@ -119,6 +120,7 @@ func main() {
 		AuthHash:               opts.Auth.Hash,
 		SessionTTL:             opts.Auth.SessionTTL,
 		EmailEnabled:           opts.Email.Enabled,
+		AllowNoPin:             opts.AllowNoPin,
 		DisableSecurityHeaders: opts.ProxySecurityHeaders,
 	})
 	if err != nil {
