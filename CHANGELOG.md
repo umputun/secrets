@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.2] - 2025-12-29
+
+### Fixed
+- Show friendly 404 error page for non-existent messages instead of confusing PIN form
+
 ## [2.2.1] - 2025-12-29
 
 ### Fixed
