@@ -153,7 +153,8 @@ func newPage(t *testing.T) playwright.Page {
 func waitVisible(t *testing.T, loc playwright.Locator) {
 	t.Helper()
 	require.NoError(t, loc.WaitFor(playwright.LocatorWaitForOptions{
-		State: playwright.WaitForSelectorStateVisible,
+		State:   playwright.WaitForSelectorStateVisible,
+		Timeout: playwright.Float(5000),
 	}))
 }
 
@@ -161,7 +162,8 @@ func waitVisible(t *testing.T, loc playwright.Locator) {
 func waitHidden(t *testing.T, loc playwright.Locator) {
 	t.Helper()
 	require.NoError(t, loc.WaitFor(playwright.LocatorWaitForOptions{
-		State: playwright.WaitForSelectorStateHidden,
+		State:   playwright.WaitForSelectorStateHidden,
+		Timeout: playwright.Float(5000),
 	}))
 }
 
@@ -316,15 +318,12 @@ func TestSecret_MaxAttempts(t *testing.T) {
 	}
 
 	// after max attempts, message should be deleted
-	// navigate again and check for error
+	// navigate away first (HTMX state), then back to secret link to get 404
+	_, err = page.Goto(baseURL)
+	require.NoError(t, err)
 	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
-	clientPin := page.Locator("#client-pin")
-	waitVisible(t, clientPin)
-	require.NoError(t, clientPin.Fill(testPin)) // even correct PIN
-	require.NoError(t, page.Locator("#decrypt-btn").Click())
-	// use .First() because error-card may have multiple .error-message paragraphs
-	errorCard := page.Locator(".error-card .error-message, #client-pin-error .error").First()
+	errorCard := page.Locator("h2:has-text('Message Unavailable')")
 	waitVisible(t, errorCard)
 }
 
@@ -355,19 +354,22 @@ func TestSecret_AlreadyViewed(t *testing.T) {
 	messageText := page.Locator("textarea#decoded-msg-text")
 	waitVisible(t, messageText)
 
-	// second access - should fail (message deleted after first view)
+	// second access - should show 404 immediately (message deleted after first view)
 	// navigate to home first to ensure page reloads when going back to secretLink
 	_, err = page.Goto(baseURL)
 	require.NoError(t, err)
 	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
-	clientPin2 := page.Locator("#client-pin")
-	waitVisible(t, clientPin2)
-	require.NoError(t, clientPin2.Fill(testPin))
-	require.NoError(t, page.Locator("#decrypt-btn").Click())
-	// message was deleted, JS replaces form with "Message Unavailable" error card
-	errorCard := page.Locator(".error-card")
+
+	// should show "Message Unavailable" error page immediately (no PIN form)
+	errorCard := page.Locator("h2:has-text('Message Unavailable')")
 	waitVisible(t, errorCard)
+
+	// verify no PIN form shown
+	pinInput := page.Locator("#client-pin")
+	visible, err := pinInput.IsVisible()
+	require.NoError(t, err)
+	assert.False(t, visible, "PIN input should NOT be visible for deleted messages")
 }
 
 // --- theme tests ---

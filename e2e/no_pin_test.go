@@ -303,6 +303,71 @@ func TestNoPin_SecretWithPinStillWorks(t *testing.T) {
 	assert.Contains(t, content, testMessage, "revealed message should match original")
 }
 
+// TestNoPin_DeletedSecretShows404 verifies accessing a deleted no-pin message shows 404 instead of PIN form.
+func TestNoPin_DeletedSecretShows404(t *testing.T) {
+	cleanup := startNoPinServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+	_, err := page.Goto(noPinServerURL)
+	require.NoError(t, err)
+
+	// create secret without PIN
+	testMessage := "secret to be deleted"
+	require.NoError(t, page.Locator("#message").Fill(testMessage))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	modal := page.Locator("#no-pin-modal")
+	waitVisible(t, modal)
+	require.NoError(t, page.Locator("#no-pin-confirm").Click())
+
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+
+	// navigate to secret page
+	_, err = page.Goto(secretLink)
+	require.NoError(t, err)
+
+	// reveal the secret (this deletes it)
+	decryptBtn := page.Locator("#decrypt-btn")
+	waitVisible(t, decryptBtn)
+	require.NoError(t, decryptBtn.Click())
+
+	// verify message is revealed
+	messageText := page.Locator("textarea#decoded-msg-text")
+	waitVisible(t, messageText)
+
+	// now try to access the same link again - should show 404, not PIN form
+	// first navigate away to ensure a fresh navigation
+	_, err = page.Goto(noPinServerURL + "/about")
+	require.NoError(t, err)
+	_, err = page.Goto(secretLink)
+	require.NoError(t, err)
+
+	// should show "Message Unavailable" error card (not raw 404)
+	errorCard := page.Locator("h2:has-text('Message Unavailable')")
+	waitVisible(t, errorCard)
+
+	// verify error message
+	errorMsg := page.Locator(".card-description")
+	text, err := errorMsg.TextContent()
+	require.NoError(t, err)
+	assert.Contains(t, text, "expired or deleted")
+
+	// should NOT show PIN form or reveal button
+	pinInput := page.Locator("#client-pin")
+	visible, err := pinInput.IsVisible()
+	require.NoError(t, err)
+	assert.False(t, visible, "PIN input should NOT be visible for deleted messages")
+
+	decryptVisible, err := page.Locator("#decrypt-btn").IsVisible()
+	require.NoError(t, err)
+	assert.False(t, decryptVisible, "decrypt button should NOT be visible for deleted messages")
+}
+
 // TestNoPin_DisabledBlocksEmptyPin verifies empty PIN is blocked when AllowNoPin is disabled.
 func TestNoPin_DisabledBlocksEmptyPin(t *testing.T) {
 	// use the default server (without --allow-no-pin)

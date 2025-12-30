@@ -367,6 +367,7 @@ Core libraries used:
 - Located in `e2e/` directory, require build tag: `go test -tags=e2e ./e2e/...`
 - Use Playwright for browser automation
 - **Timeout**: Use 120 seconds max (`timeout 120 go test -tags=e2e ./e2e/...`)
+- **Failfast**: Use `-failfast` to stop on first failure (`go test -failfast -tags=e2e ./e2e/...`)
 - Run headless by default, set `E2E_HEADLESS=false` for UI debugging
 
 ## Deployment Process

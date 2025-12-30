@@ -77,13 +77,14 @@ func TestTemplates_NewTemplateCache(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Len(t, cache, 13)
+	assert.Len(t, cache, 14)
 	assert.NotNil(t, cache["404.tmpl.html"])
 	assert.NotNil(t, cache["about.tmpl.html"])
 	assert.NotNil(t, cache["home.tmpl.html"])
 	assert.NotNil(t, cache["show-message.tmpl.html"])
 	assert.NotNil(t, cache["decoded-message.tmpl.html"])
 	assert.NotNil(t, cache["error.tmpl.html"])
+	assert.NotNil(t, cache["message-error.tmpl.html"])
 	assert.NotNil(t, cache["secure-link.tmpl.html"])
 	assert.NotNil(t, cache["popup.tmpl.html"])
 	assert.NotNil(t, cache["copy-button.tmpl.html"])
@@ -148,35 +149,50 @@ func TestServer_aboutViewCtrl(t *testing.T) {
 
 func TestServer_showMessageViewCtrl(t *testing.T) {
 	eng := store.NewInMemory(time.Second)
-	srv, err := New(
-		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
-			MaxDuration:    10 * time.Hour,
-			MaxPinAttempts: 3,
-		}),
-		"1",
-		Config{
-			Domain:         []string{"example.com"},
-			PinSize:        5,
-			MaxPinAttempts: 3,
-			MaxExpire:      10 * time.Hour,
-			Branding:       "Safe Secrets",
-		})
+	m := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(m, "1", Config{
+		Domain:         []string{"example.com"},
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Safe Secrets",
+	})
 	require.NoError(t, err)
 
-	// create test server with actual routes
 	ts := httptest.NewServer(srv.routes())
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/message/testkey123")
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	t.Run("existing message returns 200", func(t *testing.T) {
+		// create a real message first
+		msg, err := m.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
+		require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+		resp, err := http.Get(ts.URL + "/message/" + msg.Key)
+		require.NoError(t, err)
+		defer resp.Body.Close()
 
-	body := make([]byte, 1024*10) // 10KB buffer
-	n, _ := resp.Body.Read(body)
-	responseBody := string(body[:n])
-	assert.Contains(t, responseBody, "testkey123")
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body := make([]byte, 1024*10)
+		n, _ := resp.Body.Read(body)
+		responseBody := string(body[:n])
+		assert.Contains(t, responseBody, msg.Key)
+	})
+
+	t.Run("non-existent message returns 404 with friendly error", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/message/nonexistent123")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "Message Unavailable")
+		assert.Contains(t, string(body), "message expired or deleted")
+	})
 }
 
 func TestServer_generateLinkCtrl(t *testing.T) {
@@ -1174,20 +1190,18 @@ func TestServer_URLConstruction(t *testing.T) {
 
 func TestServer_SEOMetaTags(t *testing.T) {
 	eng := store.NewInMemory(time.Second)
-	srv, err := New(
-		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
-			MaxDuration:    10 * time.Hour,
-			MaxPinAttempts: 3,
-		}),
-		"test-v",
-		Config{
-			Domain:         []string{"example.com"},
-			PinSize:        5,
-			MaxPinAttempts: 3,
-			MaxExpire:      10 * time.Hour,
-			Branding:       "Test SEO",
-			Protocol:       "https",
-		})
+	m := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
+		MaxDuration:    10 * time.Hour,
+		MaxPinAttempts: 3,
+	})
+	srv, err := New(m, "test-v", Config{
+		Domain:         []string{"example.com"},
+		PinSize:        5,
+		MaxPinAttempts: 3,
+		MaxExpire:      10 * time.Hour,
+		Branding:       "Test SEO",
+		Protocol:       "https",
+	})
 	require.NoError(t, err)
 
 	t.Run("home page has SEO meta tags", func(t *testing.T) {
@@ -1256,8 +1270,13 @@ func TestServer_SEOMetaTags(t *testing.T) {
 	})
 
 	t.Run("message page has noindex meta tag", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/message/test-key-123", http.NoBody)
+		// create a real message first
+		msg, err := m.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "test secret", Pin: "12345"})
+		require.NoError(t, err)
+
+		req := httptest.NewRequest("GET", "/message/"+msg.Key, http.NoBody)
 		req.Host = "example.com"
+		req.SetPathValue("key", msg.Key) // set path value for direct controller call
 		rr := httptest.NewRecorder()
 
 		srv.showMessageViewCtrl(rr, req)
@@ -1268,7 +1287,7 @@ func TestServer_SEOMetaTags(t *testing.T) {
 		// check that message pages have noindex, nofollow
 		assert.Contains(t, body, `<meta name="robots" content="noindex, nofollow">`)
 		// verify canonical URL is still set
-		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/message/test-key-123">`)
+		assert.Contains(t, body, `<link rel="canonical" href="https://example.com/message/`+msg.Key+`">`)
 		// check X-Robots-Tag header for defense-in-depth
 		assert.Equal(t, "noindex, nofollow, noarchive", rr.Header().Get("X-Robots-Tag"))
 	})
@@ -1505,14 +1524,15 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 		assert.NotContains(t, string(body), "Decode Message")
 	})
 
-	t.Run("non-existent key shows decode button by default", func(t *testing.T) {
+	t.Run("non-existent key returns 404 with friendly error", func(t *testing.T) {
 		resp, err := http.Get(ts.URL + "/message/nonexistent-key")
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(resp.Body)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Contains(t, string(body), "Decode Message")
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "Message Unavailable")
 	})
 }
 

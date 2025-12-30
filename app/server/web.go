@@ -277,18 +277,21 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	// set X-Robots-Tag header for defense-in-depth beyond HTML meta
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 
+	// check if message exists and requires PIN (for conditional UI rendering)
+	hasPin, err := s.messager.HasPin(r.Context(), key)
+	if err != nil {
+		// failed to load message - likely expired or deleted, show friendly error
+		s.render(w, http.StatusNotFound, "message-error.tmpl.html", baseTmpl, s.newTemplateData(r, "message expired or deleted"))
+		return
+	}
+
 	data := s.newTemplateData(r, showMsgForm{
 		Key: key,
 	})
-	data.IsMessagePage = true                         // prevent indexing of sensitive message pages
-	data.IsFile = s.messager.IsFile(r.Context(), key) // check if message is a file for button label
-
-	// check if message requires PIN (for conditional UI rendering)
-	// default to true (show PIN form) if message not found - let loadMessageCtrl handle the error
-	hasPin, err := s.messager.HasPin(r.Context(), key)
-	if err != nil {
-		hasPin = true // default to PIN form if message not found
-	}
+	data.IsMessagePage = true // prevent indexing of sensitive message pages
+	// note: IsFile makes a separate DB call even though HasPin already loaded the message.
+	// this is intentional for code clarity - both functions are simple and focused.
+	data.IsFile = s.messager.IsFile(r.Context(), key)
 	data.HasPin = hasPin
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
@@ -320,11 +323,12 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		Key: r.PostForm.Get("key"),
 	}
 
-	// check if message requires PIN before validating PIN input
-	// default to true (require PIN) if HasPin fails - let LoadMessage handle the actual error
-	hasPin, hasPinErr := s.messager.HasPin(r.Context(), form.Key)
-	if hasPinErr != nil {
-		hasPin = true // default to PIN form if message not found
+	// check if message exists before validating PIN input
+	hasPin, err := s.messager.HasPin(r.Context(), form.Key)
+	if err != nil {
+		// message doesn't exist or failed to load - show 404 instead of confusing PIN form
+		s.render(w, http.StatusNotFound, "message-error.tmpl.html", baseTmpl, s.newTemplateData(r, "message expired or deleted"))
+		return
 	}
 
 	pinValues := r.Form["pin"]

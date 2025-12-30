@@ -1,8 +1,10 @@
-{{define "error"}}
+{{define "title"}}Message Unavailable{{end}}
+
+{{define "main"}}
 <div class="card error-card">
-    <div class="card-header" style="text-align: center;">
+    <div class="card-header">
         <h2 class="card-title">Message Unavailable</h2>
-        <p class="error-message" style="color: var(--color-error);">{{.}}</p>
+        <p class="card-description">{{.Form}}</p>
     </div>
     <a class="main-btn" href="/" hx-boost="false">Create New Secret</a>
 </div>

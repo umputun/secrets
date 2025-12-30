@@ -268,25 +268,27 @@ func TestHybrid_UIFlow_OneTimeRead(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "one-time read test", content, "decrypted message should match")
 
-	// second access - message should be deleted, show error
+	// second access - message should be deleted, show 404 immediately
 	_, err = page.Goto(hybridServerURL)
 	require.NoError(t, err)
 	_, err = page.Goto(secretLink)
 	require.NoError(t, err)
 
-	// wait for PIN form to appear (client-side form)
-	pinInput := page.Locator("#client-pin")
-	waitVisible(t, pinInput)
-	require.NoError(t, pinInput.Fill(testPin))
-	require.NoError(t, page.Locator("#decrypt-btn").Click())
-
-	// should show error for deleted/expired message
-	errorCard := page.Locator(".error-card .error-message, #client-pin-error .error")
+	// should show "Message Unavailable" error page immediately (no PIN form)
+	errorCard := page.Locator("h2:has-text('Message Unavailable')")
 	waitVisible(t, errorCard)
 
-	errorText, err := errorCard.First().TextContent()
+	// verify error message content
+	errorMsg := page.Locator(".card-description")
+	errorText, err := errorMsg.TextContent()
 	require.NoError(t, err)
-	assert.NotContains(t, errorText, "Decryption failed", "should show actual error, not decryption failure")
+	assert.Contains(t, errorText, "expired or deleted")
+
+	// verify no PIN form shown
+	pinInput := page.Locator("#client-pin")
+	visible, err := pinInput.IsVisible()
+	require.NoError(t, err)
+	assert.False(t, visible, "PIN input should NOT be visible for deleted messages")
 }
 
 // --- API flow tests (server-side encryption) ---
