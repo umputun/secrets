@@ -42,7 +42,7 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         
         <!-- Stylesheets -->
-        <link rel='stylesheet' href='/static/css/main.css'>
+        <link rel='stylesheet' href='/static/css/main.css?v={{.Version}}'>
         
         <!-- Structured Data JSON-LD -->
         <script type="application/ld+json">
@@ -150,9 +150,9 @@
 
     <div id="popup" class="popup"></div>
 
-    <script src="/static/js/htmx.min.js"></script>
-    <script src="/static/js/htmx-response-targets.js"></script>
-    <script src="/static/js/crypto.js"></script>
+    <script src="/static/js/htmx.min.js?v={{.Version}}"></script>
+    <script src="/static/js/htmx-response-targets.js?v={{.Version}}"></script>
+    <script src="/static/js/crypto.js?v={{.Version}}"></script>
     <script>
         // handle popup events  
         document.body.addEventListener('closePopup', function(evt) {

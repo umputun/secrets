@@ -81,6 +81,7 @@ type templateData struct {
 	IsFile         bool   // true if the message is a file (for show-message template)
 	AllowNoPin     bool   // true if PIN-less secrets are allowed
 	HasPin         bool   // true if the message requires PIN (for show-message template)
+	Version        string // app version for cache busting
 }
 
 // render renders a template

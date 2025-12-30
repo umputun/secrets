@@ -130,6 +130,7 @@ func (s Server) newTemplateData(r *http.Request, form any) templateData {
 		FilesEnabled: s.cfg.EnableFiles,
 		MaxFileSize:  s.cfg.MaxFileSize,
 		AllowNoPin:   s.cfg.AllowNoPin,
+		Version:      s.version,
 	}
 }
 
