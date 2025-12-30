@@ -151,7 +151,7 @@ Route-based encryption where UI uses client-side encryption and API uses server-
 
 ### Optional PIN Architecture
 
-When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created without PIN protection for use cases where the sharing channel is already secure (Signal, iMessage, etc.).
+When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created without PIN protection for use cases where the sharing channel is already secure (Signal or other E2E encrypted messengers).
 
 **Feature control:**
 - Operator-controlled flag (default: false)

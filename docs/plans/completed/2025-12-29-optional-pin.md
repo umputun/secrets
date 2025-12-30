@@ -2,7 +2,7 @@
 
 ## Overview
 
-Allow users to skip PIN protection when creating secrets via the web UI, for use cases where the sharing channel itself is already secure (e.g., Signal, iMessage).
+Allow users to skip PIN protection when creating secrets via the web UI, for use cases where the sharing channel itself is already secure (e.g., Signal or other E2E encrypted messengers).
 
 **Problem:** When sharing secrets via E2E encrypted messengers, requiring a PIN adds friction without meaningful security benefit - the channel already provides the protection.
 
@@ -112,7 +112,7 @@ Allow users to skip PIN protection when creating secrets via the web UI, for use
 ### Iteration 7: Documentation & Cleanup
 
 - [x] Add `--allow-no-pin` to README.md configuration table
-- [x] Document use case (secure channels like Signal/iMessage)
+- [x] Document use case (secure channels like Signal)
 - [x] Code cleanup (linter fixes)
 - [x] **Run `go test ./...` - final validation**
 
