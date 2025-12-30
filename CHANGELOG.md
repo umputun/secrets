@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.0] - 2025-12-29
+
+### Added
+- Optional PIN protection for secrets (#98)
+  - Users can skip PIN for convenience while maintaining encryption
+  - Secrets without PIN are directly accessible via link
+- Ciphertext format validation for UI routes (#97)
+
+### Changed
+- Bump modernc.org/sqlite from 1.41.0 to 1.42.2 (#99)
+
 ## [2.1.0] - 2025-12-28
 
 ### Changed
