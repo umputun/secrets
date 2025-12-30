@@ -368,6 +368,136 @@ func TestNoPin_DeletedSecretShows404(t *testing.T) {
 	assert.False(t, decryptVisible, "decrypt button should NOT be visible for deleted messages")
 }
 
+// TestNoPin_ModalWorksAfterLogoClick verifies the no-pin modal works after clicking logo to reload page.
+// This tests a bug where HTMX boost causes JavaScript to be re-executed, breaking const declarations.
+func TestNoPin_ModalWorksAfterLogoClick(t *testing.T) {
+	cleanup := startNoPinServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+	_, err := page.Goto(noPinServerURL)
+	require.NoError(t, err)
+
+	// click logo to reload page (triggers HTMX boost navigation)
+	logoLink := page.Locator("a.logo-link")
+	waitVisible(t, logoLink)
+	require.NoError(t, logoLink.Click())
+
+	// wait for page to reload
+	require.NoError(t, page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateNetworkidle,
+	}))
+
+	// fill message but leave PIN empty
+	require.NoError(t, page.Locator("#message").Fill("test message after logo click"))
+
+	// submit form
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	// modal should appear
+	modal := page.Locator("#no-pin-modal")
+	waitVisible(t, modal)
+
+	// click continue button - this is the key test: button should work after page reload
+	confirmBtn := page.Locator("#no-pin-confirm")
+	require.NoError(t, confirmBtn.Click())
+
+	// modal should close and secret link should appear
+	waitHidden(t, modal)
+
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+	assert.Contains(t, secretLink, "/message/", "secret link should be generated after logo click reload")
+}
+
+// TestNoPin_ModalWorksAfterNewButton verifies the modal works after clicking "New" button on result page.
+func TestNoPin_ModalWorksAfterNewButton(t *testing.T) {
+	cleanup := startNoPinServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+	_, err := page.Goto(noPinServerURL)
+	require.NoError(t, err)
+
+	// create first secret with PIN to get to result page
+	require.NoError(t, page.Locator("#message").Fill("first secret"))
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	// wait for result page with "New" button
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	// click "New" button to go back to form
+	newBtn := page.Locator("a.second-btn[href='/']")
+	waitVisible(t, newBtn)
+	require.NoError(t, newBtn.Click())
+
+	// wait for form to load
+	require.NoError(t, page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateNetworkidle,
+	}))
+
+	// create second secret without PIN
+	require.NoError(t, page.Locator("#message").Fill("second secret without pin"))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	// modal should appear and work
+	modal := page.Locator("#no-pin-modal")
+	waitVisible(t, modal)
+	require.NoError(t, page.Locator("#no-pin-confirm").Click())
+	waitHidden(t, modal)
+
+	linkTextarea = page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+	assert.Contains(t, secretLink, "/message/", "secret link should be generated after New button click")
+}
+
+// TestNoPin_ModalWorksAfterAboutPage verifies the modal works after navigating from About page.
+func TestNoPin_ModalWorksAfterAboutPage(t *testing.T) {
+	cleanup := startNoPinServer(t)
+	defer cleanup()
+
+	page := newPage(t)
+
+	// navigate to about page first
+	_, err := page.Goto(noPinServerURL + "/about")
+	require.NoError(t, err)
+
+	// click "Generate Secure Link" button
+	genLinkBtn := page.Locator("a.main-btn-link[href='/']")
+	waitVisible(t, genLinkBtn)
+	require.NoError(t, genLinkBtn.Click())
+
+	// wait for form to load
+	require.NoError(t, page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateNetworkidle,
+	}))
+
+	// create secret without PIN
+	require.NoError(t, page.Locator("#message").Fill("secret from about page"))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+
+	// modal should appear and work
+	modal := page.Locator("#no-pin-modal")
+	waitVisible(t, modal)
+	require.NoError(t, page.Locator("#no-pin-confirm").Click())
+	waitHidden(t, modal)
+
+	linkTextarea := page.Locator("textarea#msg-text")
+	waitVisible(t, linkTextarea)
+
+	secretLink, err := linkTextarea.InputValue()
+	require.NoError(t, err)
+	assert.Contains(t, secretLink, "/message/", "secret link should be generated after about page navigation")
+}
+
 // TestNoPin_DisabledBlocksEmptyPin verifies empty PIN is blocked when AllowNoPin is disabled.
 func TestNoPin_DisabledBlocksEmptyPin(t *testing.T) {
 	// use the default server (without --allow-no-pin)
