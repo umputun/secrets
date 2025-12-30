@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.4] - 2025-12-30
+
+### Fixed
+- Prevent JavaScript re-execution on HTMX boosted navigation (modal buttons not working after page reload)
+
 ## [2.2.3] - 2025-12-30
 
 ### Fixed
