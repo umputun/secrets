@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.3] - 2025-12-30
+
+### Fixed
+- Improve card header layout with proper alignment of title and mode toggle
+- Replace iMessage with Signal in secure messenger examples
+
 ## [2.2.2] - 2025-12-29
 
 ### Fixed
