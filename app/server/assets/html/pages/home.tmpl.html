@@ -4,16 +4,16 @@
 
 <div class="card" id="form-card">
     <div class="card-header">
-        <div class="card-header-text">
+        <div class="card-title-row">
             <h2 class="card-title">Create a Secure Message</h2>
-            <p class="card-description">Share sensitive information that self-destructs after being read</p>
+            {{if .FilesEnabled}}
+            <div class="mode-toggle">
+                <button type="button" class="mode-btn active" id="text-tab" onclick="switchTab('text')">Text</button>
+                <button type="button" class="mode-btn" id="file-tab" onclick="switchTab('file')">File</button>
+            </div>
+            {{end}}
         </div>
-        {{if .FilesEnabled}}
-        <div class="mode-toggle">
-            <button type="button" class="mode-btn active" id="text-tab" onclick="switchTab('text')">Text</button>
-            <button type="button" class="mode-btn" id="file-tab" onclick="switchTab('file')">File</button>
-        </div>
-        {{end}}
+        <p class="card-description">Share sensitive information that self-destructs after being read</p>
     </div>
 
     <form id="secret-form"
