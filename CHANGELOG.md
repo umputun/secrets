@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.1] - 2025-12-29
+
+### Fixed
+- Add version-based cache busting for static assets to prevent browser cache issues after deployments
+
 ## [2.2.0] - 2025-12-29
 
 ### Added
