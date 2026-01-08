@@ -200,7 +200,7 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 Key configuration via environment variables or flags:
 - `SIGN_KEY` - Encryption signing key (required)
 - `ENGINE` - Storage engine: MEMORY or SQLITE (default: MEMORY)
-- `SQLITE_FILE` - SQLite database file path (default: /tmp/secrets.db)
+- `SQLITE_FILE` - SQLite database file path (default: /data/secrets.db in Docker, /tmp/secrets.db otherwise)
 - `MAX_EXPIRE` - Maximum message lifetime (default: 24h)
 - `PIN_SIZE` - PIN length in characters (default: 5)
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)

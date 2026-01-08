@@ -141,15 +141,15 @@ The Docker image is built on a minimal scratch-based image for security hardenin
 - **Non-root user**: Runs as `app` user with UID/GID 1001
 - **Small footprint**: ~21MB total image size
 
-**Volume permissions**: When mounting volumes (e.g., for SQLite persistence), ensure the mounted directory is accessible by UID 1001:
+**Volume permissions**: The container stores SQLite data in `/data` by default. When mounting volumes for persistence, ensure the directory is accessible by UID 1001:
 
 ```bash
 # Option 1: Set ownership on the host
 mkdir -p /data/secrets && chown 1001:1001 /data/secrets
-docker run -e SQLITE_FILE=/data/secrets.db -v /data/secrets:/data ... umputun/secrets
+docker run -v /data/secrets:/data ... umputun/secrets
 
 # Option 2: Run as your host user (e.g., UID 1000)
-docker run --user 1000:1000 -e SQLITE_FILE=/data/secrets.db -v ./data:/data ... umputun/secrets
+docker run --user 1000:1000 -v ./data:/data ... umputun/secrets
 ```
 
 In docker-compose:
@@ -159,8 +159,6 @@ services:
   secrets:
     image: umputun/secrets
     user: "1000:1000"  # run as your host user instead of default 1001
-    environment:
-      - SQLITE_FILE=/data/secrets.db
     volumes:
       - ./data:/data
 ```
@@ -172,8 +170,6 @@ services:
   secrets:
     image: umputun/secrets
     # no user override needed - named volumes adapt to container's UID
-    environment:
-      - SQLITE_FILE=/data/secrets.db
     volumes:
       - secrets-data:/data
 

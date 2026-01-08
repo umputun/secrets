@@ -32,8 +32,9 @@ FROM umputun/baseimage:scratch-latest
 LABEL org.opencontainers.image.source="https://github.com/umputun/secrets"
 
 COPY --from=build-backend /build/secrets.bin /srv/secrets
-# create /tmp for default sqlite location (in production, mount a volume instead)
-COPY --from=build-backend /build/tmp /tmp
+# create /data for sqlite storage (mount a volume here for persistence)
+COPY --from=build-backend /build/tmp /data
+ENV SQLITE_FILE=/data/secrets.db
 
 WORKDIR /srv
 EXPOSE 8080
