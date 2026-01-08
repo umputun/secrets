@@ -22,17 +22,21 @@ RUN \
     echo "version=$version" && \
     cd app && go build -o /build/secrets.bin -ldflags "-X main.revision=${version} -s -w"
 
+# prepare empty /tmp with sticky bit for scratch image
+RUN rm -rf /build/tmp && mkdir -p /build/tmp && chmod 1777 /build/tmp
 
-FROM umputun/baseimage:app-latest
+
+FROM umputun/baseimage:scratch-latest
 
 # enables automatic changelog generation by tools like Dependabot
 LABEL org.opencontainers.image.source="https://github.com/umputun/secrets"
 
 COPY --from=build-backend /build/secrets.bin /srv/secrets
+# create /tmp for default sqlite location (in production, mount a volume instead)
+COPY --from=build-backend /build/tmp /tmp
 
 WORKDIR /srv
 EXPOSE 8080
 
-
+USER app
 CMD ["/srv/secrets"]
-ENTRYPOINT ["/init.sh"]
