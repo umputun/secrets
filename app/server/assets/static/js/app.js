@@ -111,87 +111,85 @@ function setupExpireErrorHandler() {
 // copy handlers (from secure-link.tmpl.html and show-message.tmpl.html)
 // ============================================================================
 
+var successIcon = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none'><polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/></svg>";
+var errorIcon = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none'><line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/><line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/></svg>";
+
 function setupCopyHandlers() {
-    // copy link handler (for secure-link textarea)
+    // consolidated click handler for all copy actions
     document.body.addEventListener('click', function(evt) {
-        const btn = evt.target.closest('[data-action="copy-link"]');
+        var btn = evt.target.closest('[data-action^="copy-"]');
         if (!btn) return;
 
-        const textareaId = btn.dataset.source || 'msg-text';
-        const textarea = document.getElementById(textareaId);
-        if (!textarea) return;
+        var action = btn.dataset.action;
+        var text = '';
+        var textareaId = '';
 
-        navigator.clipboard.writeText(textarea.value).then(function() {
-            const originalHtml = btn.innerHTML;
-            btn.innerHTML = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none'><polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/></svg>Copied!";
-            btn.style.background = 'var(--color-success)';
-            setTimeout(function() {
-                btn.innerHTML = originalHtml;
-                btn.style.background = '';
-            }, 2000);
-        }).catch(function() {
-            btn.innerHTML = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none'><line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/><line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/></svg>Error";
-            btn.style.background = 'var(--color-error)';
-        });
-    });
-
-    // copy message handler (for decoded message textarea on show-message page)
-    document.body.addEventListener('click', function(evt) {
-        const btn = evt.target.closest('[data-action="copy-message"]');
-        if (!btn) return;
-
-        const textarea = document.getElementById('decoded-msg-text');
-        if (!textarea) return;
-
-        navigator.clipboard.writeText(textarea.value).then(function() {
-            btn.textContent = 'Copied!';
-            btn.style.background = 'var(--color-success)';
-            setTimeout(function() {
-                btn.textContent = 'Copy';
-                btn.style.background = '';
-            }, 2000);
-        }).catch(function() {
-            btn.textContent = 'Error';
-            btn.style.background = 'var(--color-error)';
-        });
-    });
-
-    // copy decoded message handler (for server-decrypted messages with visual feedback)
-    document.body.addEventListener('click', function(evt) {
-        const btn = evt.target.closest('[data-action="copy-decoded-message"]');
-        if (!btn) return;
-
-        const textareaId = btn.dataset.source || 'decoded-msg-text';
-        const textarea = document.getElementById(textareaId);
-        if (!textarea) return;
-
-        const originalHtml = btn.innerHTML;
-        navigator.clipboard.writeText(textarea.value).then(function() {
-            btn.innerHTML = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/></svg><span class='btn-text'>Copied!</span>";
-            btn.style.background = 'var(--color-success)';
-            setTimeout(function() {
-                btn.innerHTML = originalHtml;
-                btn.style.background = '';
-            }, 2000);
-        }).catch(function() {
-            btn.innerHTML = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/><line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/></svg><span class='btn-text'>Error!</span>";
-            btn.style.background = 'var(--color-error)';
-            setTimeout(function() {
-                btn.innerHTML = originalHtml;
-                btn.style.background = '';
-            }, 2000);
-        });
-    });
-
-    // copy text from data attribute (used by copy-button partial, clipboard before HTMX request)
-    document.body.addEventListener('click', function(evt) {
-        const btn = evt.target.closest('[data-action="copy-text"]');
-        if (!btn) return;
-
-        const text = btn.dataset.text;
-        if (text) {
-            navigator.clipboard.writeText(text).catch(function() {});
+        switch (action) {
+            case 'copy-link':
+                textareaId = btn.dataset.source || 'msg-text';
+                var linkTextarea = document.getElementById(textareaId);
+                if (linkTextarea) text = linkTextarea.value;
+                break;
+            case 'copy-message':
+                var msgTextarea = document.getElementById('decoded-msg-text');
+                if (msgTextarea) text = msgTextarea.value;
+                break;
+            case 'copy-decoded-message':
+                textareaId = btn.dataset.source || 'decoded-msg-text';
+                var decodedTextarea = document.getElementById(textareaId);
+                if (decodedTextarea) text = decodedTextarea.value;
+                break;
+            case 'copy-text':
+                text = btn.dataset.text || '';
+                break;
+            default:
+                return;
         }
+
+        if (!text) return;
+
+        var originalHtml = btn.innerHTML;
+
+        navigator.clipboard.writeText(text).then(function() {
+            // success feedback varies by action type
+            if (action === 'copy-message') {
+                btn.textContent = 'Copied!';
+            } else if (action === 'copy-text') {
+                // copy-text relies on HTMX for feedback, no visual change needed
+                return;
+            } else {
+                btn.innerHTML = successIcon + (action === 'copy-decoded-message' ? "<span class='btn-text'>Copied!</span>" : "Copied!");
+            }
+            btn.style.background = 'var(--color-success)';
+            setTimeout(function() {
+                if (action === 'copy-message') {
+                    btn.textContent = 'Copy';
+                } else {
+                    btn.innerHTML = originalHtml;
+                }
+                btn.style.background = '';
+            }, 2000);
+        }).catch(function() {
+            if (action === 'copy-text') {
+                // clipboard failure - button will still trigger HTMX request for feedback
+                console.warn('clipboard write failed');
+                return;
+            }
+            if (action === 'copy-message') {
+                btn.textContent = 'Error';
+            } else {
+                btn.innerHTML = errorIcon + (action === 'copy-decoded-message' ? "<span class='btn-text'>Error!</span>" : "Error");
+            }
+            btn.style.background = 'var(--color-error)';
+            setTimeout(function() {
+                if (action === 'copy-message') {
+                    btn.textContent = 'Copy';
+                } else {
+                    btn.innerHTML = originalHtml;
+                }
+                btn.style.background = '';
+            }, 2000);
+        });
     });
 }
 
@@ -225,6 +223,7 @@ function switchTab(mode) {
     const fileTab = document.getElementById('file-tab');
     const textInput = document.getElementById('text-input-container');
     const fileInput = document.getElementById('file-input-container');
+    const messageTextarea = document.getElementById('message');
 
     if (!form || !textTab || !fileTab) return;
 
@@ -233,6 +232,8 @@ function switchTab(mode) {
         fileTab.classList.add('active');
         form.setAttribute('enctype', 'multipart/form-data');
         if (textInput) textInput.style.display = 'none';
+        // remove required from hidden textarea to allow file-only submission
+        if (messageTextarea) messageTextarea.removeAttribute('required');
         if (fileInput) {
             fileInput.style.display = 'block';
             initDragDrop();
@@ -259,6 +260,8 @@ function switchTab(mode) {
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) submitBtn.disabled = false;
         if (textInput) textInput.style.display = 'block';
+        // restore required on textarea for text mode
+        if (messageTextarea) messageTextarea.setAttribute('required', '');
     }
 }
 
@@ -266,7 +269,7 @@ function initDragDrop() {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file');
     const fileInfo = document.getElementById('file-info');
-    const submitBtn = document.querySelector('button[type="submit"]');
+    const submitBtn = document.querySelector('#secret-form button[type="submit"]');
     const config = getConfig();
 
     if (!dropZone || dropZone.dataset.initialized) return;
@@ -340,11 +343,14 @@ function initDragDrop() {
 // encryption handlers (from home.tmpl.html)
 // ============================================================================
 
-let encryptionKey = null;
-let encryptionDone = false;
-let pendingForm = null;
-let pendingEvent = null;
-let noPinConfirmed = false;
+// encryption state encapsulated in object to prevent global pollution
+var encryptionState = {
+    key: null,
+    done: false,
+    pendingForm: null,
+    pendingEvent: null,
+    noPinConfirmed: false
+};
 
 function setupEncryptionHandlers() {
     const formCard = document.getElementById('form-card');
@@ -364,16 +370,20 @@ function setupEncryptionHandlers() {
     if (confirmBtn) {
         confirmBtn.addEventListener('click', function() {
             document.getElementById('no-pin-modal').classList.remove('active');
-            noPinConfirmed = true;
-            if (pendingForm) doEncryptionWork(pendingForm);
+            encryptionState.noPinConfirmed = true;
+            if (encryptionState.pendingForm) {
+                doEncryptionWork(encryptionState.pendingForm).catch(function(err) {
+                    showEncryptionError('Encryption failed: ' + err.message);
+                });
+            }
         });
     }
 
     if (cancelBtn) {
         cancelBtn.addEventListener('click', function() {
             document.getElementById('no-pin-modal').classList.remove('active');
-            pendingForm = null;
-            pendingEvent = null;
+            encryptionState.pendingForm = null;
+            encryptionState.pendingEvent = null;
             document.getElementById('pin')?.focus();
         });
     }
@@ -381,10 +391,10 @@ function setupEncryptionHandlers() {
     // intercept htmx before it sends the request to do encryption first
     document.body.addEventListener('htmx:confirm', function(evt) {
         if (evt.detail.elt.id !== 'secret-form') return;
-        if (encryptionDone) return;
+        if (encryptionState.done) return;
 
         evt.preventDefault();
-        pendingEvent = evt;
+        encryptionState.pendingEvent = evt;
         doClientEncryption(evt.detail.elt);
     });
 
@@ -406,7 +416,7 @@ function setupEncryptionHandlers() {
 
     // reset state if auth popup is closed manually
     document.body.addEventListener('click', function(evt) {
-        if (!encryptionDone) return;
+        if (!encryptionState.done) return;
         if (evt.target.closest('.close-popup')) {
             resetEncryptionState();
             return;
@@ -426,8 +436,8 @@ async function doClientEncryption(form) {
     const pinValue = pinInput ? pinInput.value.trim() : '';
     const noPinModal = document.getElementById('no-pin-modal');
 
-    if (pinValue === '' && noPinModal && !noPinConfirmed) {
-        pendingForm = form;
+    if (pinValue === '' && noPinModal && !encryptionState.noPinConfirmed) {
+        encryptionState.pendingForm = form;
         noPinModal.classList.add('active');
         return;
     }
@@ -442,7 +452,7 @@ async function doEncryptionWork(form) {
     const config = getConfig();
 
     try {
-        encryptionKey = await generateKey();
+        encryptionState.key = await generateKey();
 
         const fileInput = document.getElementById('file');
         const isFileUpload = fileInput && fileInput.files.length > 0;
@@ -457,7 +467,7 @@ async function doEncryptionWork(form) {
                 return;
             }
             const arrayBuffer = await file.arrayBuffer();
-            encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', encryptionKey);
+            encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', encryptionState.key);
 
             if (!messageEl) {
                 messageEl = document.createElement('input');
@@ -479,16 +489,16 @@ async function doEncryptionWork(form) {
                 showEncryptionError('Message too large. Maximum size: ' + formatSize(config.maxFileSize));
                 return;
             }
-            encryptedBlob = await encrypt(message, encryptionKey);
+            encryptedBlob = await encrypt(message, encryptionState.key);
         }
 
         messageEl.value = encryptedBlob;
-        encryptionDone = true;
+        encryptionState.done = true;
 
-        if (pendingEvent) {
-            pendingEvent.detail.issueRequest();
-            pendingEvent = null;
-            pendingForm = null;
+        if (encryptionState.pendingEvent) {
+            encryptionState.pendingEvent.detail.issueRequest();
+            encryptionState.pendingEvent = null;
+            encryptionState.pendingForm = null;
         }
     } catch (e) {
         showEncryptionError('Encryption failed: ' + e.message);
@@ -496,11 +506,11 @@ async function doEncryptionWork(form) {
 }
 
 function handleAfterSwap(evt) {
-    if (!encryptionKey) return;
+    if (!encryptionState.key) return;
 
     const textarea = document.getElementById('msg-text');
     if (textarea && textarea.value.includes('/message/')) {
-        const fullUrl = textarea.value + '#' + encryptionKey;
+        const fullUrl = textarea.value + '#' + encryptionState.key;
         textarea.value = fullUrl;
 
         const emailBtn = document.querySelector('button[hx-get^="/email-popup"]');
@@ -509,8 +519,8 @@ function handleAfterSwap(evt) {
             htmx.process(emailBtn);
         }
 
-        encryptionKey = null;
-        encryptionDone = false;
+        encryptionState.key = null;
+        encryptionState.done = false;
     } else if (evt.detail.target && evt.detail.target.id === 'form-card') {
         clearFormFields();
     } else if (evt.detail.target && evt.detail.target.id === 'notifications') {
@@ -519,7 +529,7 @@ function handleAfterSwap(evt) {
 }
 
 function resetEncryptionState() {
-    if (!encryptionDone) return;
+    if (!encryptionState.done) return;
     clearFormFields();
 }
 
@@ -528,9 +538,11 @@ function clearFormFields() {
     if (msgField) msgField.value = '';
     const fileField = document.getElementById('file');
     if (fileField) fileField.value = '';
-    encryptionKey = null;
-    encryptionDone = false;
-    noPinConfirmed = false;
+    encryptionState.key = null;
+    encryptionState.done = false;
+    encryptionState.noPinConfirmed = false;
+    encryptionState.pendingForm = null;
+    encryptionState.pendingEvent = null;
 }
 
 function showEncryptionError(msg) {
@@ -595,6 +607,36 @@ function setupDecryptionHandlers() {
     }
 }
 
+// shared helpers for decryption handlers
+function setButtonLoading(btn, btnText, btnLoading, isLoading) {
+    btn.disabled = isLoading;
+    btnText.style.display = isLoading ? 'none' : 'inline-flex';
+    btnLoading.style.display = isLoading ? 'inline' : 'none';
+}
+
+function showPinError(pinInput, pinError, msg) {
+    pinError.innerHTML = '<span class="error">' + msg + '</span>';
+    pinInput.classList.add('error-input');
+    pinInput.value = '';
+    pinInput.focus();
+}
+
+function showErrorCard(title, message) {
+    document.getElementById('message-container').innerHTML =
+        '<div class="card error-card"><div class="card-header">' +
+        '<h2 class="card-title">' + escapeHtml(title) + '</h2></div>' +
+        '<p class="error-message">' + escapeHtml(message) + '</p>' +
+        '<a href="/" class="main-btn">Back to Main Page</a></div>';
+}
+
+function showSuccessCard(title, message) {
+    document.getElementById('message-container').innerHTML =
+        '<div class="card success-card"><div class="card-header">' +
+        '<h2 class="card-title">' + escapeHtml(title) + '</h2></div>' +
+        '<p class="success-message">' + message + '</p>' +
+        '<a href="/" class="main-btn">Create New Secret</a></div>';
+}
+
 async function handleClientDecryption(cryptoKey) {
     const form = document.getElementById('decrypt-form');
     const btn = document.getElementById('decrypt-btn');
@@ -603,9 +645,7 @@ async function handleClientDecryption(cryptoKey) {
     const pinError = document.getElementById('client-pin-error');
     const pinInput = document.getElementById('client-pin');
 
-    btn.disabled = true;
-    btnText.style.display = 'none';
-    btnLoading.style.display = 'inline';
+    setButtonLoading(btn, btnText, btnLoading, true);
     pinError.innerHTML = '';
 
     try {
@@ -657,38 +697,23 @@ async function handleClientDecryption(cryptoKey) {
 
             const pinErr = doc.querySelector('.error');
             if (pinErr) {
-                pinError.innerHTML = '<span class="error">' + escapeHtml(pinErr.textContent) + '</span>';
-                pinInput.classList.add('error-input');
-                pinInput.value = '';
-                pinInput.focus();
-                btn.disabled = false;
-                btnText.style.display = 'inline-flex';
-                btnLoading.style.display = 'none';
+                showPinError(pinInput, pinError, escapeHtml(pinErr.textContent));
+                setButtonLoading(btn, btnText, btnLoading, false);
                 return;
             }
 
             const expiredErr = doc.querySelector('.error-message');
             if (expiredErr) {
-                document.getElementById('message-container').innerHTML =
-                    '<div class="card error-card"><div class="card-header">' +
-                    '<h2 class="card-title">Message Unavailable</h2></div>' +
-                    '<p class="error-message">' + escapeHtml(expiredErr.textContent) + '</p>' +
-                    '<a href="/" class="main-btn">Back to Main Page</a></div>';
+                showErrorCard('Message Unavailable', expiredErr.textContent);
                 return;
             }
 
             pinError.innerHTML = '<span class="error">Failed to load message.</span>';
-            btn.disabled = false;
-            btnText.style.display = 'inline-flex';
-            btnLoading.style.display = 'none';
+            setButtonLoading(btn, btnText, btnLoading, false);
         }
     } catch (err) {
-        pinError.innerHTML = '<span class="error">Decryption failed. The key may be incorrect or data corrupted.</span>';
-        pinInput.value = '';
-        pinInput.focus();
-        btn.disabled = false;
-        btnText.style.display = 'inline-flex';
-        btnLoading.style.display = 'none';
+        showPinError(pinInput, pinError, 'Decryption failed. The key may be incorrect or data corrupted.');
+        setButtonLoading(btn, btnText, btnLoading, false);
     }
 }
 
@@ -700,9 +725,7 @@ async function handleFileDownload() {
     const pinError = document.getElementById('pin-error');
     const pinInput = document.getElementById('pin');
 
-    btn.disabled = true;
-    btnText.style.display = 'none';
-    btnLoading.style.display = 'inline';
+    setButtonLoading(btn, btnText, btnLoading, true);
 
     try {
         const formData = new URLSearchParams(new FormData(form));
@@ -725,11 +748,7 @@ async function handleFileDownload() {
             a.click();
             URL.revokeObjectURL(url);
 
-            document.getElementById('message-container').innerHTML =
-                '<div class="card success-card">' +
-                '<div class="card-header"><h2 class="card-title">File Downloaded</h2></div>' +
-                '<p class="success-message">The file has been decrypted, downloaded, and permanently deleted from the server.</p>' +
-                '<a href="/" class="main-btn">Create New Secret</a></div>';
+            showSuccessCard('File Downloaded', 'The file has been decrypted, downloaded, and permanently deleted from the server.');
         } else {
             const html = await resp.text();
             const parser = new DOMParser();
@@ -741,37 +760,22 @@ async function handleFileDownload() {
                 pinInput.classList.add('error-input');
                 pinInput.value = '';
                 pinInput.focus();
-                btn.disabled = false;
-                btnText.style.display = 'inline-flex';
-                btnLoading.style.display = 'none';
+                setButtonLoading(btn, btnText, btnLoading, false);
                 return;
             }
 
             const expiredErr = doc.querySelector('.error-message');
             if (expiredErr) {
-                document.getElementById('message-container').innerHTML =
-                    '<div class="card error-card">' +
-                    '<div class="card-header"><h2 class="card-title">Message Unavailable</h2></div>' +
-                    '<p class="error-message">' + escapeHtml(expiredErr.textContent) + '</p>' +
-                    '<a href="/" class="main-btn">Back to Main Page</a></div>';
+                showErrorCard('Message Unavailable', expiredErr.textContent);
                 return;
             }
 
-            pinError.innerHTML = '<span class="error">An error occurred. Please try again.</span>';
-            pinInput.classList.add('error-input');
-            pinInput.value = '';
-            pinInput.focus();
-            btn.disabled = false;
-            btnText.style.display = 'inline-flex';
-            btnLoading.style.display = 'none';
+            showPinError(pinInput, pinError, 'An error occurred. Please try again.');
+            setButtonLoading(btn, btnText, btnLoading, false);
         }
     } catch (err) {
-        pinError.innerHTML = '<span class="error">Download failed. Please try again.</span>';
-        pinInput.value = '';
-        pinInput.focus();
-        btn.disabled = false;
-        btnText.style.display = 'inline-flex';
-        btnLoading.style.display = 'none';
+        showPinError(pinInput, pinError, 'Download failed. Please try again.');
+        setButtonLoading(btn, btnText, btnLoading, false);
     }
 }
 
