@@ -8,8 +8,8 @@
             <h2 class="card-title">Create a Secure Message</h2>
             {{if .FilesEnabled}}
             <div class="mode-toggle">
-                <button type="button" class="mode-btn active" id="text-tab" onclick="switchTab('text')">Text</button>
-                <button type="button" class="mode-btn" id="file-tab" onclick="switchTab('file')">File</button>
+                <button type="button" class="mode-btn active" id="text-tab" data-action="switch-tab" data-mode="text">Text</button>
+                <button type="button" class="mode-btn" id="file-tab" data-action="switch-tab" data-mode="file">File</button>
             </div>
             {{end}}
         </div>
@@ -17,6 +17,7 @@
     </div>
 
     <form id="secret-form"
+          data-max-file-size="{{.MaxFileSize}}"
           hx-post="/generate-link"
           hx-target="#form-card"
           hx-swap="outerHTML"
@@ -27,7 +28,14 @@
           hx-trigger="submit, submitSecretForm from:body">
 
         <div id="content-input">
-            {{template "text-input" .}}
+            <div id="text-input-container">
+                {{template "text-input" .}}
+            </div>
+            {{if .FilesEnabled}}
+            <div id="file-input-container" style="display: none;">
+                {{template "file-input" .}}
+            </div>
+            {{end}}
         </div>
 
         <div class="form-row two-cols">
@@ -51,7 +59,7 @@
                        placeholder="{{range $i := until .PinSize}}{{add $i 1}}{{end}}"
                        title="{{if .AllowNoPin}}PIN is optional or must be exactly {{.PinSize}} digits{{else}}PIN must be exactly {{.PinSize}} digits{{end}}"
                        aria-label="{{.PinSize}}-digit PIN"
-                       oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+                       data-numeric-only />
                 {{with .Form.FieldErrors.pin}}
                 <span class='error'>{{.}}</span>
                 {{end}}
@@ -118,336 +126,6 @@
 
 {{template "no-pin-modal" .}}
 
-<script>
-// client-side encryption before htmx submission
-const maxEncryptedFileSize = {{.MaxFileSize}};
-let encryptionKey = null; // stores the encryption key for URL fragment
-let encryptionDone = false; // flag to track if encryption was already done
-let pendingForm = null; // stores form reference when waiting for modal confirmation
-let noPinConfirmed = false; // flag to track if user confirmed no-pin creation
-
-document.addEventListener('DOMContentLoaded', function() {
-    // check Web Crypto availability (requires HTTPS or localhost)
-    if (!checkCryptoAvailable()) {
-        const formCard = document.getElementById('form-card');
-        formCard.innerHTML = '<div class="card-header"><h2 class="card-title">Encryption Unavailable</h2>' +
-            '<p class="card-description error">Client-side encryption requires HTTPS. Web Crypto API is not available on plain HTTP connections.</p></div>';
-        return;
-    }
-
-    // intercept htmx before it sends the request to do encryption first
-    // use htmx:confirm which allows preventDefault() to cancel and issueRequest() to resume
-    let pendingEvent = null; // stores htmx event for issueRequest()
-
-    // wire up no-pin modal buttons
-    const confirmBtn = document.getElementById('no-pin-confirm');
-    const cancelBtn = document.getElementById('no-pin-cancel');
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', function() {
-            document.getElementById('no-pin-modal').classList.remove('active');
-            noPinConfirmed = true;
-            if (pendingForm) doEncryptionWork(pendingForm);
-        });
-    }
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', function() {
-            document.getElementById('no-pin-modal').classList.remove('active');
-            pendingForm = null;
-            pendingEvent = null; // clear pending event
-            document.getElementById('pin')?.focus();
-        });
-    }
-
-    document.body.addEventListener('htmx:confirm', function(evt) {
-        // only handle our form
-        if (evt.detail.elt.id !== 'secret-form') return;
-
-        // if already encrypted (re-submit after auth), let it go
-        if (encryptionDone) return;
-
-        // cancel the request - we need to encrypt first (async operation)
-        evt.preventDefault();
-
-        // store event for later issueRequest() call
-        pendingEvent = evt;
-
-        // do encryption async
-        doClientEncryption(evt.detail.elt);
-    });
-
-    async function doClientEncryption(form) {
-        const errDiv = document.getElementById('form-errors');
-        if (errDiv) errDiv.innerHTML = '';
-
-        // check if PIN is empty and modal exists (AllowNoPin enabled)
-        const pinInput = document.getElementById('pin');
-        const pinValue = pinInput ? pinInput.value.trim() : '';
-        const noPinModal = document.getElementById('no-pin-modal');
-
-        if (pinValue === '' && noPinModal && !noPinConfirmed) {
-            // show confirmation modal (add 'active' class for CSS visibility)
-            pendingForm = form;
-            noPinModal.classList.add('active');
-            return;
-        }
-
-        // proceed with encryption
-        await doEncryptionWork(form);
-    }
-
-    async function doEncryptionWork(form) {
-        const errDiv = document.getElementById('form-errors');
-        if (errDiv) errDiv.innerHTML = '';
-
-        try {
-            // generate new key for this secret
-            encryptionKey = await generateKey();
-
-            // check if it's a file upload
-            const fileInput = document.getElementById('file');
-            const isFileUpload = fileInput && fileInput.files.length > 0;
-
-            let encryptedBlob;
-            let messageEl = document.getElementById('message');
-
-            if (isFileUpload) {
-                const file = fileInput.files[0];
-                if (file.size > maxEncryptedFileSize) {
-                    showEncryptionError('File too large. Maximum size: ' + formatSize(maxEncryptedFileSize));
-                    return;
-                }
-                const arrayBuffer = await file.arrayBuffer();
-                encryptedBlob = await encryptFile(arrayBuffer, file.name, file.type || 'application/octet-stream', encryptionKey);
-                // in file mode, message textarea doesn't exist - create hidden input
-                if (!messageEl) {
-                    messageEl = document.createElement('input');
-                    messageEl.type = 'hidden';
-                    messageEl.name = 'message';
-                    messageEl.id = 'message';
-                    form.appendChild(messageEl);
-                }
-                // remove file input entirely (it's required, so would block submission)
-                fileInput.remove();
-                // remove multipart encoding since we're sending encrypted text now
-                form.removeAttribute('enctype');
-            } else {
-                const message = messageEl ? messageEl.value : '';
-                if (!message) {
-                    showEncryptionError('Message cannot be empty');
-                    return;
-                }
-                const msgBytes = new TextEncoder().encode(message).length;
-                if (msgBytes > maxEncryptedFileSize) {
-                    showEncryptionError('Message too large. Maximum size: ' + formatSize(maxEncryptedFileSize));
-                    return;
-                }
-                encryptedBlob = await encrypt(message, encryptionKey);
-            }
-
-            // put encrypted blob into message field and re-submit
-            messageEl.value = encryptedBlob;
-            encryptionDone = true;
-
-            // issue the original htmx request now that encryption is done
-            if (pendingEvent) {
-                pendingEvent.detail.issueRequest();
-                pendingEvent = null;
-                pendingForm = null;
-            }
-        } catch (e) {
-            showEncryptionError('Encryption failed: ' + e.message);
-        }
-    }
-});
-
-// after successful swap, append key to URL and update email button
-document.body.addEventListener('htmx:afterSwap', function(evt) {
-    if (!encryptionKey) return;
-
-    const textarea = document.getElementById('msg-text');
-    if (textarea && textarea.value.includes('/message/')) {
-        // success - append key to URL
-        const fullUrl = textarea.value + '#' + encryptionKey;
-        textarea.value = fullUrl;
-
-        // update email button link to include the key fragment
-        const emailBtn = document.querySelector('button[hx-get^="/email-popup"]');
-        if (emailBtn) {
-            emailBtn.setAttribute('hx-get', '/email-popup?link=' + encodeURIComponent(fullUrl));
-            htmx.process(emailBtn); // re-process for htmx to recognize new attribute
-        }
-
-        encryptionKey = null;
-        encryptionDone = false;
-    } else if (evt.detail.target && evt.detail.target.id === 'form-card') {
-        // validation error swapped to form-card (400) - server re-rendered form with encrypted blob
-        // clear the message field to prevent double-encryption on retry
-        const msgField = document.getElementById('message');
-        if (msgField) msgField.value = '';
-        const fileField = document.getElementById('file');
-        if (fileField) fileField.value = '';
-        encryptionKey = null;
-        encryptionDone = false;
-    } else if (evt.detail.target && evt.detail.target.id === 'notifications') {
-        // 500 error swapped to notifications toast - form still has encrypted blob
-        // clear form fields to prevent sending stale ciphertext if user edits and retries
-        const msgField = document.getElementById('message');
-        if (msgField) msgField.value = '';
-        const fileField = document.getElementById('file');
-        if (fileField) fileField.value = '';
-        encryptionKey = null;
-        encryptionDone = false;
-    }
-    // note: 401 swaps to #popup, not #form-card, so we preserve encryptionDone
-    // allowing the auth flow to re-submit the already-encrypted blob
-});
-
-// handle non-swap failures (network error, timeout, 502/503/504, abort) that don't trigger afterSwap
-document.body.addEventListener('htmx:sendError', resetEncryptionState);
-document.body.addEventListener('htmx:timeout', resetEncryptionState);
-document.body.addEventListener('htmx:sendAbort', resetEncryptionState);
-document.body.addEventListener('htmx:swapError', resetEncryptionState);
-document.body.addEventListener('htmx:targetError', resetEncryptionState);
-document.body.addEventListener('htmx:responseError', function(evt) {
-    // responseError fires for non-2xx, but 400/401/500 are handled by afterSwap via hx-target-*
-    // only reset for errors that won't swap (502, 503, 504, etc.)
-    const status = evt.detail.xhr?.status;
-    if (status && status !== 400 && status !== 401 && status !== 500) {
-        resetEncryptionState();
-    }
-});
-
-function resetEncryptionState() {
-    if (!encryptionDone) return; // nothing to reset
-    const msgField = document.getElementById('message');
-    if (msgField) msgField.value = '';
-    const fileField = document.getElementById('file');
-    if (fileField) fileField.value = '';
-    encryptionKey = null;
-    encryptionDone = false;
-    noPinConfirmed = false;
-}
-
-// reset state if auth popup is closed manually (close button or backdrop click)
-// this prevents sending stale ciphertext if user edits form after canceling auth
-document.body.addEventListener('click', function(evt) {
-    if (!encryptionDone) return;
-    // handle close button click
-    if (evt.target.closest('.close-popup')) {
-        resetEncryptionState();
-        return;
-    }
-    // handle backdrop click (clicking popup overlay, not its content)
-    const popup = document.getElementById('popup');
-    if (popup && popup.classList.contains('active') && evt.target === popup) {
-        resetEncryptionState();
-    }
-});
-
-function showEncryptionError(msg) {
-    const errDiv = document.getElementById('form-errors');
-    if (errDiv) {
-        errDiv.innerHTML = '<span class="error">' + msg + '</span>';
-    }
-}
-
-function formatSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
-}
-</script>
-
-{{if .FilesEnabled}}
-<script>
-function switchTab(mode) {
-    const form = document.getElementById('secret-form');
-    const textTab = document.getElementById('text-tab');
-    const fileTab = document.getElementById('file-tab');
-    const contentInput = document.getElementById('content-input');
-
-    if (mode === 'file') {
-        textTab.classList.remove('active');
-        fileTab.classList.add('active');
-        form.setAttribute('enctype', 'multipart/form-data');
-        contentInput.innerHTML = `{{template "file-input-js" .}}`;
-        initDragDrop();
-    } else {
-        fileTab.classList.remove('active');
-        textTab.classList.add('active');
-        form.removeAttribute('enctype');
-        contentInput.innerHTML = `{{template "text-input-js" .}}`;
-    }
-}
-
-function initDragDrop() {
-    const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('file');
-    const fileInfo = document.getElementById('file-info');
-    const submitBtn = document.querySelector('button[type="submit"]');
-
-    if (!dropZone) return;
-
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
-        dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); });
-    });
-
-    ['dragenter', 'dragover'].forEach(e => {
-        dropZone.addEventListener(e, () => dropZone.classList.add('drag-over'));
-    });
-
-    ['dragleave', 'drop'].forEach(e => {
-        dropZone.addEventListener(e, () => dropZone.classList.remove('drag-over'));
-    });
-
-    dropZone.addEventListener('drop', e => {
-        const files = e.dataTransfer.files;
-        if (files.length) {
-            fileInput.files = files;
-            updateFileInfo(files[0]);
-        }
-    });
-
-    fileInput.addEventListener('change', e => {
-        if (e.target.files.length) {
-            updateFileInfo(e.target.files[0]);
-        }
-    });
-
-    function formatSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / 1048576).toFixed(1) + ' MB';
-    }
-
-    function updateFileInfo(file) {
-        const sizeStr = formatSize(file.size);
-        const placeholder = dropZone.querySelector('svg');
-        const placeholderText = dropZone.querySelector('p:not(.file-info)');
-        const sizeLimit = maxEncryptedFileSize;
-        if (file.size > sizeLimit) {
-            fileInfo.textContent = file.name + ' (' + sizeStr + ') - too large! Max: ' + formatSize(sizeLimit);
-            fileInfo.style.display = 'block';
-            fileInfo.classList.add('error');
-            dropZone.classList.add('error-input');
-            submitBtn.disabled = true;
-            fileInput.value = '';
-            if (placeholder) placeholder.style.display = 'none';
-            if (placeholderText) placeholderText.style.display = 'none';
-        } else {
-            fileInfo.textContent = file.name + ' (' + sizeStr + ')';
-            fileInfo.style.display = 'block';
-            fileInfo.classList.remove('error');
-            dropZone.classList.remove('error-input');
-            submitBtn.disabled = false;
-            if (placeholder) placeholder.style.display = 'none';
-            if (placeholderText) placeholderText.style.display = 'none';
-        }
-    }
-}
-</script>
-{{end}}
-
 {{end}}
 
 {{define "text-input"}}
@@ -464,7 +142,6 @@ function initDragDrop() {
     </label>
     <textarea name="message" id="message" class="content-input-area"
               placeholder="Type or paste your confidential message here..."
-              required
               autofocus
               {{if .Form.FieldErrors.message}}class="error-input"{{end}}>{{.Form.Message}}</textarea>
     {{with .Form.FieldErrors.message}}
@@ -473,23 +150,7 @@ function initDragDrop() {
 </div>
 {{end}}
 
-{{define "text-input-js"}}
-<div class="form-group">
-    <label for="message">
-        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2"/>
-            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2"/>
-            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2"/>
-            <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2"/>
-            <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2"/>
-        </svg>
-        Enter text for sharing
-    </label>
-    <textarea name="message" id="message" class="content-input-area" placeholder="Type or paste your confidential message here..." required autofocus></textarea>
-</div>
-{{end}}
-
-{{define "file-input-js"}}
+{{define "file-input"}}
 <div class="form-group">
     <label>
         <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -499,7 +160,7 @@ function initDragDrop() {
         </svg>
         Upload file
     </label>
-    <div id="drop-zone" class="drop-zone content-input-area" onclick="document.getElementById('file').click()">
+    <div id="drop-zone" class="drop-zone content-input-area" data-action="trigger-file-input">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="1.5"/>
             <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="1.5"/>
@@ -508,6 +169,6 @@ function initDragDrop() {
         <p>Drop file here or click to browse</p>
         <p id="file-info" class="file-info" style="display:none"></p>
     </div>
-    <input type="file" id="file" name="file" required style="display:none" />
+    <input type="file" id="file" name="file" style="display:none" />
 </div>
 {{end}}

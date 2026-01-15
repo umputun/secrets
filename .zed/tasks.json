@@ -1,0 +1,44 @@
+[
+  {
+    "label": "build: binary",
+    "command": "make build",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "test: race detector",
+    "command": "make race",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "test: coverage html",
+    "command": "make coverage && open coverage.html",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "e2e: headless",
+    "command": "make e2e",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "e2e: with browser",
+    "command": "make e2e-ui",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "e2e: setup playwright",
+    "command": "make e2e-setup",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "docker: build image",
+    "command": "make docker",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "run: dev compose",
+    "command": "make run-dev",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  }
+]

@@ -46,6 +46,7 @@
                        value="{{.To}}"
                        placeholder="recipient@example.com"
                        autocomplete="email"
+                       data-autofocus
                        required>
             </div>
 
@@ -64,7 +65,6 @@
                 </button>
             </div>
         </form>
-        <script>setTimeout(function(){document.getElementById('to')?.focus();},50);</script>
     </div>
 </div>
 {{end}}

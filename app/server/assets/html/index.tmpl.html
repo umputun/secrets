@@ -153,20 +153,7 @@
     <script src="/static/js/htmx.min.js?v={{.Version}}"></script>
     <script src="/static/js/htmx-response-targets.js?v={{.Version}}"></script>
     <script src="/static/js/crypto.js?v={{.Version}}"></script>
-    <script>
-        // handle popup events  
-        document.body.addEventListener('closePopup', function(evt) {
-            htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
-        });
-        
-        // handle backdrop clicks on popup (except email popup)
-        document.body.addEventListener('click', function(evt) {
-            const popup = evt.target.closest('#popup');
-            if (popup && evt.target === popup && !popup.querySelector('.email-popup')) {
-                htmx.ajax('GET', '/close-popup', {target: '#popup', swap: 'outerHTML'});
-            }
-        });
-    </script>
+    <script src="/static/js/app.js?v={{.Version}}"></script>
     </body>
     </html>
 {{end}}
