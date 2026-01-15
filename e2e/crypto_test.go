@@ -10,13 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// injectCryptoJS loads crypto.js into the page
-func injectCryptoJS(t *testing.T, page playwright.Page) {
+// waitForCryptoJS waits for crypto.js to be loaded (it's included in the page automatically)
+func waitForCryptoJS(t *testing.T, page playwright.Page) {
 	t.Helper()
-	_, err := page.AddScriptTag(playwright.PageAddScriptTagOptions{
-		Path: playwright.String("../app/server/assets/static/js/crypto.js"),
-	})
-	require.NoError(t, err, "should inject crypto.js")
+	// crypto.js is loaded via <script src> in index.tmpl.html, wait for it to be available
+	_, err := page.WaitForFunction("typeof generateKey === 'function'", nil)
+	require.NoError(t, err, "crypto.js should be loaded")
 }
 
 func TestCrypto_CheckAvailable(t *testing.T) {
@@ -24,7 +23,7 @@ func TestCrypto_CheckAvailable(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test checkCryptoAvailable
 	result, err := page.Evaluate("checkCryptoAvailable()")
@@ -37,7 +36,7 @@ func TestCrypto_GenerateKey(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test generateKey
 	result, err := page.Evaluate("(async () => { return await generateKey(); })()")
@@ -53,7 +52,7 @@ func TestCrypto_TextRoundTrip(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test encrypt/decrypt round-trip
 	result, err := page.Evaluate(`(async () => {
@@ -75,7 +74,7 @@ func TestCrypto_TextWrongKey(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test decrypt with wrong key should fail
 	result, err := page.Evaluate(`(async () => {
@@ -100,7 +99,7 @@ func TestCrypto_FileRoundTrip(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test file encrypt/decrypt round-trip
 	result, err := page.Evaluate(`(async () => {
@@ -136,7 +135,7 @@ func TestCrypto_FileRoundTrip_ArrayBuffer(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test file encrypt/decrypt with ArrayBuffer input (from File.arrayBuffer())
 	result, err := page.Evaluate(`(async () => {
@@ -170,7 +169,7 @@ func TestCrypto_DecryptAuto_Text(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test decryptAuto detects text
 	result, err := page.Evaluate(`(async () => {
@@ -191,7 +190,7 @@ func TestCrypto_DecryptAuto_File(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test decryptAuto detects file
 	result, err := page.Evaluate(`(async () => {
@@ -220,7 +219,7 @@ func TestCrypto_UnicodePlaintext(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test unicode text round-trip
 	result, err := page.Evaluate(`(async () => {
@@ -241,7 +240,7 @@ func TestCrypto_UnicodeFilename(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test unicode filename round-trip
 	result, err := page.Evaluate(`(async () => {
@@ -269,7 +268,7 @@ func TestCrypto_EmptyPlaintext(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test empty string
 	result, err := page.Evaluate(`(async () => {
@@ -299,7 +298,7 @@ func TestCrypto_LargeBinaryFile(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	injectCryptoJS(t, page)
+	waitForCryptoJS(t, page)
 
 	// test large binary file (100KB)
 	result, err := page.Evaluate(`(async () => {

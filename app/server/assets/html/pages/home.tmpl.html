@@ -139,10 +139,10 @@
         </svg>
         Enter text for sharing
     </label>
-    <textarea name="message" id="message" class="content-input-area"
+    <textarea name="message" id="message" class="content-input-area{{if .Form.FieldErrors.message}} error-input{{end}}"
               placeholder="Type or paste your confidential message here..."
-              autofocus
-              {{if .Form.FieldErrors.message}}class="error-input"{{end}}>{{.Form.Message}}</textarea>
+              required
+              autofocus>{{.Form.Message}}</textarea>
     {{with .Form.FieldErrors.message}}
     <span class='error'>{{.}}</span>
     {{end}}

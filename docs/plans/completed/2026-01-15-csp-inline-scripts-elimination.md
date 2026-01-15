@@ -46,66 +46,66 @@
 ## Implementation Steps
 
 ### Iteration 1: Create app.js Foundation
-- [ ] Create `app/server/assets/static/js/app.js` with module structure
-- [ ] Add popup handlers (closePopup event, backdrop click)
-- [ ] Add autofocus handler using MutationObserver for `data-autofocus`
-- [ ] Add numeric-only input handler for `data-numeric-only`
-- [ ] Add `index.tmpl.html` script tag for app.js
-- [ ] Remove inline popup script from `index.tmpl.html`
-- [ ] **run tests - must pass before iteration 2**
+- [x] Create `app/server/assets/static/js/app.js` with module structure
+- [x] Add popup handlers (closePopup event, backdrop click)
+- [x] Add autofocus handler using MutationObserver for `data-autofocus`
+- [x] Add numeric-only input handler for `data-numeric-only`
+- [x] Add `index.tmpl.html` script tag for app.js
+- [x] Remove inline popup script from `index.tmpl.html`
+- [x] **run tests - must pass before iteration 2**
 
 ### Iteration 2: Extract Home Page Scripts (Encryption)
-- [ ] Move encryption logic to `app.js` (htmx:confirm, htmx:afterSwap handlers)
-- [ ] Move no-PIN modal handling to `app.js`
-- [ ] Move error reset handlers to `app.js`
-- [ ] Add `data-max-file-size` attribute to form for config injection
-- [ ] Remove first inline script block from `home.tmpl.html`
-- [ ] Replace `oninput` handlers with `data-numeric-only` attribute
-- [ ] **run tests - must pass before iteration 3**
+- [x] Move encryption logic to `app.js` (htmx:confirm, htmx:afterSwap handlers)
+- [x] Move no-PIN modal handling to `app.js`
+- [x] Move error reset handlers to `app.js`
+- [x] Add `data-max-file-size` attribute to form for config injection
+- [x] Remove first inline script block from `home.tmpl.html`
+- [x] Replace `oninput` handlers with `data-numeric-only` attribute
+- [x] **run tests - must pass before iteration 3**
 
 ### Iteration 3: Extract Home Page Scripts (File Upload)
-- [ ] Move `switchTab()` to `app.js`
-- [ ] Move `initDragDrop()` to `app.js`
-- [ ] Pre-render both text/file inputs in HTML (toggle visibility vs innerHTML)
-- [ ] Replace tab button `onclick` with `data-action="switch-tab" data-mode="text|file"`
-- [ ] Replace drop-zone `onclick` with `data-action="trigger-file-input"`
-- [ ] Remove second inline script block from `home.tmpl.html`
-- [ ] **run tests - must pass before iteration 4**
+- [x] Move `switchTab()` to `app.js`
+- [x] Move `initDragDrop()` to `app.js`
+- [x] Pre-render both text/file inputs in HTML (toggle visibility vs innerHTML)
+- [x] Replace tab button `onclick` with `data-action="switch-tab" data-mode="text|file"`
+- [x] Replace drop-zone `onclick` with `data-action="trigger-file-input"`
+- [x] Remove second inline script block from `home.tmpl.html`
+- [x] **run tests - must pass before iteration 4**
 
 ### Iteration 4: Extract Show Message Scripts (Decryption)
-- [ ] Move URL fragment detection and routing to `app.js`
-- [ ] Move client-side decryption form handler to `app.js`
-- [ ] Move server-side file download handler to `app.js`
-- [ ] Move `copyMessage()` and `escapeHtml()` to `app.js`
-- [ ] Replace `onsubmit="return false;"` with JS handler
-- [ ] Replace `oninput` handlers with `data-numeric-only`
-- [ ] Remove inline script from `show-message.tmpl.html`
-- [ ] **run tests - must pass before iteration 5**
+- [x] Move URL fragment detection and routing to `app.js`
+- [x] Move client-side decryption form handler to `app.js`
+- [x] Move server-side file download handler to `app.js`
+- [x] Move `copyMessage()` and `escapeHtml()` to `app.js`
+- [x] Replace `onsubmit="return false;"` with JS handler
+- [x] Replace `oninput` handlers with `data-numeric-only`
+- [x] Remove inline script from `show-message.tmpl.html`
+- [x] **run tests - must pass before iteration 5**
 
 ### Iteration 5: Extract Partial Scripts
-- [ ] Replace `secure-link.tmpl.html` onclick with `data-action="copy-link"`
-- [ ] Add copy link handler to `app.js`
-- [ ] Replace `login-popup.tmpl.html` autofocus script with `data-autofocus`
-- [ ] Replace `email-popup.tmpl.html` autofocus script with `data-autofocus`
-- [ ] **run tests - must pass before iteration 6**
+- [x] Replace `secure-link.tmpl.html` onclick with `data-action="copy-link"`
+- [x] Add copy link handler to `app.js`
+- [x] Replace `login-popup.tmpl.html` autofocus script with `data-autofocus`
+- [x] Replace `email-popup.tmpl.html` autofocus script with `data-autofocus`
+- [x] **run tests - must pass before iteration 6**
 
 ### Iteration 6: Verification & Cleanup
-- [ ] Build and run locally with all features enabled
-- [ ] Test with strict CSP header in browser dev tools
-- [ ] Test text secret creation (with PIN, without PIN)
-- [ ] Test file secret creation
-- [ ] Test decryption flows (client-side and server-side)
-- [ ] Test copy button, email popup, login popup
-- [ ] Verify theme toggle still works
-- [ ] Run E2E tests: `go test -tags=e2e -timeout=120s -failfast ./e2e/...`
-- [ ] **verify all tests still pass**
-- [ ] **final validation**
+- [x] Build and run locally with all features enabled
+- [x] Test with strict CSP header in browser dev tools
+- [x] Test text secret creation (with PIN, without PIN)
+- [x] Test file secret creation
+- [x] Test decryption flows (client-side and server-side)
+- [x] Test copy button, email popup, login popup
+- [x] Verify theme toggle still works
+- [x] Run E2E tests: `go test -tags=e2e -timeout=120s -failfast ./e2e/...`
+- [x] **verify all tests still pass**
+- [x] **final validation**
 
 ### Iteration 7: Completion
-- [ ] Mark all tasks above as completed
-- [ ] Verify plan reflects actual implementation
-- [ ] Run full test suite one final time
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Mark all tasks above as completed
+- [x] Verify plan reflects actual implementation
+- [x] Run full test suite one final time
+- [x] Move this plan to `docs/plans/completed/`
 
 ## Technical Details
 

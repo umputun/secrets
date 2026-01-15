@@ -367,6 +367,27 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.Contains(t, csp, "frame-ancestors 'none'")
 	})
 
+	t.Run("CSP script-src excludes unsafe-inline and unsafe-eval", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/test", http.NoBody)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		handler := SecurityHeaders("https")(testHandler)
+		handler.ServeHTTP(rr, req)
+
+		csp := rr.Header().Get("Content-Security-Policy")
+		// verify strict script-src policy - only 'self' is allowed, no unsafe-inline or unsafe-eval
+		assert.Contains(t, csp, "script-src 'self';", "script-src should only allow 'self'")
+		// script-src 'self'; means no inline scripts allowed (unsafe-inline not present in script-src)
+		// note: style-src may contain 'unsafe-inline' which is acceptable for CSS
+		assert.NotContains(t, csp, "script-src 'self' 'unsafe-inline'", "script-src should not allow unsafe-inline")
+		assert.NotContains(t, csp, "script-src 'self' 'unsafe-eval'", "script-src should not allow unsafe-eval")
+	})
+
 	t.Run("skips HSTS for http protocol", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "/test", http.NoBody)
 		require.NoError(t, err)
