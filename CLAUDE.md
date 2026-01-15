@@ -248,7 +248,7 @@ Core libraries used:
 
 ### Static Assets Organization
 - CSS: Design system approach with modular sections (variables, typography, components)
-- JavaScript: Minimal inline scripts only - no external JS files (HTMX handles interactivity)
+- JavaScript: External `app.js` file for all application logic (CSP-compliant, no inline scripts)
 - Icons: Inline SVG for consistency and theming
 - Fonts: Google Fonts integration with preconnect optimization
 
@@ -278,11 +278,12 @@ Core libraries used:
 - Uses `HX-Refresh: true` header to trigger full page reload on theme change
 - Template rendering passes theme to all views via `getTheme(r)` helper
 
-### JavaScript Minimization
-- All external JS files eliminated in favor of inline code
-- Clipboard functionality using `hx-on::before-request` with native Clipboard API
-- Popup handling with minimal inline event listeners (closePopup event, backdrop clicks)
-- Only 3 script tags remain: HTMX core, response-targets extension, inline popup handlers
+### JavaScript Architecture (CSP-Compliant)
+- All JavaScript in external `app/server/assets/static/js/app.js` file
+- No inline scripts or `hx-on::` handlers (enables strict CSP with `script-src 'self'`)
+- Event delegation pattern with data attributes (`data-action`, `data-numeric-only`, etc.)
+- MutationObserver for `data-autofocus` on dynamically loaded content
+- Script tags: HTMX core, response-targets extension, crypto.js, app.js
 
 ### Web Endpoints Structure
 - Web UI endpoints grouped separately from API endpoints in router
@@ -298,9 +299,10 @@ Core libraries used:
 - HTMX requests return appropriate status codes, non-HTMX fallback to 200 with error template
 
 ### Dynamic Content Patterns
-- **Autofocus on HTMX-loaded content**: `autofocus` attribute doesn't work on dynamically loaded content. Use inline `<script>setTimeout(function(){document.getElementById('field')?.focus();},50);</script>` after the element. 50ms delay needed for DOM to render.
+- **Autofocus on HTMX-loaded content**: `autofocus` attribute doesn't work on dynamically loaded content. Add `data-autofocus` attribute to the element - app.js uses MutationObserver to detect and focus these elements automatically.
 - **Form state preservation after popup**: `HX-Refresh: true` causes full page reload, losing form data. Better pattern: return `HX-Trigger: eventName` header + on form use `hx-trigger="submit, eventName from:body"` to re-submit with preserved data (works with multipart file uploads too).
 - **HX-Trigger event targeting**: Events from `HX-Trigger` header dispatch to the *target* element. To catch on other elements, use `hx-trigger="eventName from:body"` syntax.
+- **Event handlers via data attributes**: Use `data-action="action-name"` instead of inline onclick/hx-on:: handlers. app.js handles these via event delegation.
 
 ### Template Data Pattern
 - `templateData` struct wraps all template variables with consistent fields:

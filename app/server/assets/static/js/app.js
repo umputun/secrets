@@ -74,10 +74,45 @@ function setupNumericInputHandler() {
 }
 
 // ============================================================================
+// expire field error clearing (replaces inline hx-on:input/change handlers)
+// ============================================================================
+
+function setupExpireErrorHandler() {
+    function clearExpireErrors(el) {
+        if (!el.hasAttribute('data-clear-expire-errors')) return;
+
+        const container = el.closest('.expire-container');
+        if (!container) return;
+
+        // remove error spans that follow the container
+        let sibling = container.nextElementSibling;
+        while (sibling && sibling.classList.contains('error')) {
+            const next = sibling.nextElementSibling;
+            sibling.remove();
+            sibling = next;
+        }
+
+        // clear error-input class from both fields
+        container.querySelectorAll('.error-input').forEach(function(field) {
+            field.classList.remove('error-input');
+        });
+    }
+
+    document.body.addEventListener('input', function(evt) {
+        clearExpireErrors(evt.target);
+    });
+
+    document.body.addEventListener('change', function(evt) {
+        clearExpireErrors(evt.target);
+    });
+}
+
+// ============================================================================
 // copy handlers (from secure-link.tmpl.html and show-message.tmpl.html)
 // ============================================================================
 
 function setupCopyHandlers() {
+    // copy link handler (for secure-link textarea)
     document.body.addEventListener('click', function(evt) {
         const btn = evt.target.closest('[data-action="copy-link"]');
         if (!btn) return;
@@ -100,7 +135,7 @@ function setupCopyHandlers() {
         });
     });
 
-    // copy message handler (for decoded message textarea)
+    // copy message handler (for decoded message textarea on show-message page)
     document.body.addEventListener('click', function(evt) {
         const btn = evt.target.closest('[data-action="copy-message"]');
         if (!btn) return;
@@ -115,7 +150,48 @@ function setupCopyHandlers() {
                 btn.textContent = 'Copy';
                 btn.style.background = '';
             }, 2000);
+        }).catch(function() {
+            btn.textContent = 'Error';
+            btn.style.background = 'var(--color-error)';
         });
+    });
+
+    // copy decoded message handler (for server-decrypted messages with visual feedback)
+    document.body.addEventListener('click', function(evt) {
+        const btn = evt.target.closest('[data-action="copy-decoded-message"]');
+        if (!btn) return;
+
+        const textareaId = btn.dataset.source || 'decoded-msg-text';
+        const textarea = document.getElementById(textareaId);
+        if (!textarea) return;
+
+        const originalHtml = btn.innerHTML;
+        navigator.clipboard.writeText(textarea.value).then(function() {
+            btn.innerHTML = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><polyline points='20,6 9,17 4,12' stroke='currentColor' stroke-width='2'/></svg><span class='btn-text'>Copied!</span>";
+            btn.style.background = 'var(--color-success)';
+            setTimeout(function() {
+                btn.innerHTML = originalHtml;
+                btn.style.background = '';
+            }, 2000);
+        }).catch(function() {
+            btn.innerHTML = "<svg class='btn-icon' width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><line x1='18' y1='6' x2='6' y2='18' stroke='currentColor' stroke-width='2'/><line x1='6' y1='6' x2='18' y2='18' stroke='currentColor' stroke-width='2'/></svg><span class='btn-text'>Error!</span>";
+            btn.style.background = 'var(--color-error)';
+            setTimeout(function() {
+                btn.innerHTML = originalHtml;
+                btn.style.background = '';
+            }, 2000);
+        });
+    });
+
+    // copy text from data attribute (used by copy-button partial, clipboard before HTMX request)
+    document.body.addEventListener('click', function(evt) {
+        const btn = evt.target.closest('[data-action="copy-text"]');
+        if (!btn) return;
+
+        const text = btn.dataset.text;
+        if (text) {
+            navigator.clipboard.writeText(text).catch(function() {});
+        }
     });
 }
 
@@ -169,12 +245,19 @@ function switchTab(mode) {
         // clear actual file input to prevent wrong payload when switching to text mode
         const actualFileInput = document.getElementById('file');
         if (actualFileInput) actualFileInput.value = '';
-        // reset file-info display
+        // reset file-info display and error state
         const fileInfo = document.getElementById('file-info');
         if (fileInfo) {
             fileInfo.style.display = 'none';
             fileInfo.textContent = '';
+            fileInfo.classList.remove('error');
         }
+        // reset drop zone error state
+        const dropZone = document.getElementById('drop-zone');
+        if (dropZone) dropZone.classList.remove('error-input');
+        // re-enable submit button (may have been disabled by file size error)
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = false;
         if (textInput) textInput.style.display = 'block';
     }
 }
@@ -716,6 +799,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupAutofocusObserver();
     setupPopupHandlers();
     setupNumericInputHandler();
+    setupExpireErrorHandler();
     setupCopyHandlers();
     setupFileUploadHandlers();
     setupEncryptionHandlers();
