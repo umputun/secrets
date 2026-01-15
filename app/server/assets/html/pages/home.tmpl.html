@@ -84,12 +84,11 @@
                            required
                            min="1"
                            value="{{.Form.Exp}}"
-                           {{if .Form.FieldErrors.exp}}class="error-input"{{end}}
-                           {{if .Form.FieldErrors.exp}}hx-on:input="document.querySelectorAll('.expire-container ~ .error').forEach(el => el.remove())"{{end}} />
+                           {{if .Form.FieldErrors.exp}}class="error-input" data-clear-expire-errors{{end}} />
 
                     <select name="expUnit" id="expUnit" aria-label="Time unit"
                             {{if .Form.FieldErrors.expUnit}}class="error-input"{{end}}
-                            {{if or .Form.FieldErrors.exp .Form.FieldErrors.expUnit}}hx-on:change="document.querySelectorAll('.expire-container ~ .error').forEach(el => el.remove())"{{end}}>
+                            {{if or .Form.FieldErrors.exp .Form.FieldErrors.expUnit}}data-clear-expire-errors{{end}}>
                         <option value="m" {{if eq .Form.ExpUnit "m"}}selected{{end}}>minutes</option>
                         <option value="h" {{if eq .Form.ExpUnit "h"}}selected{{end}}>hours</option>
                         <option value="d" {{if eq .Form.ExpUnit "d"}}selected{{end}}>days</option>

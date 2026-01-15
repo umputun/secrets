@@ -1,14 +1,14 @@
 {{define "copy-button"}}
 <button type="button"
         class="main-btn copy-btn"
+        data-action="copy-text"
         data-text="{{.Text}}"
         data-type="{{.Type}}"
         hx-post="/copy-feedback"
         hx-vals='{"type": "{{.Type}}"}'
         hx-target="#popup"
         hx-swap="outerHTML"
-        hx-trigger="click"
-        hx-on::before-request="navigator.clipboard.writeText(this.dataset.text).catch(() => null)">
+        hx-trigger="click">
     <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/>
