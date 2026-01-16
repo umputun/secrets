@@ -71,6 +71,11 @@ func main() {
 
 	setupLog(opts.Dbg)
 
+	// validate sign key has sufficient entropy (minimum 16 bytes)
+	if len(opts.SignKey) < 16 {
+		log.Fatalf("[ERROR] sign key must be at least 16 bytes, got %d", len(opts.SignKey))
+	}
+
 	dataStore := getEngine(opts.Engine, opts.SQLiteDB)
 	crypter := messager.Crypt{Key: messager.MakeSignKey(opts.SignKey, opts.PinSize)}
 	params := messager.Params{MaxDuration: opts.MaxExpire, MaxPinAttempts: opts.MaxPinAttempts, MaxFileSize: opts.Files.MaxSize}
