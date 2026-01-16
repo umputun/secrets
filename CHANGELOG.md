@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.5] - 2026-01-16
+
+### Fixed
+- Enforce minimum 16-byte sign key length at startup to prevent weak encryption keys
+
+### Changed
+- Extract inline JavaScript to external app.js for CSP compliance (#103)
+- Switch Docker image to scratch-based for smaller footprint
+- Use /data directory for SQLite storage in Docker by default
+- Bump golang.org/x/crypto from 0.46.0 to 0.47.0 (#102)
+- Bump github.com/go-pkgz/rest from 1.20.7 to 1.21.0 (#101)
+- Bump github-actions-updates group (#100)
+
 ## [2.2.4] - 2025-12-30
 
 ### Fixed
