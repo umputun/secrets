@@ -38,6 +38,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - completions/*
     rlcp: true
 
 brews:
@@ -54,6 +55,10 @@ brews:
     homepage: "https://github.com/umputun/secrets"
     description: "Self-hosted service for sharing encrypted secrets with one-time access"
     license: "MIT"
+    extra_install: |
+      bash_completion.install "completions/secrets.bash" => "secrets"
+      zsh_completion.install "completions/secrets.zsh" => "_secrets"
+      fish_completion.install "completions/secrets.fish" => "secrets.fish"
 
 nfpms:
   - id: secrets
@@ -70,3 +75,10 @@ nfpms:
     bindir: /usr/bin
     epoch: 1
     release: 1
+    contents:
+      - src: completions/secrets.bash
+        dst: /usr/share/bash-completion/completions/secrets
+      - src: completions/secrets.zsh
+        dst: /usr/share/zsh/vendor-completions/_secrets
+      - src: completions/secrets.fish
+        dst: /usr/share/fish/vendor_completions.d/secrets.fish

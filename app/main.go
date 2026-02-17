@@ -67,7 +67,9 @@ func main() {
 	if _, err := flags.Parse(&opts); err != nil {
 		os.Exit(1)
 	}
-	fmt.Printf("secrets %s\n", revision)
+	if os.Getenv("GO_FLAGS_COMPLETION") == "" {
+		fmt.Printf("secrets %s\n", revision)
+	}
 
 	setupLog(opts.Dbg)
 
