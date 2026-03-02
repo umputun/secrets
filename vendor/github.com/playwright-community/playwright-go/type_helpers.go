@@ -26,7 +26,7 @@ func Float(v float64) *float64 {
 
 // Null will be used in certain scenarios where a strict nil pointer
 // check is not possible
-func Null() interface{} {
+func Null() any {
 	return "PW_NULL"
 }
 
