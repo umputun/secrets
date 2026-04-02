@@ -119,38 +119,38 @@ func (c *conn) registerSingleModule(name string, m vtab.Module) error {
 
 	nativeModules.mu.Lock()
 	defer nativeModules.mu.Unlock()
-	if _, exists := nativeModules.m[name]; exists {
-		// Module struct already created; nothing more to do for this connection.
-		return nil
+	var mod *sqlite3.Sqlite3_module
+	if existing, exists := nativeModules.m[name]; exists {
+		mod = existing
+	} else {
+		// Build a sqlite3_module descriptor with trampolines.
+		mod = &sqlite3.Sqlite3_module{}
+		mod.FiVersion = 1
+		mod.FxCreate = cFuncPointer(vtabCreateTrampoline)
+		mod.FxConnect = cFuncPointer(vtabConnectTrampoline)
+		mod.FxBestIndex = cFuncPointer(vtabBestIndexTrampoline)
+		mod.FxDisconnect = cFuncPointer(vtabDisconnectTrampoline)
+		mod.FxDestroy = cFuncPointer(vtabDestroyTrampoline)
+		mod.FxOpen = cFuncPointer(vtabOpenTrampoline)
+		mod.FxClose = cFuncPointer(vtabCloseTrampoline)
+		mod.FxFilter = cFuncPointer(vtabFilterTrampoline)
+		mod.FxNext = cFuncPointer(vtabNextTrampoline)
+		mod.FxEof = cFuncPointer(vtabEofTrampoline)
+		mod.FxColumn = cFuncPointer(vtabColumnTrampoline)
+		mod.FxRowid = cFuncPointer(vtabRowidTrampoline)
+		mod.FxFindFunction = cFuncPointer(vtabFindFunctionTrampoline)
+		mod.FxRename = cFuncPointer(vtabRenameTrampoline)
+		mod.FxUpdate = cFuncPointer(vtabUpdateTrampoline)
+		mod.FxBegin = cFuncPointer(vtabBeginTrampoline)
+		mod.FxSync = cFuncPointer(vtabSyncTrampoline)
+		mod.FxCommit = cFuncPointer(vtabCommitTrampoline)
+		mod.FxRollback = cFuncPointer(vtabRollbackTrampoline)
+		mod.FxSavepoint = cFuncPointer(vtabSavepointTrampoline)
+		mod.FxRelease = cFuncPointer(vtabReleaseTrampoline)
+		mod.FxRollbackTo = cFuncPointer(vtabRollbackToTrampoline)
+
+		nativeModules.m[name] = mod
 	}
-
-	// Build a sqlite3_module descriptor with trampolines.
-	mod := &sqlite3.Sqlite3_module{}
-	mod.FiVersion = 1
-	mod.FxCreate = cFuncPointer(vtabCreateTrampoline)
-	mod.FxConnect = cFuncPointer(vtabConnectTrampoline)
-	mod.FxBestIndex = cFuncPointer(vtabBestIndexTrampoline)
-	mod.FxDisconnect = cFuncPointer(vtabDisconnectTrampoline)
-	mod.FxDestroy = cFuncPointer(vtabDestroyTrampoline)
-	mod.FxOpen = cFuncPointer(vtabOpenTrampoline)
-	mod.FxClose = cFuncPointer(vtabCloseTrampoline)
-	mod.FxFilter = cFuncPointer(vtabFilterTrampoline)
-	mod.FxNext = cFuncPointer(vtabNextTrampoline)
-	mod.FxEof = cFuncPointer(vtabEofTrampoline)
-	mod.FxColumn = cFuncPointer(vtabColumnTrampoline)
-	mod.FxRowid = cFuncPointer(vtabRowidTrampoline)
-	mod.FxFindFunction = cFuncPointer(vtabFindFunctionTrampoline)
-	mod.FxRename = cFuncPointer(vtabRenameTrampoline)
-	mod.FxUpdate = cFuncPointer(vtabUpdateTrampoline)
-	mod.FxBegin = cFuncPointer(vtabBeginTrampoline)
-	mod.FxSync = cFuncPointer(vtabSyncTrampoline)
-	mod.FxCommit = cFuncPointer(vtabCommitTrampoline)
-	mod.FxRollback = cFuncPointer(vtabRollbackTrampoline)
-	mod.FxSavepoint = cFuncPointer(vtabSavepointTrampoline)
-	mod.FxRelease = cFuncPointer(vtabReleaseTrampoline)
-	mod.FxRollbackTo = cFuncPointer(vtabRollbackToTrampoline)
-
-	nativeModules.m[name] = mod
 
 	// Prepare C string for module name.
 	zName, err := libc.CString(name)
@@ -166,6 +166,27 @@ func (c *conn) registerSingleModule(name string, m vtab.Module) error {
 	return nil
 }
 
+func vtabConfig(tls *libc.TLS, db uintptr, op int32, args ...int32) error {
+	var va uintptr
+	if len(args) > 1 {
+		return fmt.Errorf("vtab_config: too many args (%d)", len(args))
+	}
+	if len(args) == 1 {
+		const vaSize = 8
+		p := sqlite3.Xsqlite3_malloc(tls, vaSize)
+		if p == 0 {
+			return fmt.Errorf("vtab: out of memory")
+		}
+		defer sqlite3.Xsqlite3_free(tls, p)
+		libc.VaList(p, args[0])
+		va = p
+	}
+	if rc := sqlite3.Xsqlite3_vtab_config(tls, db, op, va); rc != sqlite3.SQLITE_OK {
+		return fmt.Errorf("vtab_config op=%d: rc=%d", op, rc)
+	}
+	return nil
+}
+
 // vtabCreateTrampoline is the xCreate callback. It invokes the corresponding
 // Go vtab.Module.Create method, declares a default schema based on argv, and
 // allocates a sqlite3_vtab.
@@ -176,7 +197,7 @@ func vtabCreateTrampoline(tls *libc.TLS, db uintptr, pAux uintptr, argc int32, a
 		return sqlite3.SQLITE_ERROR
 	}
 	args := extractVtabArgs(tls, argc, argv)
-	ctx := vtab.NewContext(func(schema string) error {
+	ctx := vtab.NewContextWithConfig(func(schema string) error {
 		zSchema, err := libc.CString(schema)
 		if err != nil {
 			return err
@@ -186,6 +207,10 @@ func vtabCreateTrampoline(tls *libc.TLS, db uintptr, pAux uintptr, argc int32, a
 			return fmt.Errorf("declare_vtab failed: rc=%d", rc)
 		}
 		return nil
+	}, func() error {
+		return vtabConfig(tls, db, sqlite3.SQLITE_VTAB_CONSTRAINT_SUPPORT, 1)
+	}, func(op int32, args ...int32) error {
+		return vtabConfig(tls, db, op, args...)
 	})
 	tbl, err := gm.impl.Create(ctx, args)
 	if err != nil {
@@ -220,7 +245,7 @@ func vtabConnectTrampoline(tls *libc.TLS, db uintptr, pAux uintptr, argc int32, 
 		return sqlite3.SQLITE_ERROR
 	}
 	args := extractVtabArgs(tls, argc, argv)
-	ctx := vtab.NewContext(func(schema string) error {
+	ctx := vtab.NewContextWithConfig(func(schema string) error {
 		zSchema, err := libc.CString(schema)
 		if err != nil {
 			return err
@@ -230,6 +255,10 @@ func vtabConnectTrampoline(tls *libc.TLS, db uintptr, pAux uintptr, argc int32, 
 			return fmt.Errorf("declare_vtab failed: rc=%d", rc)
 		}
 		return nil
+	}, func() error {
+		return vtabConfig(tls, db, sqlite3.SQLITE_VTAB_CONSTRAINT_SUPPORT, 1)
+	}, func(op int32, args ...int32) error {
+		return vtabConfig(tls, db, op, args...)
 	})
 	tbl, err := gm.impl.Connect(ctx, args)
 	if err != nil {

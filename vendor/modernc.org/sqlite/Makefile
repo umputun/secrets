@@ -67,7 +67,7 @@ test:
 	go test -v -timeout 24h
 	
 vendor:
-	cd vendor_libsqlite3 && go build -o ../vendor main.go
+	cd vendor_libs && go build -o ../vendor main.go
 	./vendor
 	rm -f vendor
 	make build_all_targets

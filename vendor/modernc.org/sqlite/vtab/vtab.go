@@ -17,6 +17,10 @@ type Value = driver.Value
 // may be added in the future as needed.
 type Context struct {
 	declare func(string) error
+	// constraintSupport enables constraint support (e.g. MATCH) for the module.
+	constraintSupport func() error
+	// config issues sqlite3_vtab_config calls for other vtab options.
+	config func(op int32, args ...int32) error
 }
 
 // Declare must be called by a module from within Create or Connect to declare
@@ -32,9 +36,39 @@ func (c Context) Declare(schema string) error {
 	return c.declare(schema)
 }
 
+// EnableConstraintSupport enables virtual table constraint support in SQLite.
+// This must be called from within Create or Connect.
+func (c Context) EnableConstraintSupport() error {
+	if c.constraintSupport == nil {
+		return errors.New("vtab: constraint support not available in this context")
+	}
+	return c.constraintSupport()
+}
+
+// Config forwards sqlite3_vtab_config options to SQLite. This must be called
+// from within Create or Connect.
+func (c Context) Config(op int32, args ...int32) error {
+	if c.config == nil {
+		return errors.New("vtab: config not available in this context")
+	}
+	return c.config(op, args...)
+}
+
 // NewContext is used by the engine to create a Context bound to the current
 // xCreate/xConnect call. External modules should not need to call this.
 func NewContext(declare func(string) error) Context { return Context{declare: declare} }
+
+// NewContextWithConstraintSupport is used by the engine to create a Context
+// that can enable constraint support.
+func NewContextWithConstraintSupport(declare func(string) error, constraintSupport func() error) Context {
+	return Context{declare: declare, constraintSupport: constraintSupport}
+}
+
+// NewContextWithConfig is used by the engine to create a Context that can
+// enable constraint support and other sqlite3_vtab_config options.
+func NewContextWithConfig(declare func(string) error, constraintSupport func() error, config func(op int32, args ...int32) error) Context {
+	return Context{declare: declare, constraintSupport: constraintSupport, config: config}
+}
 
 // Module represents a virtual table module, analogous to sqlite3_module in
 // the SQLite C API. Implementations are responsible for creating and
