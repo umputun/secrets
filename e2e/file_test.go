@@ -201,8 +201,11 @@ func TestFile_LongFilenameWrapping(t *testing.T) {
 	_, err := page.Goto(baseURL)
 	require.NoError(t, err)
 
-	// switch to file tab
+	// switch to file tab (files are enabled in test server config)
 	fileTab := page.Locator("#file-tab")
+	visible, err := fileTab.IsVisible()
+	require.NoError(t, err)
+	require.True(t, visible, "file tab should be visible - files are enabled in test config")
 	require.NoError(t, fileTab.Click())
 	dropZone := page.Locator("#drop-zone")
 	waitVisible(t, dropZone)
@@ -229,10 +232,10 @@ func TestFile_LongFilenameWrapping(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, containerBox)
 
-	// file info element must not extend beyond the drop zone's right edge
+	// file info element must not extend beyond the drop zone's right edge (+1px tolerance for sub-pixel rounding)
 	fileInfoRight := fileInfoBox.X + fileInfoBox.Width
 	containerRight := containerBox.X + containerBox.Width
-	assert.LessOrEqual(t, fileInfoRight, containerRight,
+	assert.LessOrEqual(t, fileInfoRight, containerRight+1.0,
 		"file info should wrap within drop zone, not overflow (name: %d chars)", len(longName))
 }
 
