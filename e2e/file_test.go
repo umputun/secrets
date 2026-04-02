@@ -196,6 +196,46 @@ func TestFile_InfoDisplay(t *testing.T) {
 	assert.Contains(t, infoText, "e2e-test-display.txt", "should show filename")
 }
 
+func TestFile_LongFilenameWrapping(t *testing.T) {
+	page := newPage(t)
+	_, err := page.Goto(baseURL)
+	require.NoError(t, err)
+
+	// switch to file tab
+	fileTab := page.Locator("#file-tab")
+	require.NoError(t, fileTab.Click())
+	dropZone := page.Locator("#drop-zone")
+	waitVisible(t, dropZone)
+
+	// create a file with a very long name (no spaces, so word-break matters)
+	longName := strings.Repeat("abcdefghij", 15) + ".txt" // 150+ chars, no natural break points
+	testFilePath := t.TempDir() + "/" + longName
+	require.NoError(t, os.WriteFile(testFilePath, []byte("content"), 0o600))
+
+	// upload file to trigger file-info display
+	fileInput := page.Locator("input[type='file']")
+	require.NoError(t, fileInput.SetInputFiles(testFilePath))
+
+	// wait for file info to appear in drop zone
+	fileInfo := page.Locator("#file-info")
+	waitVisible(t, fileInfo)
+
+	// verify filename text wraps within the drop zone container
+	fileInfoBox, err := fileInfo.BoundingBox()
+	require.NoError(t, err)
+	require.NotNil(t, fileInfoBox)
+
+	containerBox, err := dropZone.BoundingBox()
+	require.NoError(t, err)
+	require.NotNil(t, containerBox)
+
+	// file info element must not extend beyond the drop zone's right edge
+	fileInfoRight := fileInfoBox.X + fileInfoBox.Width
+	containerRight := containerBox.X + containerBox.Width
+	assert.LessOrEqual(t, fileInfoRight, containerRight,
+		"file info should wrap within drop zone, not overflow (name: %d chars)", len(longName))
+}
+
 func TestFile_TabHiddenWhenDisabled(t *testing.T) {
 	cleanup := startNoFilesServer(t)
 	defer cleanup()

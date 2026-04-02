@@ -1374,6 +1374,10 @@ textarea.content-input-area {
     font-size: var(--text-sm);
     color: var(--color-accent);
     font-weight: var(--font-semibold);
+    max-width: 100%;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    text-align: center;
 }
 
 .drop-zone .file-info.error {
@@ -1407,12 +1411,14 @@ textarea.content-input-area {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
+    min-width: 0;
 }
 
 .file-name {
     font-weight: var(--font-semibold);
     color: var(--color-text-primary);
     word-break: break-all;
+    overflow-wrap: anywhere;
 }
 
 .file-size {
