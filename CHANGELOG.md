@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.2.6] - 2026-04-01
+
+### Fixed
+- Fix long filename wrapping in file upload (#114)
+- Add directory field to publish formula to Formula/
+
+### Changed
+- Add shell completions for bash, zsh, and fish (#105)
+- Update go dependencies (x/crypto, sqlite, slack-go, x/net, x/sys)
+- Bump the github-actions-updates group with 6 updates (#113)
+- Bump github.com/go-pkgz/lgr from 0.12.1 to 0.12.3 (#112)
+
 ## [2.2.5] - 2026-01-16
 
 ### Fixed
