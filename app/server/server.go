@@ -197,6 +197,7 @@ func (s Server) routes() http.Handler {
 		rest.Ping,
 		rest.SizeLimit(sizeLimit),
 		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
+		http.NewCrossOriginProtection().Handler,
 	)
 
 	// security headers - enabled by default, disabled with --proxy-security-headers
