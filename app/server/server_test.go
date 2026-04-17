@@ -699,6 +699,56 @@ func TestServer_CopyFeedback(t *testing.T) {
 	assert.Contains(t, string(body), "<strong>Content copied!</strong>")
 }
 
+func TestServer_crossOriginProtection(t *testing.T) {
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+
+	tests := []struct {
+		name          string
+		path          string
+		body          string
+		secFetchSite  string
+		origin        string
+		wantForbidden bool
+	}{
+		{name: "POST same-origin allowed", path: "/theme",
+			body: "theme=dark", secFetchSite: "same-origin"},
+		{name: "POST none allowed (direct nav)", path: "/theme",
+			body: "theme=dark", secFetchSite: "none"},
+		{name: "POST cross-site rejected", path: "/theme",
+			body: "theme=dark", secFetchSite: "cross-site", wantForbidden: true},
+		{name: "POST same-site rejected (subdomain)", path: "/theme",
+			body: "theme=dark", secFetchSite: "same-site", wantForbidden: true},
+		{name: "POST origin mismatch rejected", path: "/theme",
+			body: "theme=dark", origin: "http://evil.com", wantForbidden: true},
+		{name: "POST API non-browser allowed", path: "/api/v1/message",
+			body: `{"message":"x","exp":600,"pin":"12345"}`},
+		{name: "POST API cross-site rejected", path: "/api/v1/message",
+			body: `{"message":"x","exp":600,"pin":"12345"}`, secFetchSite: "cross-site", wantForbidden: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest("POST", ts.URL+tt.path, strings.NewReader(tt.body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			if tt.secFetchSite != "" {
+				req.Header.Set("Sec-Fetch-Site", tt.secFetchSite)
+			}
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			if tt.wantForbidden {
+				assert.Equal(t, http.StatusForbidden, resp.StatusCode, "should be rejected as cross-origin")
+				return
+			}
+			assert.NotEqual(t, http.StatusForbidden, resp.StatusCode, "should not be rejected as cross-origin")
+		})
+	}
+}
+
 func prepTestServer(t *testing.T) (ts *httptest.Server, teardown func()) {
 	eng := store.NewInMemory(time.Second)
 
