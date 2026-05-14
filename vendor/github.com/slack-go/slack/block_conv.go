@@ -81,10 +81,21 @@ func (b *Blocks) UnmarshalJSON(data []byte) error {
 			block = &TableBlock{}
 		case "task_card":
 			block = &TaskCardBlock{}
+		case "alert":
+			block = &AlertBlock{}
 		case "plan":
 			block = &PlanBlock{}
+		case "card":
+			block = &CardBlock{}
+		case "carousel":
+			block = &CarouselBlock{}
 		default:
-			block = &UnknownBlock{}
+			b := &UnknownBlock{raw: r}
+			if err = json.Unmarshal(r, b); err != nil {
+				return err
+			}
+			blocks.BlockSet = append(blocks.BlockSet, b)
+			continue
 		}
 
 		err = json.Unmarshal(r, block)
@@ -153,6 +164,8 @@ func (b *InputBlock) UnmarshalJSON(data []byte) error {
 		e = &FeedbackButtonsBlockElement{}
 	case "icon_button":
 		e = &IconButtonBlockElement{}
+	case "workflow_button":
+		e = &WorkflowButtonBlockElement{}
 	default:
 		return fmt.Errorf("unsupported block element type %v", s.TypeVal)
 	}
@@ -231,12 +244,18 @@ func (b *BlockElements) UnmarshalJSON(data []byte) error {
 			blockElement = &RadioButtonsBlockElement{}
 		case "static_select", "external_select", "users_select", "conversations_select", "channels_select":
 			blockElement = &SelectBlockElement{}
+		case "multi_static_select", "multi_external_select", "multi_users_select", "multi_conversations_select", "multi_channels_select":
+			blockElement = &MultiSelectBlockElement{}
 		case "number_input":
 			blockElement = &NumberInputBlockElement{}
+		case "file_input":
+			blockElement = &FileInputBlockElement{}
 		case "feedback_buttons":
 			blockElement = &FeedbackButtonsBlockElement{}
 		case "icon_button":
 			blockElement = &IconButtonBlockElement{}
+		case "workflow_button":
+			blockElement = &WorkflowButtonBlockElement{}
 		default:
 			return fmt.Errorf("unsupported block element type %v", blockElementType)
 		}
@@ -357,6 +376,12 @@ func (a *Accessory) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		a.CheckboxGroupsBlockElement = element.(*CheckboxGroupsBlockElement)
+	case "workflow_button":
+		element, err := unmarshalBlockElement(r, &WorkflowButtonBlockElement{})
+		if err != nil {
+			return err
+		}
+		a.WorkflowButtonElement = element.(*WorkflowButtonBlockElement)
 	default:
 		element, err := unmarshalBlockElement(r, &UnknownBlockElement{})
 		if err != nil {
@@ -406,6 +431,12 @@ func toBlockElement(element *Accessory) BlockElement {
 	}
 	if element.MultiSelectElement != nil {
 		return element.MultiSelectElement
+	}
+	if element.RichTextInputElement != nil {
+		return element.RichTextInputElement
+	}
+	if element.WorkflowButtonElement != nil {
+		return element.WorkflowButtonElement
 	}
 
 	return nil

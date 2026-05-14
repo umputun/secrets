@@ -46,13 +46,15 @@ type AuthTestResponse struct {
 	TeamID string `json:"team_id"`
 	UserID string `json:"user_id"`
 	// EnterpriseID is only returned when an enterprise id present
-	EnterpriseID string `json:"enterprise_id,omitempty"`
-	BotID        string `json:"bot_id"`
+	EnterpriseID string      `json:"enterprise_id,omitempty"`
+	BotID        string      `json:"bot_id"`
+	Header       http.Header `json:"-"`
 }
 
 type authTestResponseFull struct {
 	SlackResponse
 	AuthTestResponse
+	responseHeaders
 }
 
 type ParamOption func(*url.Values)
@@ -68,6 +70,8 @@ type Client struct {
 	debug              bool
 	log                ilogger
 	httpclient         httpClient
+	onWarning          func(path string, request any, w *Warning)
+	onResponseHeaders  func(path string, headers http.Header)
 }
 
 // Option defines an option for a Client
@@ -91,6 +95,34 @@ func OptionDebug(b bool) func(*Client) {
 func OptionLog(l logger) func(*Client) {
 	return func(c *Client) {
 		c.log = internalLog{logger: l}
+	}
+}
+
+// OptionOnWarning sets a callback invoked whenever an API response contains
+// warnings. The callback receives the API method path (e.g.
+// "conversations.join"), the request payload ([url.Values] for form-encoded
+// requests or []byte for JSON requests), and a [Warning] with the warning
+// codes and messages.
+//
+// Example:
+//
+//	api := slack.New("YOUR_TOKEN",
+//		slack.OptionOnWarning(func(path string, request any, w *slack.Warning) {
+//			log.Printf("slack warnings for %s: codes=%v warnings=%v", path, w.Codes, w.Warnings)
+//		}),
+//	)
+func OptionOnWarning(fn func(path string, request any, w *Warning)) func(*Client) {
+	return func(c *Client) {
+		c.onWarning = fn
+	}
+}
+
+// OptionOnResponseHeaders sets a callback invoked after every API request
+// with the API method path and the HTTP response headers. This allows
+// accessing headers like X-OAuth-Scopes and X-Ratelimit-* for any request.
+func OptionOnResponseHeaders(fn func(path string, headers http.Header)) func(*Client) {
+	return func(c *Client) {
+		c.onResponseHeaders = fn
 	}
 }
 
@@ -183,6 +215,7 @@ func (api *Client) AuthTestContext(ctx context.Context) (response *AuthTestRespo
 		return nil, err
 	}
 
+	responseFull.AuthTestResponse.Header = responseFull.responseHeaders.header
 	return &responseFull.AuthTestResponse, responseFull.Err()
 }
 
@@ -207,10 +240,41 @@ func (api *Client) Debug() bool {
 
 // post to a slack web method.
 func (api *Client) postMethod(ctx context.Context, path string, values url.Values, intf any) error {
-	return postForm(ctx, api.httpclient, api.endpoint+path, values, intf, api)
+	headers, err := postForm(ctx, api.httpclient, api.endpoint+path, values, intf, api)
+	api.checkWarnings(intf, path, values)
+	api.fireResponseHeaders(path, headers)
+	return err
 }
 
 // get a slack web method.
 func (api *Client) getMethod(ctx context.Context, path string, token string, values url.Values, intf any) error {
-	return getResource(ctx, api.httpclient, api.endpoint+path, token, values, intf, api)
+	headers, err := getResource(ctx, api.httpclient, api.endpoint+path, token, values, intf, api)
+	api.checkWarnings(intf, path, values)
+	api.fireResponseHeaders(path, headers)
+	return err
+}
+
+// postJSONMethod posts JSON to a slack web method.
+func (api *Client) postJSONMethod(ctx context.Context, path string, token string, jsonBody []byte, intf any) error {
+	headers, err := postJSON(ctx, api.httpclient, api.endpoint+path, token, jsonBody, intf, api)
+	api.checkWarnings(intf, path, jsonBody)
+	api.fireResponseHeaders(path, headers)
+	return err
+}
+
+func (api *Client) checkWarnings(intf any, path string, request any) {
+	if api.onWarning == nil {
+		return
+	}
+	if w, ok := intf.(warner); ok {
+		if warning := w.Warn(); warning != nil {
+			api.onWarning(path, request, warning)
+		}
+	}
+}
+
+func (api *Client) fireResponseHeaders(path string, headers http.Header) {
+	if api.onResponseHeaders != nil && headers != nil {
+		api.onResponseHeaders(path, headers)
+	}
 }
