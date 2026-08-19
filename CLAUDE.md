@@ -101,9 +101,9 @@ type Crypter interface {
 ### Data Flow
 1. User submits message + PIN via web UI or API
 2. Server validates input (PIN size, expiration limits)
-3. MessageProc hashes PIN with bcrypt, encrypts message data
-4. Encrypted message saved to storage engine with UUID key and expiration
-5. For retrieval: validate PIN attempts, decrypt if correct, delete after successful read
+3. MessageProc hashes PIN with bcrypt; API messages are encrypted server-side, UI messages arrive already encrypted by the browser and are stored as-is
+4. Encrypted message saved to storage engine with 12-character base62 key and expiration
+5. For retrieval: validate PIN attempts, then delete and return; API messages are decrypted server-side first, UI messages are handed back as stored ciphertext for the browser to decrypt
 
 ### File Message Format
 File messages use a distinct storage format with encrypted metadata:
@@ -183,7 +183,7 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 - **rest.RealIP middleware** - Extracts client IP from headers for CDN/proxy compatibility (from go-pkgz/rest v1.20.6+)
   - Header priority: X-Real-IP → CF-Connecting-IP → leftmost public IP in X-Forwarded-For → RemoteAddr
   - Filters private/loopback/link-local IPs automatically
-- **HashedIP middleware** - Anonymizes client IP using HMAC-SHA1 hash (12-char hex) for audit logging
+- **HashedIP middleware** - Anonymizes client IP using HMAC-SHA256 hash (8-char hex) for audit logging
   - Must run after rest.RealIP middleware (reads `r.RemoteAddr` set by RealIP)
 - **Logger middleware** - Logs requests with masked sensitive paths (PINs) and anonymized IPs
   - Must run after HashedIP middleware (reads hashed IP from context)
