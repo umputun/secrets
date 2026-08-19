@@ -9,7 +9,7 @@ require (
 	github.com/go-pkgz/rest v1.24.0
 	github.com/go-pkgz/routegroup v1.6.1
 	github.com/google/uuid v1.6.0
-	github.com/playwright-community/playwright-go v0.5200.1
+	github.com/mxschmitt/playwright-go v0.6201.1
 	github.com/stretchr/testify v1.12.0
 	github.com/umputun/go-flags v1.5.1
 	golang.org/x/crypto v0.55.0
@@ -20,7 +20,6 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
 	github.com/go-pkgz/email v0.8.0 // indirect
 	github.com/go-pkgz/expirable-cache/v3 v3.1.1 // indirect
 	github.com/go-pkgz/repeater/v2 v2.2.0 // indirect
