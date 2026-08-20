@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/playwright-community/playwright-go"
+	"github.com/mxschmitt/playwright-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -390,15 +390,19 @@ func TestTheme_Toggle(t *testing.T) {
 	require.True(t, visible, "theme toggle button should be visible")
 
 	require.NoError(t, themeBtn.Click())
-	// wait for page to fully reload by checking for message form
-	messageTextarea := page.Locator("#message")
-	waitVisible(t, messageTextarea)
 
-	// check theme changed
-	newTheme, err := page.Locator("html").GetAttribute("data-theme")
-	require.NoError(t, err)
+	// the toggle answers with HX-Refresh, and #message is present both before and after the
+	// reload, so the attribute has to be polled until the reloaded document arrives
+	var newTheme string
+	require.Eventually(t, func() bool {
+		v, attrErr := page.Locator("html").GetAttribute("data-theme")
+		if attrErr != nil {
+			return false
+		}
+		newTheme = v
+		return v != initialTheme
+	}, 5*time.Second, 50*time.Millisecond, "theme should change after toggle")
 	assert.NotEmpty(t, newTheme, "theme attribute should be set after toggle")
-	assert.NotEqual(t, initialTheme, newTheme, "theme should change after toggle")
 }
 
 // --- about page tests ---

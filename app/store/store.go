@@ -37,7 +37,7 @@ func GenerateID() string {
 		}
 		// reject values >= 248 to avoid modulo bias (248 = 62*4, evenly divisible)
 		if b[0] < 248 {
-			result[i] = alphabet[b[0]%62] //nolint:gosec // index always 0-61, safe
+			result[i] = alphabet[b[0]%62]
 			i++
 		}
 	}

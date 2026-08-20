@@ -68,6 +68,7 @@ func (s Server) loginCtrl(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[INFO] login success, ip=%s", GetHashedIP(r))
 	// authentication successful, set session cookie
+	//nolint:gosec // G124: Secure is set from the configured protocol, plain http is allowed for local runs
 	http.SetCookie(w, &http.Cookie{
 		Name:     authCookieName,
 		Value:    s.generateSessionToken(),
@@ -89,6 +90,7 @@ func (s Server) loginCtrl(w http.ResponseWriter, r *http.Request) {
 // GET /logout
 func (s Server) logoutCtrl(w http.ResponseWriter, r *http.Request) {
 	// clear the auth cookie
+	//nolint:gosec // G124: Secure is set from the configured protocol, plain http is allowed for local runs
 	http.SetCookie(w, &http.Cookie{
 		Name:     authCookieName,
 		Value:    "",
