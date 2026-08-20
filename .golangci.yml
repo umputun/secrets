@@ -61,6 +61,7 @@ linters:
     goconst:
       min-len: 2
       min-occurrences: 7
+      ignore-tests: true
     gocritic:
       disabled-checks:
         - wrapperFunc
@@ -136,6 +137,10 @@ linters:
           - gosec
         path: e2e/
         text: "G101: Potential hardcoded credentials"
+      - linters:
+          - gosec
+        path: _test\.go$
+        text: "G124:"
       - linters:
           - goconst
         text: "string `text` has"

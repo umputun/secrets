@@ -103,6 +103,10 @@ func (u RichTextUnknown) RichTextElementType() RichTextElementType {
 	return u.Type
 }
 
+func (u RichTextUnknown) MarshalJSON() ([]byte, error) {
+	return []byte(u.Raw), nil
+}
+
 type RichTextListElementType string
 
 const (
@@ -294,10 +298,14 @@ type RichTextSectionElement interface {
 }
 
 type RichTextSectionTextStyle struct {
-	Bold   bool `json:"bold,omitempty"`
-	Italic bool `json:"italic,omitempty"`
-	Strike bool `json:"strike,omitempty"`
-	Code   bool `json:"code,omitempty"`
+	Bold            bool `json:"bold,omitempty"`
+	Italic          bool `json:"italic,omitempty"`
+	Strike          bool `json:"strike,omitempty"`
+	Code            bool `json:"code,omitempty"`
+	Underline       bool `json:"underline,omitempty"`
+	Highlight       bool `json:"highlight,omitempty"`
+	ClientHighlight bool `json:"client_highlight,omitempty"`
+	Unlink          bool `json:"unlink,omitempty"`
 }
 
 type RichTextSectionTextElement struct {
@@ -416,6 +424,7 @@ func NewRichTextSectionTeamElement(teamID string, style *RichTextSectionTextStyl
 type RichTextSectionUserGroupElement struct {
 	Type        RichTextSectionElementType `json:"type"`
 	UsergroupID string                     `json:"usergroup_id"`
+	Style       *RichTextSectionTextStyle  `json:"style,omitempty"`
 }
 
 func (r RichTextSectionUserGroupElement) RichTextSectionElementType() RichTextSectionElementType {
@@ -490,6 +499,10 @@ type RichTextSectionUnknownElement struct {
 
 func (r RichTextSectionUnknownElement) RichTextSectionElementType() RichTextSectionElementType {
 	return r.Type
+}
+
+func (r RichTextSectionUnknownElement) MarshalJSON() ([]byte, error) {
+	return []byte(r.Raw), nil
 }
 
 // RichTextQuote represents rich_text_quote element type.
