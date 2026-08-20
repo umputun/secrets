@@ -331,7 +331,7 @@ Mailgun requires specific configuration:
 ./secrets -k "secret-key" -d "example.com" --auth.hash='$2a$10$...'
 
 # with email sharing
-./secrets -k "secret-key" -d "example.com" \
+./secrets -k "secret-key" -d "example.com" --auth.hash='$2a$10$...' \
   --email.enabled --email.host=smtp.example.com \
   --email.from="Safe Secrets <noreply@example.com>"
 ```
