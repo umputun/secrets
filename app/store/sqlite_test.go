@@ -149,6 +149,44 @@ func TestSQLite_Remove(t *testing.T) {
 	assert.Equal(t, ErrLoadRejected, err)
 }
 
+func TestSQLite_Remove_Concurrent(t *testing.T) {
+	dbFile := "/tmp/test_sqlite_remove_concurrent.db"
+	defer os.Remove(dbFile)
+
+	s, err := NewSQLite(dbFile, time.Minute)
+	require.NoError(t, err)
+	defer s.Close()
+
+	ctx := t.Context()
+	msg := Message{Key: "onlyonce", Exp: time.Now().Add(time.Hour), Data: []byte("data"), PinHash: "hash"}
+	require.NoError(t, s.Save(ctx, &msg))
+
+	const workers = 10
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make([]error, workers)
+	wg.Add(workers)
+	for i := range workers {
+		go func() {
+			defer wg.Done()
+			<-start
+			errs[i] = s.Remove(ctx, "onlyonce")
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	removed := 0
+	for _, removeErr := range errs {
+		if removeErr == nil {
+			removed++
+			continue
+		}
+		require.ErrorIs(t, removeErr, ErrLoadRejected)
+	}
+	assert.Equal(t, 1, removed)
+}
+
 func TestSQLite_Cleanup(t *testing.T) {
 	dbFile := "/tmp/test_sqlite_cleanup.db"
 	defer os.Remove(dbFile)
