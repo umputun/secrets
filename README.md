@@ -84,11 +84,11 @@ The service uses **hybrid encryption** based on how you access it:
 ### Security Architecture
 
 **Encryption:**
-- Server-side: AES-256-GCM for message encryption
+- Server-side: NaCl secretbox (XSalsa20-Poly1305) for message encryption
 - Client-side (web UI): AES-128-GCM via Web Crypto API
-- PIN hashing: bcrypt (cost 14)
-- Random key generation: 32-byte cryptographically secure
-- Server rejects unencrypted content from web clients (ciphertext format validation)
+- PIN hashing: bcrypt (`bcrypt.DefaultCost`, currently 10)
+- Random generation: 128-bit client keys and 12-character base62 message IDs, both from a CSPRNG
+- Server checks that content from web clients has the shape of a ciphertext envelope (base64url, at least IV plus tag)
 
 **HTTP Security Headers:**
 - `Content-Security-Policy`: restricts scripts, styles, fonts to trusted sources; `frame-ancestors 'none'`; `form-action 'self'`
@@ -384,7 +384,7 @@ $ curl -X POST https://safesecret.info/api/v1/message \
 
 {
   "exp": "2024-01-15T10:30:00Z",
-  "key": "f1acfe04-277f-4016-518d-16c312ab84b5"
+  "key": "u2yKL07dDtRR"
 }
 ```
 
@@ -395,10 +395,10 @@ GET /api/v1/message/:key/:pin
 ```
 
 ```bash
-$ curl https://safesecret.info/api/v1/message/f1acfe04-277f-4016-518d-16c312ab84b5/12345
+$ curl https://safesecret.info/api/v1/message/u2yKL07dDtRR/12345
 
 {
-  "key": "f1acfe04-277f-4016-518d-16c312ab84b5",
+  "key": "u2yKL07dDtRR",
   "message": "my secret"
 }
 ```
