@@ -37,7 +37,7 @@ func GenerateID() string {
 		}
 		// reject values >= 248 to avoid modulo bias (248 = 62*4, evenly divisible)
 		if b[0] < 248 {
-			result[i] = alphabet[b[0]%62]
+			result[i] = alphabet[b[0]%62] //nolint:gosec // G602 false positive: i < 12 == len(result), and b[0]%62 is 0..61 for a 62-byte alphabet
 			i++
 		}
 	}

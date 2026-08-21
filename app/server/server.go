@@ -151,7 +151,6 @@ func (s Server) Run(ctx context.Context) error {
 		IdleTimeout:       30 * time.Second,
 	}
 
-	//nolint:gosec // G118: the shutdown deadline can't derive from ctx, it is already done at this point
 	go func() {
 		<-ctx.Done()
 		if httpServer != nil {

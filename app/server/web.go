@@ -371,7 +371,6 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		// non-HTMX request (from client-side JS with fetch) - return blob for decryption
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		//nolint:gosec // G705: base64url ciphertext served as text/plain, nosniff set by security headers
 		_, _ = w.Write(msg.Data)
 		log.Printf("[INFO] accessed message %s, type=client-enc, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
 		return
@@ -407,7 +406,6 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(msg.Data)-dataStart))
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
-		//nolint:gosec // G705: served as octet-stream attachment with nosniff, never rendered by the browser
 		_, _ = w.Write(msg.Data[dataStart:])
 		log.Printf("[INFO] accessed message %s, type=file, status=200 (success), ip=%s", form.Key, GetHashedIP(r))
 		return
@@ -528,7 +526,6 @@ func (s Server) themeToggleCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// set cookie (client-side storage)
-	//nolint:gosec // G124: theme preference carries no secret and HttpOnly is off on purpose, see below
 	http.SetCookie(w, &http.Cookie{
 		Name:     "theme",
 		Value:    nextTheme,
