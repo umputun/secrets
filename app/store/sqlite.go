@@ -168,15 +168,24 @@ func (s *SQLite) IncErr(ctx context.Context, key string) (int, error) {
 	return count, nil
 }
 
-// Remove deletes message by key
+// Remove deletes message by key and rejects a concurrent claim.
 func (s *SQLite) Remove(ctx context.Context, key string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	_, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE id = ?", key)
+	res, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE id = ?", key)
 	if err != nil {
 		log.Printf("[ERROR] failed to remove message: %v", err)
 		return fmt.Errorf("remove message: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		log.Printf("[ERROR] failed to get affected rows: %v", err)
+		return fmt.Errorf("remove message: %w", err)
+	}
+	if affected == 0 {
+		log.Printf("[DEBUG] nothing to remove for %s", key)
+		return ErrLoadRejected
 	}
 	log.Printf("[INFO] removed %s", key)
 	return nil

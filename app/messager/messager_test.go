@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -352,6 +353,103 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 	assert.Len(t, s.RemoveCalls(), 1)
 	assert.Empty(t, s.IncErrCalls())
 	assert.Len(t, c.DecryptCalls(), 1)
+}
+
+func TestMessageProc_LoadMessage_AlreadyClaimed(t *testing.T) {
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:    []byte("data"),
+				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
+				Exp:     time.Now().Add(time.Minute),
+			}, nil
+		},
+		RemoveFunc: func(ctx context.Context, key string) error { return store.ErrLoadRejected },
+	}
+
+	c := &CrypterMock{DecryptFunc: func(req Request) ([]byte, error) { return []byte("decrypted blah"), nil }}
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
+
+	require.ErrorIs(t, err, store.ErrLoadRejected)
+	assert.Nil(t, r)
+}
+
+func TestMessageProc_LoadMessage_AlreadyClaimed_ClientEnc(t *testing.T) {
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:      []byte("client-encrypted blob"),
+				PinHash:   "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
+				Exp:       time.Now().Add(time.Minute),
+				ClientEnc: true,
+			}, nil
+		},
+		RemoveFunc: func(ctx context.Context, key string) error { return store.ErrLoadRejected },
+	}
+
+	m := New(s, &CrypterMock{}, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
+
+	require.ErrorIs(t, err, store.ErrLoadRejected)
+	assert.Nil(t, r)
+}
+
+func TestMessageProc_LoadMessage_RemoveFails(t *testing.T) {
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:    []byte("data"),
+				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
+				Exp:     time.Now().Add(time.Minute),
+			}, nil
+		},
+		RemoveFunc: func(ctx context.Context, key string) error { return errors.New("database is locked") },
+	}
+
+	c := &CrypterMock{DecryptFunc: func(req Request) ([]byte, error) { return []byte("decrypted blah"), nil }}
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
+
+	require.ErrorIs(t, err, ErrInternal)
+	assert.Nil(t, r)
+}
+
+func TestMessageProc_LoadMessage_ConcurrentClaim(t *testing.T) {
+	eng := store.NewInMemory(time.Minute)
+	defer eng.Close()
+
+	m := New(eng, Crypt{Key: "123456789012345678901234567"}, Params{MaxPinAttempts: 3, MaxDuration: time.Minute})
+	msg, err := m.MakeMessage(t.Context(), MsgReq{Duration: time.Minute, Message: "my secret", Pin: "12345"})
+	require.NoError(t, err)
+
+	const readers = 8
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make([]error, readers)
+	loaded := make([]*store.Message, readers)
+	wg.Add(readers)
+	for i := range readers {
+		go func() {
+			defer wg.Done()
+			<-start
+			loaded[i], errs[i] = m.LoadMessage(t.Context(), msg.Key, "12345")
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	claimed := 0
+	for i, loadErr := range errs {
+		if loadErr == nil {
+			claimed++
+			assert.Equal(t, "my secret", string(loaded[i].Data))
+			continue
+		}
+		require.ErrorIs(t, loadErr, store.ErrLoadRejected)
+		assert.Nil(t, loaded[i])
+	}
+	assert.Equal(t, 1, claimed)
 }
 
 func TestMessageProc_LoadMessage_NoPinMessage(t *testing.T) {

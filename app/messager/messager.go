@@ -184,7 +184,8 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 	// client-side encrypted messages: return data as-is (client handles decryption)
 	if msg.ClientEnc {
 		if rmErr := p.engine.Remove(ctx, key); rmErr != nil {
-			log.Printf("[WARN] failed to remove, %v", rmErr)
+			log.Printf("[WARN] failed to remove %s, %v", key, rmErr)
+			return nil, claimError(rmErr)
 		}
 		return msg, nil
 	}
@@ -206,7 +207,8 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 	}
 
 	if err := p.engine.Remove(ctx, key); err != nil {
-		log.Printf("[WARN] failed to remove, %v", err)
+		log.Printf("[WARN] failed to remove %s, %v", key, err)
+		return nil, claimError(err)
 	}
 
 	// for file messages, prepend !!FILE!! to decrypted result for ParseFileHeader compatibility
@@ -217,6 +219,14 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 		msg.Data = r
 	}
 	return msg, nil
+}
+
+func claimError(err error) error {
+	// already gone means another reader or cleanup won; other storage failures leave the message present and must not look missing
+	if errors.Is(err, store.ErrLoadRejected) {
+		return store.ErrLoadRejected
+	}
+	return ErrInternal
 }
 
 // checkHash verifies msg.PinHash with provided pin.
