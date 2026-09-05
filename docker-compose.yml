@@ -25,7 +25,8 @@ services:
            - PIN_ATTEMPTS=3
            - MAX_EXPIRE=24h
            - DOMAIN=www.example.com # important! change to your domain(s), comma-separated
-        # uncomment to expose directly without nginx proxy
+           - PROXY_TRUST_HEADERS=true
+        # disable PROXY_TRUST_HEADERS before exposing directly without nginx
         # ports:
         #  - "80:8080"
 

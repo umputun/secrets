@@ -3,15 +3,75 @@
 package e2e
 
 import (
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/mxschmitt/playwright-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestEmail_KeyOnlySentOnSubmit(t *testing.T) {
+	cleanup := startEmailServer(t)
+	defer cleanup()
+	page := newPage(t)
+	_, err := page.Goto(emailServerURL)
+	require.NoError(t, err)
+	require.NoError(t, page.Locator("#message").Fill("email privacy test"))
+	require.NoError(t, page.Locator("#pin").Fill(testPin))
+	require.NoError(t, page.Locator("button[type='submit']").Click())
+	emailBtn := page.Locator("button:has-text('Email')")
+	waitVisible(t, emailBtn)
+	fullLink, err := page.Locator("#msg-text").InputValue()
+	require.NoError(t, err)
+	parsed, err := url.Parse(fullLink)
+	require.NoError(t, err)
+	require.NotEmpty(t, parsed.Fragment)
+	key := parsed.Fragment
+	parsed.Fragment = ""
+	keylessLink := parsed.String()
+
+	for _, name := range []string{"open", "reopen after cancel"} {
+		t.Run(name, func(t *testing.T) {
+			req, reqErr := page.ExpectRequest("**/email-popup?*", func() error { return emailBtn.Click() })
+			require.NoError(t, reqErr)
+			assert.NotContains(t, req.URL(), key)
+			popup := page.Locator("#popup.active")
+			waitVisible(t, popup)
+			link, linkErr := popup.Locator("input[name='link']").InputValue()
+			require.NoError(t, linkErr)
+			assert.Equal(t, keylessLink, link)
+			require.NoError(t, popup.Locator("button:has-text('Cancel')").Click())
+			waitHidden(t, page.Locator("#popup.active"))
+		})
+	}
+
+	require.NoError(t, emailBtn.Click())
+	waitVisible(t, page.Locator("#popup.active"))
+	for _, name := range []string{"send", "retry after failure"} {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, page.Locator("#to").Fill("recipient@example.com"))
+			req, reqErr := page.ExpectRequest("**/send-email", func() error {
+				return page.Locator("#popup button[type='submit']").Click()
+			})
+			require.NoError(t, reqErr)
+			assert.Equal(t, "POST", req.Method())
+			assert.NotContains(t, req.URL(), key)
+			body, bodyErr := req.PostData()
+			require.NoError(t, bodyErr)
+			values, parseErr := url.ParseQuery(body)
+			require.NoError(t, parseErr)
+			assert.Equal(t, fullLink, values.Get("link"))
+			require.NoError(t, page.Locator("#popup .form-error").WaitFor(playwright.LocatorWaitForOptions{State: playwright.WaitForSelectorStateVisible}))
+			_, waitErr := page.WaitForFunction(`link => document.querySelector('.email-form input[name="link"]')?.value === link`, keylessLink)
+			require.NoError(t, waitErr)
+		})
+	}
+}
 
 const emailServerURL = "http://localhost:18082"
 

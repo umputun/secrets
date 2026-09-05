@@ -2,9 +2,13 @@ package server
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +22,72 @@ import (
 	"github.com/umputun/secrets/v2/app/server/mocks"
 	"github.com/umputun/secrets/v2/app/store"
 )
+
+func TestServer_sessionTokenSecurity(t *testing.T) {
+	s := Server{cfg: Config{SignKey: "server-secret", AuthHash: "password-hash", SessionTTL: time.Hour}}
+	now := time.Now().Unix()
+	id := "00000000-0000-4000-8000-000000000007"
+	expired := strconv.FormatInt(now-7200, 10)
+	legacyToken := func(tokenID, timestamp string) string {
+		h := hmac.New(sha256.New, s.sessionSecret())
+		h.Write([]byte(tokenID + timestamp))
+		return tokenID + "." + timestamp + "." + base64.StdEncoding.EncodeToString(h.Sum(nil))
+	}
+	old := strings.Split(legacyToken(id, expired), ".")
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{"expired original", strings.Join(old, ".")},
+		{"timestamp boundary moved", id[:len(id)-1] + ".7" + expired + "." + old[2]},
+		{"legacy future timestamp", legacyToken(id, strconv.FormatInt(now+3600, 10))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) { assert.False(t, s.validateSessionToken(tt.token)) })
+	}
+
+	for _, tt := range []struct {
+		name      string
+		id        string
+		timestamp string
+		valid     bool
+	}{
+		{"current", id, strconv.FormatInt(now, 10), true},
+		{"expired", id, expired, false},
+		{"clock skew", id, strconv.FormatInt(now+10, 10), true},
+		{"future", id, strconv.FormatInt(now+3600, 10), false},
+		{"invalid UUID", "invalid", strconv.FormatInt(now, 10), false},
+		{"invalid timestamp", id, "invalid", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := tt.id + "." + tt.timestamp
+			h := hmac.New(sha256.New, s.sessionSecret())
+			h.Write([]byte(payload))
+			token := payload + "." + base64.StdEncoding.EncodeToString(h.Sum(nil))
+			assert.Equal(t, tt.valid, s.validateSessionToken(token))
+		})
+	}
+}
+
+func TestServer_sessionSigningKey(t *testing.T) {
+	s := Server{cfg: Config{SignKey: "server-secret", AuthHash: "password-hash", SessionTTL: time.Hour}}
+	for _, tt := range []struct {
+		name     string
+		signKey  string
+		authHash string
+		valid    bool
+	}{
+		{"same credentials", "server-secret", "password-hash", true},
+		{"different signing key", "other-secret", "password-hash", false},
+		{"hash alone", "", "password-hash", false},
+		{"password rotated", "server-secret", "other-hash", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			issuer := Server{cfg: Config{SignKey: tt.signKey, AuthHash: tt.authHash, SessionTTL: time.Hour}}
+			assert.Equal(t, tt.valid, s.validateSessionToken(issuer.generateSessionToken()))
+		})
+	}
+}
 
 // helper to generate bcrypt hash for testing
 func testBcryptHash(t *testing.T, password string) string {

@@ -50,6 +50,7 @@ type Config struct {
 	EmailEnabled           bool // email sharing (optional)
 	AllowNoPin             bool // allow creating secrets without PIN protection
 	DisableSecurityHeaders bool // skip security headers when proxy handles them
+	TrustProxyHeaders      bool // trust X-Real-IP, CF-Connecting-IP and X-Forwarded-For from the reverse proxy
 }
 
 //go:generate moq -out mocks/email_sender_mock.go -pkg mocks -skip-ensure -fmt goimports . EmailSender
@@ -187,9 +188,12 @@ func (s Server) routes() http.Handler {
 		sizeLimit = s.cfg.MaxFileSize * 14 / 10 // file size * 1.4 for base64 overhead
 	}
 
+	if s.cfg.TrustProxyHeaders {
+		router.Use(rest.RealIP)
+	}
+
 	// global middleware - applied to all routes
 	router.Use(
-		rest.RealIP, // x-Real-IP → CF-Connecting-IP → leftmost public XFF → RemoteAddr
 		HashedIP(s.logSecret),
 		rest.Recoverer(log.Default()),
 		rest.Throttle(1000),
@@ -291,7 +295,7 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	}{}
 
 	if err := rest.DecodeJSON(r, &request); err != nil {
-		log.Printf("[WARN] can't bind request %v", request)
+		log.Printf("[WARN] can't bind request: %v", err)
 		SendErrorJSON(w, r, log.Default(), http.StatusBadRequest, err, "can't decode request")
 		return
 	}

@@ -61,11 +61,12 @@ _Feel free to suggest any other ways to make the process safer._
 
 The service uses **hybrid encryption** based on how you access it:
 
-**Web UI (zero-knowledge):**
+**Web UI (zero-knowledge when you share the link yourself):**
 - All encryption/decryption happens in your browser using Web Crypto API (AES-128-GCM)
 - The server stores only encrypted blobs - it cannot read your messages
-- The decryption key is stored in the URL fragment (`#key`) which never leaves your browser
-- Even if the server is compromised, your secrets remain encrypted
+- The decryption key is stored in the URL fragment (`#key`) and is never sent to the server during creation or retrieval
+- A copy of the stored database does not reveal web messages without their decryption keys
+- The one exception is the built-in email feature: sending the link by email hands the full link, including the key, to the server and the mail provider. Copy the link and share it yourself to keep the key out of the server's hands
 
 **API (server-side):**
 - Server handles encryption/decryption for API clients
@@ -214,6 +215,9 @@ All options work as both CLI flags and environment variables.
 | `--branding-url` | `BRANDING_URL` | `https://safesecret.info` | Branding link URL for emails |
 | `--dbg` | - | `false` | Enable debug mode |
 | `--proxy-security-headers` | `PROXY_SECURITY_HEADERS` | `false` | Disable security headers (when proxy handles them) |
+| `--proxy-trust-headers` | `PROXY_TRUST_HEADERS` | `false` | Trust client IP headers from the reverse proxy |
+
+By default, rate limiting uses the network peer's IP address. Enable `--proxy-trust-headers` only when all requests arrive through a trusted reverse proxy. The proxy must overwrite or strip client-supplied `X-Real-IP`, `CF-Connecting-IP`, and `X-Forwarded-For` headers, and clients must not be able to reach the backend directly. Otherwise, clients can spoof their IP and bypass rate limits. The nginx and reproxy Compose examples configure this for a proxy exposed directly to clients; a CDN in front requires its own trusted forwarding setup.
 
 ### Message Settings
 
@@ -251,6 +255,8 @@ Optional password protection for creating secrets. When enabled, users must log 
 | `--auth.hash` | `AUTH_HASH` | *disabled* | bcrypt hash to enable auth |
 | `--auth.session-ttl` | `AUTH_SESSION_TTL` | `168h` | Session lifetime (7 days) |
 
+Sessions are signed using both `SIGN_KEY` and `AUTH_HASH`. Changing either invalidates existing sessions.
+
 **Generate a bcrypt hash:**
 
 ```bash
@@ -271,6 +277,8 @@ docker run --rm caddy caddy hash-password --plaintext yourpassword
 ### Email Sharing
 
 Send secret links directly via email. Recipients receive a nicely formatted email with the link - they still need the PIN (share it separately for security).
+
+Sending through this feature gives the server and mail provider the complete link, including the decryption key. Use the Copy button and share the link yourself to keep the key out of the server's hands.
 
 | Flag | Env Variable | Default | Description |
 |------|--------------|---------|-------------|
@@ -315,7 +323,7 @@ Mailgun requires specific configuration:
 ### Examples
 
 ```bash
-# basic usage (web UI uses zero-knowledge encryption automatically)
+# basic usage (web UI encrypts in the browser)
 ./secrets -k "secret-key" -d "example.com"
 
 # multiple domains

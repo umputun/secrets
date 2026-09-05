@@ -346,6 +346,7 @@ function initDragDrop() {
 // encryption state encapsulated in object to prevent global pollution
 var encryptionState = {
     key: null,
+    emailLink: null,
     done: false,
     pendingForm: null,
     pendingEvent: null,
@@ -398,8 +399,15 @@ function setupEncryptionHandlers() {
         doClientEncryption(evt.detail.elt);
     });
 
-    // after successful swap, append key to URL and update email button
     document.body.addEventListener('htmx:afterSwap', handleAfterSwap);
+
+    document.body.addEventListener('htmx:configRequest', function(evt) {
+        if (evt.detail.path !== '/send-email' || !evt.detail.elt.matches('.email-form')) return;
+        if (!encryptionState.emailLink) return;
+        const linkInput = evt.detail.elt.querySelector('input[name="link"]');
+        linkInput.value = encryptionState.emailLink;
+        evt.detail.parameters.link = encryptionState.emailLink;
+    });
 
     // handle non-swap failures
     document.body.addEventListener('htmx:sendError', resetEncryptionState);
@@ -506,18 +514,17 @@ async function doEncryptionWork(form) {
 }
 
 function handleAfterSwap(evt) {
+    const emailLinkInput = document.querySelector('.email-form input[name="link"]');
+    if (emailLinkInput && encryptionState.emailLink) {
+        emailLinkInput.value = encryptionState.emailLink.split('#')[0];
+    }
     if (!encryptionState.key) return;
 
     const textarea = document.getElementById('msg-text');
     if (textarea && textarea.value.includes('/message/')) {
         const fullUrl = textarea.value + '#' + encryptionState.key;
         textarea.value = fullUrl;
-
-        const emailBtn = document.querySelector('button[hx-get^="/email-popup"]');
-        if (emailBtn) {
-            emailBtn.setAttribute('hx-get', '/email-popup?link=' + encodeURIComponent(fullUrl));
-            htmx.process(emailBtn);
-        }
+        encryptionState.emailLink = fullUrl;
 
         encryptionState.key = null;
         encryptionState.done = false;

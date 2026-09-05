@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,12 +13,56 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-pkgz/lgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/umputun/secrets/v2/app/messager"
 	"github.com/umputun/secrets/v2/app/store"
 )
+
+func TestServer_saveMessageDecodeLog(t *testing.T) {
+	var out bytes.Buffer
+	lgr.Setup(lgr.Out(&out))
+	t.Cleanup(func() { lgr.Setup() })
+	s := Server{}
+	r := httptest.NewRequest("POST", "/api/v1/message", strings.NewReader(`{"Message":"secret-body-marker","Pin":"54321","Exp":"bad"}`))
+	w := httptest.NewRecorder()
+	s.saveMessageCtrl(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.NotContains(t, out.String(), "secret-body-marker")
+	assert.NotContains(t, out.String(), "54321")
+	assert.Contains(t, out.String(), "can't decode request")
+}
+
+func TestServer_proxyHeaderRateLimit(t *testing.T) {
+	for _, header := range []string{"X-Real-IP", "CF-Connecting-IP", "X-Forwarded-For"} {
+		for _, trust := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/trust=%v", header, trust), func(t *testing.T) {
+				s, err := New(nil, "test", Config{Domain: []string{"localhost"}, TrustProxyHeaders: trust})
+				require.NoError(t, err)
+				h := s.routes()
+				request := func(ip string) int {
+					r := httptest.NewRequest("GET", "/api/v1/params", http.NoBody)
+					r.RemoteAddr = "192.0.2.1:12345"
+					r.Header.Set(header, ip)
+					w := httptest.NewRecorder()
+					h.ServeHTTP(w, r)
+					return w.Code
+				}
+				for range 10 {
+					require.Equal(t, http.StatusOK, request("8.8.8.8"))
+				}
+				require.Equal(t, http.StatusTooManyRequests, request("8.8.8.8"))
+				want := http.StatusTooManyRequests
+				if trust {
+					want = http.StatusOK
+				}
+				assert.Equal(t, want, request("9.9.9.9"))
+			})
+		}
+	}
+}
 
 func TestServer_saveAndLoadMemory(t *testing.T) {
 	ts, teardown := prepTestServer(t)

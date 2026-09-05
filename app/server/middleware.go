@@ -19,7 +19,7 @@ type ctxKey string
 const hashedIPKey ctxKey = "hashedIP"
 
 // HashedIP middleware adds anonymized IP to request context for audit logging.
-// Must run after rest.RealIP middleware which sets r.RemoteAddr to the client IP.
+// Must run after rest.RealIP when proxy headers are trusted, it reads r.RemoteAddr.
 func HashedIP(secret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,24 +53,7 @@ func Logger(l log.L) func(http.Handler) http.Handler {
 
 			duration := time.Since(start)
 
-			// get URL and mask sensitive parts
-			q := r.URL.String()
-			if qun, err := url.QueryUnescape(q); err == nil {
-				q = qun
-			}
-
-			// hide key and pin in message paths
-			if strings.Contains(q, "/message/") {
-				elems := strings.Split(q, "/")
-				for i, elem := range elems {
-					if elem == "message" && i+2 < len(elems) && len(elems[i+1]) >= 18 {
-						// show partial key, hide pin
-						prefix := strings.Join(elems[:i+1], "/")
-						q = fmt.Sprintf("%s/%s/*****", prefix, elems[i+1][:17])
-						break
-					}
-				}
-			}
+			q := sanitizedURL(r.URL)
 
 			// get hashed IP from context (set by HashedIP middleware)
 			remoteIP := GetHashedIP(r)
@@ -79,6 +62,23 @@ func Logger(l log.L) func(http.Handler) http.Handler {
 		}
 		return http.HandlerFunc(fn)
 	}
+}
+
+func sanitizedURL(u *url.URL) string {
+	elems := strings.Split(u.Path, "/")
+	for i, elem := range elems {
+		if elem != "message" || i+2 >= len(elems) {
+			continue
+		}
+		key := elems[i+1]
+		elems[i+1] = key[:min(17, len(key)/2)]
+		prefix := &url.URL{Path: strings.Join(elems[:i+2], "/")}
+		return prefix.EscapedPath() + "/*****"
+	}
+	if strings.TrimRight(u.Path, "/") == "/email-popup" {
+		return u.EscapedPath()
+	}
+	return u.RequestURI()
 }
 
 // hashIP returns first 8 chars of HMAC-SHA256 hash for IP anonymization
@@ -102,7 +102,7 @@ func (w *statusWriter) WriteHeader(status int) {
 // SendErrorJSON sends error response and logs with hashed IP (privacy-safe alternative to rest.SendErrorJSON)
 func SendErrorJSON(w http.ResponseWriter, r *http.Request, l log.L, code int, err error, msg string) {
 	hashedIP := GetHashedIP(r)
-	l.Logf("[INFO] %s - %s - %d - %s [caused by %v]", msg, hashedIP, code, r.URL.Path, err)
+	l.Logf("[INFO] %s - %s - %d - %s [caused by %v]", msg, hashedIP, code, sanitizedURL(&url.URL{Path: r.URL.Path}), err)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
