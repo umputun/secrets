@@ -211,6 +211,34 @@ func TestHashedIPMiddleware(t *testing.T) {
 		assert.NotEqual(t, "-", capturedIP)
 		assert.NotContains(t, capturedIP, "10.0.0.50")
 	})
+
+	t.Run("port does not change the hash", func(t *testing.T) {
+		tests := []struct {
+			name string
+			addr string
+			want string
+		}{
+			{"ipv4 bare", "10.0.0.1", hashIP("10.0.0.1", "test-secret")},
+			{"ipv4 port", "10.0.0.1:1234", hashIP("10.0.0.1", "test-secret")},
+			{"ipv4 other port", "10.0.0.1:65000", hashIP("10.0.0.1", "test-secret")},
+			{"ipv6 bare", "2001:db8::1", hashIP("2001:db8::1", "test-secret")},
+			{"ipv6 port", "[2001:db8::1]:1234", hashIP("2001:db8::1", "test-secret")},
+			{"ipv6 other port", "[2001:db8::1]:65000", hashIP("2001:db8::1", "test-secret")},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", "/test", http.NoBody)
+				req.RemoteAddr = tt.addr
+				var got string
+				handler := HashedIP("test-secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					got = GetHashedIP(r)
+					w.WriteHeader(http.StatusOK)
+				}))
+				handler.ServeHTTP(httptest.NewRecorder(), req)
+				assert.Equal(t, tt.want, got)
+			})
+		}
+	})
 }
 
 func TestGetHashedIP(t *testing.T) {
@@ -308,7 +336,8 @@ func TestLoggerMaskingEdgeCases(t *testing.T) {
 		expectedPart string // partial string that should appear in log
 	}{
 		{"normal message path", "/message/5e4e1633-24b01ef6-49d6-4c8a-acf9-9dac0aa0eff9/12345", true, "/message/5e4e1633-24b01ef6/*****"},
-		{"short key not masked", "/message/short/12345", false, "/message/short/12345"},
+		{"short key masked", "/message/short/12345", true, "/message/sh/*****"},
+		{"generated key masked", "/api/v1/message/Abc123Def456/12345", true, "/api/v1/message/Abc123/*****"},
 		{"no pin segment", "/message/5e4e1633-24b01ef6-49d6-4c8a-acf9", false, "/message/5e4e1633-24b01ef6-49d6-4c8a-acf9"},
 		{"message at end", "/api/message", false, "/api/message"},
 		{"nested message path", "/v1/api/message/5e4e1633-24b01ef6-49d6-4c8a-acf9-9dac0aa0eff9/pin123", true, "/v1/api/message/5e4e1633-24b01ef6/*****"},
@@ -336,6 +365,41 @@ func TestLoggerMaskingEdgeCases(t *testing.T) {
 				assert.NotContains(t, logOutput, "12345", "pin should be masked")
 				assert.NotContains(t, logOutput, "pin123", "pin should be masked")
 			}
+		})
+	}
+}
+
+func TestLoggerSensitiveURLs(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"email key", "/email-popup?link=https%3A%2F%2Fexample.com%2Fmessage%2FAbc123Def456%23secret-marker", "/email-popup"},
+		{"email trailing slash", "/email-popup/?link=secret-marker", "/email-popup/"},
+		{"message query", "/api/v1/message/Abc123Def456/secret-marker?pin=secret-marker", "/api/v1/message/Abc123/*****"},
+		{"encoded message", "/api/v1/%6dessage/Abc123Def456/secret-marker", "/api/v1/message/Abc123/*****"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			l := lgr.New(lgr.Out(&out), lgr.Debug)
+			r := httptest.NewRequest("GET", tt.path, http.NoBody)
+			Logger(l)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).ServeHTTP(httptest.NewRecorder(), r)
+			assert.Contains(t, out.String(), " - "+tt.want+" - ")
+			assert.NotContains(t, out.String(), "secret-marker")
+		})
+	}
+}
+
+func TestSendErrorJSONMasksPIN(t *testing.T) {
+	for _, key := range []string{"Abc123Def456", "short", "5e4e1633-24b01ef6-49d6-4c8a-acf9"} {
+		t.Run(key, func(t *testing.T) {
+			var out bytes.Buffer
+			r := httptest.NewRequest("GET", "/api/v1/message/"+key+"/543210", http.NoBody)
+			SendErrorJSON(httptest.NewRecorder(), r, lgr.New(lgr.Out(&out)), 400, errors.New("invalid PIN"), "invalid request")
+			assert.NotContains(t, out.String(), "543210")
+			assert.Contains(t, out.String(), "/*****")
 		})
 	}
 }

@@ -132,7 +132,7 @@ Route-based encryption where UI uses client-side encryption and API uses server-
 
 **Client-side encryption (UI):**
 - Client generates 128-bit AES-GCM key per message (22-char base64url)
-- Key stored only in URL fragment (`#key`) - never sent to server
+- Key stored only in URL fragment (`#key`) - never sent to server, except through the email feature which posts the full link
 - Encryption/decryption happens entirely in browser via Web Crypto API
 - Server stores opaque encrypted blobs, validates PIN via bcrypt hash
 - RequireHTMX middleware ensures JavaScript is present (prevents plaintext storage)
@@ -180,14 +180,14 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 - `validatePIN(pin, pinValues, pinSize) error` - validates PIN format
 
 ### Middleware Architecture
-- **rest.RealIP middleware** - Extracts client IP from headers for CDN/proxy compatibility (from go-pkgz/rest v1.20.6+)
+- **rest.RealIP middleware** - Extracts client IP from headers for CDN/proxy compatibility (from go-pkgz/rest v1.20.6+); only in the chain when `--proxy-trust-headers` is set, otherwise the socket address is used
   - Header priority: X-Real-IP → CF-Connecting-IP → leftmost public IP in X-Forwarded-For → RemoteAddr
   - Filters private/loopback/link-local IPs automatically
 - **HashedIP middleware** - Anonymizes client IP using HMAC-SHA256 hash (8-char hex) for audit logging
   - Must run after rest.RealIP middleware (reads `r.RemoteAddr` set by RealIP)
 - **Logger middleware** - Logs requests with masked sensitive paths (PINs) and anonymized IPs
   - Must run after HashedIP middleware (reads hashed IP from context)
-- **Middleware chain order matters**: rest.RealIP → HashedIP → Logger
+- **Middleware chain order matters**: rest.RealIP (when enabled) → HashedIP → Logger
 
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message
@@ -205,6 +205,7 @@ Key configuration via environment variables or flags:
 - `PIN_SIZE` - PIN length in characters (default: 5)
 - `PIN_ATTEMPTS` - Max failed PIN attempts (default: 3)
 - `ALLOW_NO_PIN` - Allow creating secrets without PIN protection (default: false)
+- `PROXY_TRUST_HEADERS` - Trust X-Real-IP, CF-Connecting-IP and X-Forwarded-For from the reverse proxy (default: false)
 - `DOMAIN` - Allowed domain(s), supports comma-separated list (e.g., "example.com,alt.example.com")
 - `PROTOCOL` - http or https (default: https)
 - `LISTEN` - Server listen address, ip:port or :port format (default: :8080)

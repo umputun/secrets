@@ -24,6 +24,7 @@ services:
       - PIN_ATTEMPTS=3
       - MAX_EXPIRE=24h
       - DOMAIN=secrets.example.com
+      - PROXY_TRUST_HEADERS=true
 
     labels:
       - "reproxy.server=secrets.example.com"
@@ -52,6 +53,7 @@ services:
     environment:
       - TZ=America/Chicago
       - DOCKER_ENABLED=true
+      - DROP_HEADERS=X-Real-IP,CF-Connecting-IP,X-Forwarded-For
       - SSL_TYPE=auto
       - SSL_ACME_LOCATION=/var/acme
       - SSL_ACME_EMAIL=admin@example.com

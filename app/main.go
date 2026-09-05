@@ -33,6 +33,7 @@ var opts struct {
 	Listen         string        `long:"listen" env:"LISTEN" default:":8080" description:"server listen address (ip:port or :port)"`
 
 	ProxySecurityHeaders bool `long:"proxy-security-headers" env:"PROXY_SECURITY_HEADERS" description:"disable security headers (when proxy handles them)"`
+	ProxyTrustHeaders    bool `long:"proxy-trust-headers" env:"PROXY_TRUST_HEADERS" description:"trust X-Real-IP, CF-Connecting-IP and X-Forwarded-For from the reverse proxy"`
 	AllowNoPin           bool `long:"allow-no-pin" env:"ALLOW_NO_PIN" description:"allow creating secrets without PIN protection"`
 
 	Files struct {
@@ -129,6 +130,7 @@ func main() {
 		EmailEnabled:           opts.Email.Enabled,
 		AllowNoPin:             opts.AllowNoPin,
 		DisableSecurityHeaders: opts.ProxySecurityHeaders,
+		TrustProxyHeaders:      opts.ProxyTrustHeaders,
 	})
 	if err != nil {
 		log.Fatalf("[ERROR] can't create server, %v", err)

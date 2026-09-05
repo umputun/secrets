@@ -132,12 +132,10 @@ func (s Server) generateSessionToken() string {
 	tokenID := uuid.NewString()
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 
-	// use AuthHash as part of the signing key (derived from signKey in practice)
 	secret := s.sessionSecret()
 
 	h := hmac.New(sha256.New, secret)
-	h.Write([]byte(tokenID))
-	h.Write([]byte(timestamp))
+	h.Write([]byte(tokenID + "." + timestamp))
 	signature := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
 	return tokenID + "." + timestamp + "." + signature
@@ -153,12 +151,14 @@ func (s Server) validateSessionToken(token string) bool {
 	tokenID := parts[0]
 	timestamp := parts[1]
 	signatureB64 := parts[2]
+	if _, err := uuid.Parse(tokenID); err != nil {
+		return false
+	}
 
 	// recreate signature
 	secret := s.sessionSecret()
 	h := hmac.New(sha256.New, secret)
-	h.Write([]byte(tokenID))
-	h.Write([]byte(timestamp))
+	h.Write([]byte(tokenID + "." + timestamp))
 	expectedSignature := h.Sum(nil)
 
 	// decode provided signature
@@ -179,12 +179,12 @@ func (s Server) validateSessionToken(token string) bool {
 	}
 
 	tokenTime := time.Unix(timestampInt, 0)
-	return time.Since(tokenTime) <= s.cfg.SessionTTL
+	age := time.Since(tokenTime)
+	return age >= -30*time.Second && age <= s.cfg.SessionTTL
 }
 
-// sessionSecret returns the secret key for session signing,
-// derived from AuthHash to avoid requiring extra config
 func (s Server) sessionSecret() []byte {
-	h := sha256.Sum256([]byte(s.cfg.AuthHash))
-	return h[:]
+	h := hmac.New(sha256.New, []byte(s.cfg.SignKey))
+	h.Write([]byte("secrets:session:" + s.cfg.AuthHash))
+	return h.Sum(nil)
 }
