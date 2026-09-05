@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,7 +26,13 @@ func HashedIP(secret string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := "-"
 			if r.RemoteAddr != "" {
-				ip = hashIP(r.RemoteAddr, secret)
+				// without rest.RealIP in the chain the address carries the ephemeral port,
+				// which would give every connection a different hash
+				addr := r.RemoteAddr
+				if host, _, err := net.SplitHostPort(addr); err == nil {
+					addr = host
+				}
+				ip = hashIP(addr, secret)
 			}
 			ctx := context.WithValue(r.Context(), hashedIPKey, ip)
 			next.ServeHTTP(w, r.WithContext(ctx))

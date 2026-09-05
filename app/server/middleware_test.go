@@ -211,6 +211,34 @@ func TestHashedIPMiddleware(t *testing.T) {
 		assert.NotEqual(t, "-", capturedIP)
 		assert.NotContains(t, capturedIP, "10.0.0.50")
 	})
+
+	t.Run("port does not change the hash", func(t *testing.T) {
+		tests := []struct {
+			name string
+			addr string
+			want string
+		}{
+			{"ipv4 bare", "10.0.0.1", hashIP("10.0.0.1", "test-secret")},
+			{"ipv4 port", "10.0.0.1:1234", hashIP("10.0.0.1", "test-secret")},
+			{"ipv4 other port", "10.0.0.1:65000", hashIP("10.0.0.1", "test-secret")},
+			{"ipv6 bare", "2001:db8::1", hashIP("2001:db8::1", "test-secret")},
+			{"ipv6 port", "[2001:db8::1]:1234", hashIP("2001:db8::1", "test-secret")},
+			{"ipv6 other port", "[2001:db8::1]:65000", hashIP("2001:db8::1", "test-secret")},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest("GET", "/test", http.NoBody)
+				req.RemoteAddr = tt.addr
+				var got string
+				handler := HashedIP("test-secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					got = GetHashedIP(r)
+					w.WriteHeader(http.StatusOK)
+				}))
+				handler.ServeHTTP(httptest.NewRecorder(), req)
+				assert.Equal(t, tt.want, got)
+			})
+		}
+	})
 }
 
 func TestGetHashedIP(t *testing.T) {
