@@ -86,8 +86,8 @@ github.com/stretchr/testify/require
 # github.com/umputun/go-flags v1.5.1
 ## explicit; go 1.12
 github.com/umputun/go-flags
-# golang.org/x/crypto v0.55.0
-## explicit; go 1.25.0
+# golang.org/x/crypto v0.56.0
+## explicit; go 1.26.0
 golang.org/x/crypto/argon2
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blake2b

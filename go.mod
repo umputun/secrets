@@ -12,7 +12,7 @@ require (
 	github.com/mxschmitt/playwright-go v0.6201.1
 	github.com/stretchr/testify v1.12.0
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	modernc.org/sqlite v1.57.0
 )
 
