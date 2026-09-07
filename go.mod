@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/didip/tollbooth/v8 v8.0.1
 	github.com/go-pkgz/lgr v0.12.4
-	github.com/go-pkgz/notify v1.4.0
+	github.com/go-pkgz/notify v1.5.0
 	github.com/go-pkgz/rest v1.24.0
 	github.com/go-pkgz/routegroup v1.6.1
 	github.com/google/uuid v1.6.0
