@@ -21,7 +21,7 @@ github.com/go-pkgz/email
 # github.com/go-pkgz/expirable-cache/v3 v3.1.1
 ## explicit; go 1.23
 github.com/go-pkgz/expirable-cache/v3
-# github.com/go-pkgz/lgr v0.12.4
+# github.com/go-pkgz/lgr v0.13.0
 ## explicit; go 1.21
 github.com/go-pkgz/lgr
 # github.com/go-pkgz/notify v1.4.0
