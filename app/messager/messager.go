@@ -234,29 +234,19 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 	return string(hashedPin), nil
 }
 
-// IsFile checks if a message with given key is a file message (without decrypting).
-// Returns false if message doesn't exist, is not a file, or is client-encrypted.
-// For client-encrypted messages, server can't inspect the opaque blob.
-func (p MessageProc) IsFile(ctx context.Context, key string) bool {
-	msg, err := p.engine.Load(ctx, key)
-	if err != nil {
-		return false
-	}
-	if msg.ClientEnc {
-		return false // server can't inspect client-encrypted content
-	}
-	return IsFileMessage(msg.Data)
+// MessageInfo describes a stored message without decrypting it.
+type MessageInfo struct {
+	HasPin bool
+	IsFile bool // server-encrypted file message; always false for client-encrypted ones
 }
 
-// HasPin checks if a message requires PIN for access.
-// Returns true if message has a PIN hash, false if PIN-less.
-// Returns error if message doesn't exist.
-func (p MessageProc) HasPin(ctx context.Context, key string) (bool, error) {
+// Info loads a message once and reports whether it requires a PIN and whether it is a file.
+func (p MessageProc) Info(ctx context.Context, key string) (MessageInfo, error) {
 	msg, err := p.engine.Load(ctx, key)
 	if err != nil {
-		return false, fmt.Errorf("load message: %w", err)
+		return MessageInfo{}, fmt.Errorf("load message: %w", err)
 	}
-	return msg.PinHash != "", nil
+	return MessageInfo{HasPin: msg.PinHash != "", IsFile: !msg.ClientEnc && IsFileMessage(msg.Data)}, nil
 }
 
 // IsFileMessage checks if message data has file prefix (works on raw stored data)

@@ -496,17 +496,23 @@ func TestMessageProc_LoadMessage_NoPinMessage_WithPinProvided(t *testing.T) {
 	assert.Len(t, s.IncErrCalls(), 1)
 }
 
-func TestMessageProc_HasPin(t *testing.T) {
+func TestMessageProc_Info(t *testing.T) {
+	fileData := []byte("!!FILE!!test.pdf!!application/pdf!!\ndata")
 	tests := []struct {
-		name    string
-		pinHash string
-		loadErr error
-		want    bool
-		wantErr bool
+		name      string
+		loadErr   error
+		pinHash   string
+		data      []byte
+		clientEnc bool
+		want      MessageInfo
+		wantErr   bool
 	}{
-		{name: "has pin", pinHash: "$2a$10$hash", loadErr: nil, want: true, wantErr: false},
-		{name: "no pin", pinHash: "", loadErr: nil, want: false, wantErr: false},
-		{name: "load error", pinHash: "", loadErr: errors.New("not found"), want: false, wantErr: true},
+		{name: "text with pin", pinHash: "$2a$10$hash", data: []byte("encrypted text"), want: MessageInfo{HasPin: true}},
+		{name: "text without pin", data: []byte("encrypted text"), want: MessageInfo{}},
+		{name: "file with pin", pinHash: "$2a$10$hash", data: fileData, want: MessageInfo{HasPin: true, IsFile: true}},
+		{name: "client-enc file prefix", pinHash: "$2a$10$hash", data: fileData, clientEnc: true, want: MessageInfo{HasPin: true}},
+		{name: "client-enc without pin", data: []byte("encrypted blob"), clientEnc: true, want: MessageInfo{}},
+		{name: "load error", loadErr: errors.New("not found"), wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -516,13 +522,14 @@ func TestMessageProc_HasPin(t *testing.T) {
 					if tt.loadErr != nil {
 						return nil, tt.loadErr
 					}
-					return &store.Message{PinHash: tt.pinHash}, nil
+					return &store.Message{PinHash: tt.pinHash, Data: tt.data, ClientEnc: tt.clientEnc}, nil
 				},
 			}
 			m := New(s, nil, Params{})
-			got, err := m.HasPin(t.Context(), "test-key")
+			got, err := m.Info(t.Context(), "test-key")
+			assert.Len(t, s.LoadCalls(), 1)
 			if tt.wantErr {
-				require.Error(t, err)
+				require.ErrorIs(t, err, tt.loadErr)
 				return
 			}
 			require.NoError(t, err)
@@ -573,40 +580,6 @@ func TestMessageProc_LoadFileMessage(t *testing.T) {
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Len(t, s.RemoveCalls(), 1)
 	assert.Len(t, c.DecryptCalls(), 1)
-}
-
-func TestMessageProc_IsFile(t *testing.T) {
-	tests := []struct {
-		name      string
-		loadErr   error
-		data      []byte
-		clientEnc bool
-		want      bool
-	}{
-		{name: "file message", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), clientEnc: false, want: true},
-		{name: "text message", loadErr: nil, data: []byte("encrypted text"), clientEnc: false, want: false},
-		{name: "load error", loadErr: errors.New("not found"), data: nil, clientEnc: false, want: false},
-		{name: "client-enc file", loadErr: nil, data: []byte("!!FILE!!test.pdf!!application/pdf!!\ndata"), clientEnc: true, want: false},
-		{name: "client-enc text", loadErr: nil, data: []byte("encrypted blob"), clientEnc: true, want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &EngineMock{
-				LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
-					if tt.loadErr != nil {
-						return nil, tt.loadErr
-					}
-					return &store.Message{Data: tt.data, ClientEnc: tt.clientEnc}, nil
-				},
-			}
-			m := New(s, nil, Params{})
-			assert.Equal(t, tt.want, m.IsFile(t.Context(), "test-key"))
-			if tt.loadErr == nil {
-				assert.Len(t, s.LoadCalls(), 1)
-			}
-		})
-	}
 }
 
 func TestIsFileMessage(t *testing.T) {

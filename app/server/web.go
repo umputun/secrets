@@ -277,8 +277,7 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	// set X-Robots-Tag header for defense-in-depth beyond HTML meta
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 
-	// check if message exists and requires PIN (for conditional UI rendering)
-	hasPin, err := s.messager.HasPin(r.Context(), key)
+	info, err := s.messager.Info(r.Context(), key)
 	if err != nil {
 		// failed to load message - likely expired or deleted, show friendly error
 		s.render(w, http.StatusNotFound, "message-error.tmpl.html", baseTmpl, s.newTemplateData(r, "message expired or deleted"))
@@ -289,10 +288,8 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 		Key: key,
 	})
 	data.IsMessagePage = true // prevent indexing of sensitive message pages
-	// note: IsFile makes a separate DB call even though HasPin already loaded the message.
-	// this is intentional for code clarity - both functions are simple and focused.
-	data.IsFile = s.messager.IsFile(r.Context(), key)
-	data.HasPin = hasPin
+	data.IsFile = info.IsFile
+	data.HasPin = info.HasPin
 
 	s.render(w, http.StatusOK, "show-message.tmpl.html", baseTmpl, data)
 }
@@ -323,8 +320,8 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		Key: r.PostForm.Get("key"),
 	}
 
-	// check if message exists before validating PIN input
-	hasPin, err := s.messager.HasPin(r.Context(), form.Key)
+	// capture file type before LoadMessage, which deletes the message on the last wrong PIN
+	info, err := s.messager.Info(r.Context(), form.Key)
 	if err != nil {
 		// message doesn't exist or failed to load - show 404 instead of confusing PIN form
 		s.render(w, http.StatusNotFound, "message-error.tmpl.html", baseTmpl, s.newTemplateData(r, "message expired or deleted"))
@@ -335,7 +332,7 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 	pin := strings.Join(pinValues, "")
 
 	// validate PIN only if message requires it (or if we couldn't check)
-	if hasPin {
+	if info.HasPin {
 		if pinErr := validatePIN(pin, pinValues, s.cfg.PinSize); pinErr != nil {
 			form.AddFieldError(pinKey, pinErr.Error())
 		}
@@ -343,18 +340,15 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	if !form.Valid() {
 		data := s.newTemplateData(r, form)
-		data.HasPin = hasPin
+		data.HasPin = info.HasPin
 
 		s.render(w, http.StatusOK, "show-message.tmpl.html", mainTmpl, data)
 		return
 	}
 
-	// check if message is file BEFORE loading (LoadMessage may delete on max attempts)
-	isFile := s.messager.IsFile(r.Context(), form.Key)
-
 	msg, err := s.messager.LoadMessage(r.Context(), form.Key, pin)
 	if err != nil {
-		s.handleLoadMessageError(w, r, &form, err, isFile)
+		s.handleLoadMessageError(w, r, &form, err, info.IsFile)
 		return
 	}
 

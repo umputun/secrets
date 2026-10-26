@@ -105,8 +105,7 @@ func (s Server) WithEmail(sender EmailSender) Server {
 type Messager interface {
 	MakeMessage(ctx context.Context, req messager.MsgReq) (result *store.Message, err error)
 	LoadMessage(ctx context.Context, key, pin string) (msg *store.Message, err error)
-	IsFile(ctx context.Context, key string) bool          // checks if message is a file without decrypting
-	HasPin(ctx context.Context, key string) (bool, error) // checks if message requires PIN
+	Info(ctx context.Context, key string) (messager.MessageInfo, error) // pin and file flags, without decrypting
 }
 
 // newTemplateData creates a templateData with common fields populated
