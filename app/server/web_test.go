@@ -622,6 +622,58 @@ func TestServer_loadMessageCtrl_NoPinMessage(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "no-pin-secret") // should return the message content
 }
 
+func TestServer_revealLoadCount(t *testing.T) {
+	// regression for #128: each metadata flag reloaded the full message row
+	mem := store.NewInMemory(time.Second)
+	eng := &messager.EngineMock{SaveFunc: mem.Save, LoadFunc: mem.Load, IncErrFunc: mem.IncErr, RemoveFunc: mem.Remove,
+		CloseFunc: mem.Close}
+	crypt := messager.Crypt{Key: "123456789012345678901234567"}
+	m := messager.New(eng, crypt, messager.Params{MaxDuration: 10 * time.Hour, MaxPinAttempts: 3})
+	srv, err := New(m, "1", Config{Domain: []string{"example.com"}, PinSize: 5, MaxPinAttempts: 3,
+		MaxExpire: 10 * time.Hour, Branding: "Safe Secrets", EnableFiles: true, MaxFileSize: 1024 * 1024})
+	require.NoError(t, err)
+	router := srv.routes()
+
+	textMsg, err := m.MakeMessage(t.Context(), messager.MsgReq{Duration: time.Hour, Message: "text secret", Pin: "12345"})
+	require.NoError(t, err)
+	fileMsg := saveFileMessage(t, eng, crypt, "doc.txt", "text/plain", []byte("file secret"))
+
+	tests := []struct {
+		name     string
+		key      string
+		isFile   bool
+		loadBody string
+	}{
+		{name: "text message", key: textMsg.Key, isFile: false, loadBody: "text secret"},
+		{name: "legacy file message", key: fileMsg.Key, isFile: true, loadBody: "file secret"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loads := len(eng.LoadCalls())
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/message/"+tt.key, http.NoBody))
+			assert.Equal(t, http.StatusOK, rr.Code)
+			if tt.isFile {
+				assert.Contains(t, rr.Body.String(), "Download File")
+			} else {
+				assert.NotContains(t, rr.Body.String(), "Download File")
+			}
+			assert.Len(t, eng.LoadCalls(), loads+1, "page view loads the message once")
+
+			loads = len(eng.LoadCalls())
+			form := url.Values{"key": {tt.key}, "pin": {"12345"}}
+			req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			rr = httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Contains(t, rr.Body.String(), tt.loadBody)
+			assert.Len(t, eng.LoadCalls(), loads+2, "reveal loads metadata once plus the read itself")
+		})
+	}
+}
+
 func TestServer_render(t *testing.T) {
 	eng := store.NewInMemory(time.Second)
 	srv, err := New(

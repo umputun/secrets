@@ -76,7 +76,7 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 type Messager interface {
     MakeMessage(req messager.MsgReq) (result *store.Message, err error)
     LoadMessage(key, pin string) (msg *store.Message, err error)
-    IsFile(key string) bool // checks if message is a file without decrypting (false for ClientEnc)
+    Info(ctx context.Context, key string) (messager.MessageInfo, error) // HasPin and IsFile flags from one load, without decrypting
 }
 ```
 
@@ -116,7 +116,7 @@ Server-encrypted file messages are a legacy format: nothing creates them anymore
 **Key functions**:
 - `IsFileMessage(data)` - checks for `!!FILE!!` prefix
 - `ParseFileHeader(data)` - extracts filename, content-type, data start position (4KB scan limit)
-- `IsFile(key)` - loads message to check type without decrypting (used for UI to show "Download" vs "Reveal")
+- `Info(ctx, key)` - loads message once and reports `IsFile` and `HasPin` without decrypting (used for UI to show "Download" vs "Reveal")
 
 ### Hybrid Encryption Architecture
 
@@ -142,7 +142,7 @@ Route-based encryption where UI uses client-side encryption and API uses server-
 
 **Implementation details:**
 - `msg.ClientEnc` field determines encryption/decryption path on retrieval
-- `IsFile()` returns false for `ClientEnc=true` messages (server cannot inspect content)
+- `Info().IsFile` is false for `ClientEnc=true` messages (server cannot inspect content)
 - Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead (UI route)
 - Client-side crypto module: `app/server/assets/static/js/crypto.js`
 
@@ -167,12 +167,12 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 - `MsgReq.AllowEmptyPin` flag controls whether empty PIN is accepted
 
 **Retrieval flow:**
-- `HasPin(key)` checks if message requires PIN (`msg.PinHash != ""`)
+- `Info(ctx, key).HasPin` checks if message requires PIN (`msg.PinHash != ""`)
 - UI adapts: PIN-less shows "Reveal Secret" button, with-PIN shows decrypt form
 - `checkHash()` returns true when both stored hash and provided PIN are empty
 
 **Key methods:**
-- `HasPin(ctx, key) (bool, error)` - checks if message requires PIN
+- `Info(ctx, key) (MessageInfo, error)` - checks if message requires PIN and is a file, one storage load
 - `checkHash(msg, pin)` - returns true when both are empty
 - `validatePIN(pin, pinValues, pinSize) error` - validates PIN format
 

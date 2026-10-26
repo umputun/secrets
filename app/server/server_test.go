@@ -328,7 +328,7 @@ func TestServer_getParams_AllowNoPin(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":0,"allow_no_pin":true}`+"\n", string(body))
+	assert.Equal(t, `{"pin_size":5,"max_pin_attempts":3,"max_exp_sec":36000,"files_enabled":false,"max_file_size":1048576,"allow_no_pin":true}`+"\n", string(body))
 }
 
 // TestServer_saveMessageCtrl_APIRejectsEmptyPinEvenWithAllowNoPin verifies that API endpoint
@@ -883,6 +883,32 @@ func TestServer_NewWithNoDomains(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one domain must be configured")
+}
+
+func TestServer_NewDefaults(t *testing.T) {
+	// regression: documented zero-value defaults were never applied, giving a 0-byte body limit and 0s sessions
+	tests := []struct {
+		name        string
+		maxFileSize int64
+		sessionTTL  time.Duration
+		wantSize    int64
+		wantTTL     time.Duration
+	}{
+		{name: "both zero", maxFileSize: 0, sessionTTL: 0, wantSize: 1024 * 1024, wantTTL: 168 * time.Hour},
+		{name: "explicit size", maxFileSize: 2048, sessionTTL: 0, wantSize: 2048, wantTTL: 168 * time.Hour},
+		{name: "explicit ttl", maxFileSize: 0, sessionTTL: time.Hour, wantSize: 1024 * 1024, wantTTL: time.Hour},
+		{name: "both explicit", maxFileSize: 2048, sessionTTL: time.Hour, wantSize: 2048, wantTTL: time.Hour},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, err := New(nil, "1", Config{Domain: []string{"example.com"}, MaxFileSize: tt.maxFileSize,
+				SessionTTL: tt.sessionTTL})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSize, srv.cfg.MaxFileSize)
+			assert.Equal(t, tt.wantTTL, srv.cfg.SessionTTL)
+		})
+	}
 }
 
 func TestServer_NewWithMultipleDomains(t *testing.T) {
