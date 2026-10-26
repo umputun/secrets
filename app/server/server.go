@@ -45,7 +45,7 @@ type Config struct {
 
 	// authentication (optional)
 	AuthHash   string        // bcrypt hash of password, empty disables auth
-	SessionTTL time.Duration // session lifetime, defaults to 168h (7 days)
+	SessionTTL time.Duration // session lifetime, 0 means use default (168h / 7 days)
 
 	EmailEnabled           bool // email sharing (optional)
 	AllowNoPin             bool // allow creating secrets without PIN protection
@@ -75,6 +75,12 @@ type Server struct {
 func New(m Messager, version string, cfg Config) (Server, error) {
 	if len(cfg.Domain) == 0 {
 		return Server{}, errors.New("at least one domain must be configured")
+	}
+	if cfg.MaxFileSize == 0 {
+		cfg.MaxFileSize = 1024 * 1024
+	}
+	if cfg.SessionTTL == 0 {
+		cfg.SessionTTL = 168 * time.Hour
 	}
 
 	cache, err := newTemplateCache()
