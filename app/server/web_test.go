@@ -1324,7 +1324,6 @@ func TestServer_generateLinkCtrl_RejectsMultipart(t *testing.T) {
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
-			MaxFileSize:    1024 * 1024,
 		}),
 		"1",
 		Config{
@@ -1367,7 +1366,6 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
-			MaxFileSize:    1024 * 1024,
 		}),
 		"1",
 		Config{
@@ -1383,14 +1381,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 
 	t.Run("valid file download with correct pin", func(t *testing.T) {
 		// create file message
-		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
-			Duration:    time.Hour,
-			Pin:         "12345",
-			FileName:    "secret.pdf",
-			ContentType: "application/pdf",
-			Data:        []byte("fake pdf content"),
-		})
-		require.NoError(t, err)
+		msg := saveFileMessage(t, eng, messager.Crypt{Key: "123456789012345678901234567"}, "secret.pdf", "application/pdf", []byte("fake pdf content"))
 
 		formData := url.Values{
 			"key": {msg.Key},
@@ -1411,14 +1402,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 	})
 
 	t.Run("file download with wrong pin", func(t *testing.T) {
-		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
-			Duration:    time.Hour,
-			Pin:         "12345",
-			FileName:    "secret.pdf",
-			ContentType: "application/pdf",
-			Data:        []byte("fake pdf content"),
-		})
-		require.NoError(t, err)
+		msg := saveFileMessage(t, eng, messager.Crypt{Key: "123456789012345678901234567"}, "secret.pdf", "application/pdf", []byte("fake pdf content"))
 
 		formData := url.Values{
 			"key": {msg.Key},
@@ -1437,14 +1421,7 @@ func TestServer_loadMessageCtrl_FileDownload(t *testing.T) {
 	})
 
 	t.Run("file message is one-time only", func(t *testing.T) {
-		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
-			Duration:    time.Hour,
-			Pin:         "12345",
-			FileName:    "secret.pdf",
-			ContentType: "application/pdf",
-			Data:        []byte("fake pdf content"),
-		})
-		require.NoError(t, err)
+		msg := saveFileMessage(t, eng, messager.Crypt{Key: "123456789012345678901234567"}, "secret.pdf", "application/pdf", []byte("fake pdf content"))
 
 		formData := url.Values{
 			"key": {msg.Key},
@@ -1474,7 +1451,6 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 		messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 			MaxDuration:    10 * time.Hour,
 			MaxPinAttempts: 3,
-			MaxFileSize:    1024 * 1024,
 		}),
 		"1",
 		Config{
@@ -1505,14 +1481,7 @@ func TestServer_showMessageViewCtrl_IsFile(t *testing.T) {
 	})
 
 	t.Run("file message shows download button", func(t *testing.T) {
-		msg, err := srv.messager.MakeFileMessage(t.Context(), messager.FileRequest{
-			Duration:    time.Hour,
-			Pin:         "12345",
-			FileName:    "secret.pdf",
-			ContentType: "application/pdf",
-			Data:        []byte("fake pdf content"),
-		})
-		require.NoError(t, err)
+		msg := saveFileMessage(t, eng, messager.Crypt{Key: "123456789012345678901234567"}, "secret.pdf", "application/pdf", []byte("fake pdf content"))
 
 		resp, err := http.Get(ts.URL + "/message/" + msg.Key)
 		require.NoError(t, err)
@@ -1591,7 +1560,6 @@ func TestServer_generateLinkCtrl_MultipartRejected(t *testing.T) {
 	msg := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
 		MaxDuration:    10 * time.Hour,
 		MaxPinAttempts: 3,
-		MaxFileSize:    1024 * 1024,
 	})
 	srv, err := New(msg, "test", Config{
 		Domain:         []string{"example.com"},
@@ -1636,18 +1604,10 @@ func TestServer_loadMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	msg := messager.New(eng, crypt, messager.Params{
 		MaxDuration:    10 * time.Hour,
 		MaxPinAttempts: 3,
-		MaxFileSize:    1024 * 1024,
 	})
 
 	// create a file message directly
-	fileMsg, err := msg.MakeFileMessage(t.Context(), messager.FileRequest{
-		Duration:    time.Hour,
-		Pin:         "12345",
-		FileName:    "test.txt",
-		ContentType: "text/plain",
-		Data:        []byte("secret file content"),
-	})
-	require.NoError(t, err)
+	fileMsg := saveFileMessage(t, eng, messager.Crypt{Key: "123456789012345678901234567"}, "test.txt", "text/plain", []byte("secret file content"))
 
 	// create server with files DISABLED
 	srv, err := New(msg, "test", Config{

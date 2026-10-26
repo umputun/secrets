@@ -106,15 +106,12 @@ type Crypter interface {
 5. For retrieval: validate PIN attempts, then delete and return; API messages are decrypted server-side first, UI messages are handed back as stored ciphertext for the browser to decrypt
 
 ### File Message Format
-File messages use a distinct storage format with encrypted metadata:
+Server-encrypted file messages are a legacy format: nothing creates them anymore (UI uploads are client-encrypted, the API has no file upload endpoint), but stored ones are still readable:
 - **Stored format**: `!!FILE!!<encrypted blob>`
 - **Encrypted blob contains**: `filename!!content-type!!\n<binary data>`
 - Only the `!!FILE!!` prefix is unencrypted (used to detect file vs text messages)
 - Filename and content-type are encrypted together with file content for privacy
-
-**Validation requirements** (to prevent header parsing issues):
-- Filename: no `!!`, `\n`, `\r`, `\x00`, `/`, `\`, `..`, control chars; max 255 chars
-- Content-type: no `!!`, `\n`, `\r`, `\x00`
+- Server tests build these records with the `saveFileMessage` helper in `app/server/server_test.go`
 
 **Key functions**:
 - `IsFileMessage(data)` - checks for `!!FILE!!` prefix

@@ -425,6 +425,9 @@ $ curl https://safesecret.info/api/v1/params
   "max_pin_attempts": 3,
   "pin_size": 5,
   "files_enabled": true,
-  "max_file_size": 1048576
+  "max_file_size": 1048576,
+  "allow_no_pin": false
 }
 ```
+
+File uploads are supported through the web UI only; the API has no file upload endpoint. `files_enabled` and `max_file_size` describe the web UI upload settings. `allow_no_pin` applies only to secrets created in the web UI; the API always requires a PIN.

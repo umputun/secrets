@@ -16,6 +16,7 @@ import (
 	"github.com/go-pkgz/lgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/umputun/secrets/v2/app/messager"
 	"github.com/umputun/secrets/v2/app/store"
@@ -971,18 +972,10 @@ func TestServer_getMessageCtrl_FileMessageWhenFilesDisabled(t *testing.T) {
 	msg := messager.New(eng, crypt, messager.Params{
 		MaxDuration:    10 * time.Hour,
 		MaxPinAttempts: 3,
-		MaxFileSize:    1024 * 1024,
 	})
 
 	// create a file message directly
-	fileMsg, err := msg.MakeFileMessage(t.Context(), messager.FileRequest{
-		Duration:    time.Hour,
-		Pin:         "12345",
-		FileName:    "test.txt",
-		ContentType: "text/plain",
-		Data:        []byte("secret file content"),
-	})
-	require.NoError(t, err)
+	fileMsg := saveFileMessage(t, eng, messager.Crypt{Key: "123456789012345678901234567"}, "test.txt", "text/plain", []byte("secret file content"))
 
 	// create server with files DISABLED
 	srv, err := New(msg, "test", Config{
@@ -1172,4 +1165,18 @@ func TestServer_getMessageCtrl_TimingPad(t *testing.T) {
 				"response time should be at least ~100ms due to timing pad, got %v", elapsed)
 		})
 	}
+}
+
+func saveFileMessage(t *testing.T, eng messager.Engine, crypt messager.Crypt, fileName, contentType string,
+	data []byte) *store.Message {
+	t.Helper()
+	const pin = "12345"
+	enc, err := crypt.Encrypt(messager.Request{Data: append([]byte(fileName+"!!"+contentType+"!!\n"), data...), Pin: pin})
+	require.NoError(t, err)
+	pinHash, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	msg := &store.Message{Key: store.GenerateID(), Exp: time.Now().Add(time.Hour), PinHash: string(pinHash),
+		Data: append([]byte("!!FILE!!"), enc...)}
+	require.NoError(t, eng.Save(t.Context(), msg))
+	return msg
 }

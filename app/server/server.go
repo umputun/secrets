@@ -104,7 +104,6 @@ func (s Server) WithEmail(sender EmailSender) Server {
 // Messager interface making and loading messages
 type Messager interface {
 	MakeMessage(ctx context.Context, req messager.MsgReq) (result *store.Message, err error)
-	MakeFileMessage(ctx context.Context, req messager.FileRequest) (result *store.Message, err error)
 	LoadMessage(ctx context.Context, key, pin string) (msg *store.Message, err error)
 	IsFile(ctx context.Context, key string) bool          // checks if message is a file without decrypting
 	HasPin(ctx context.Context, key string) (bool, error) // checks if message requires PIN

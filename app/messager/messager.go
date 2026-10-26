@@ -22,15 +22,12 @@ import (
 
 // Errors
 var (
-	ErrBadPin         = errors.New("wrong pin")
-	ErrBadPinAttempt  = errors.New("wrong pin attempt")
-	ErrCrypto         = errors.New("crypto error")
-	ErrInternal       = errors.New("internal error")
-	ErrExpired        = errors.New("message expired")
-	ErrDuration       = errors.New("bad duration")
-	ErrFileTooLarge   = errors.New("file too large")
-	ErrBadFileName    = errors.New("invalid file name")
-	ErrBadContentType = errors.New("invalid content type")
+	ErrBadPin        = errors.New("wrong pin")
+	ErrBadPinAttempt = errors.New("wrong pin attempt")
+	ErrCrypto        = errors.New("crypto error")
+	ErrInternal      = errors.New("internal error")
+	ErrExpired       = errors.New("message expired")
+	ErrDuration      = errors.New("bad duration")
 )
 
 // filePrefix marks file messages.
@@ -49,7 +46,6 @@ type MessageProc struct {
 type Params struct {
 	MaxDuration    time.Duration
 	MaxPinAttempts int
-	MaxFileSize    int64
 }
 
 // MsgReq contains data for message creation
@@ -59,15 +55,6 @@ type MsgReq struct {
 	Message       string
 	ClientEnc     bool // true for client-side encryption (UI), false for server-side (API)
 	AllowEmptyPin bool // true to allow creating messages without PIN protection
-}
-
-// FileRequest contains data for file message creation
-type FileRequest struct {
-	Duration    time.Duration
-	Pin         string
-	FileName    string
-	ContentType string
-	Data        []byte
 }
 
 // Crypter interface wraps crypt methods
@@ -92,9 +79,6 @@ func New(engine Engine, crypter Crypter, params Params) *MessageProc {
 	}
 	if params.MaxPinAttempts == 0 {
 		params.MaxPinAttempts = 3
-	}
-	if params.MaxFileSize == 0 {
-		params.MaxFileSize = 1024 * 1024 // 1MB default
 	}
 	log.Printf("[INFO] created messager with %+v", params)
 
@@ -275,73 +259,6 @@ func (p MessageProc) HasPin(ctx context.Context, key string) (bool, error) {
 	return msg.PinHash != "", nil
 }
 
-// MakeFileMessage creates a message from file data with unencrypted prefix for metadata.
-// Format: !!FILE!!filename!!content-type!!\n<encrypted binary>
-// This function is for API file uploads only (server-side encryption).
-// UI file uploads use client-side encryption via MakeMessage with the encrypted blob.
-func (p MessageProc) MakeFileMessage(ctx context.Context, req FileRequest) (result *store.Message, err error) {
-	if req.Pin == "" {
-		log.Printf("[WARN] save rejected, empty pin")
-		return nil, ErrBadPin
-	}
-
-	if req.FileName == "" || len(req.FileName) > 255 || strings.Contains(req.FileName, "!!") ||
-		strings.ContainsAny(req.FileName, "\n\r\x00") || strings.Contains(req.FileName, "..") ||
-		strings.ContainsAny(req.FileName, "/\\") || p.hasControlChars(req.FileName) {
-		log.Printf("[WARN] save rejected, invalid file name")
-		return nil, ErrBadFileName
-	}
-
-	// validate content-type to prevent header parsing corruption
-	if strings.Contains(req.ContentType, "!!") || strings.ContainsAny(req.ContentType, "\n\r\x00") {
-		log.Printf("[WARN] save rejected, invalid content type")
-		return nil, ErrBadContentType
-	}
-
-	if int64(len(req.Data)) > p.MaxFileSize {
-		log.Printf("[WARN] save rejected, file too large: %d > %d", len(req.Data), p.MaxFileSize)
-		return nil, ErrFileTooLarge
-	}
-
-	if req.Duration > p.MaxDuration {
-		log.Printf("[ERROR] can't use duration, %v > %v", req.Duration, p.MaxDuration)
-		return nil, ErrDuration
-	}
-
-	pinHash, err := p.makeHash(req.Pin)
-	if err != nil {
-		log.Printf("[ERROR] can't hash pin, %v", err)
-		return nil, ErrInternal
-	}
-
-	// build metadata header and combine with binary data for encryption
-	// format after decryption: filename!!content-type!!\n<binary>
-	metadata := fmt.Sprintf("%s!!%s!!\n", req.FileName, req.ContentType)
-	dataToEncrypt := append([]byte(metadata), req.Data...)
-
-	// encrypt metadata + binary together (only !!FILE!! prefix stays unencrypted)
-	encryptedData, err := p.crypt.Encrypt(Request{Data: dataToEncrypt, Pin: req.Pin})
-	if err != nil {
-		log.Printf("[ERROR] failed to encrypt file, %v", err)
-		return nil, ErrCrypto
-	}
-
-	// stored format: !!FILE!!<encrypted blob containing metadata+data>
-	fullData := append([]byte(filePrefix), encryptedData...)
-
-	exp := time.Now().Add(req.Duration)
-	result = &store.Message{
-		Key:     store.GenerateID(),
-		Exp:     exp,
-		PinHash: pinHash,
-		Data:    fullData,
-	}
-	if err = p.engine.Save(ctx, result); err != nil {
-		return nil, fmt.Errorf("save file message: %w", err)
-	}
-	return result, nil
-}
-
 // IsFileMessage checks if message data has file prefix (works on raw stored data)
 func IsFileMessage(data []byte) bool {
 	return len(data) > len(filePrefix) && string(data[:len(filePrefix)]) == filePrefix
@@ -376,14 +293,4 @@ func ParseFileHeader(data []byte) (filename, contentType string, dataStart int) 
 	}
 
 	return parts[0], parts[1], headerEnd + 1
-}
-
-// hasControlChars checks if string contains ASCII control characters (0x01-0x1F, excluding already checked \n\r)
-func (p MessageProc) hasControlChars(s string) bool {
-	for _, r := range s {
-		if r < 32 && r != '\n' && r != '\r' {
-			return true
-		}
-	}
-	return false
 }

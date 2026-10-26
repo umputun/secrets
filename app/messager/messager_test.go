@@ -3,7 +3,6 @@ package messager
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,7 +17,6 @@ func TestMessageProc_NewDefault(t *testing.T) {
 	m := New(nil, Crypt{}, Params{})
 	assert.Equal(t, time.Hour*24*31, m.MaxDuration)
 	assert.Equal(t, 3, m.MaxPinAttempts)
-	assert.Equal(t, int64(1024*1024), m.MaxFileSize)
 }
 
 func TestMessageProc_MakeMessage(t *testing.T) {
@@ -533,45 +531,6 @@ func TestMessageProc_HasPin(t *testing.T) {
 	}
 }
 
-func TestMessageProc_MakeFileMessage(t *testing.T) {
-	s := &EngineMock{
-		SaveFunc: func(ctx context.Context, msg *store.Message) error { return nil },
-	}
-	c := &CrypterMock{
-		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted-blob"), nil },
-	}
-
-	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	r, err := m.MakeFileMessage(t.Context(), FileRequest{
-		Duration:    time.Second * 30,
-		Pin:         "12345",
-		FileName:    "test.pdf",
-		ContentType: "application/pdf",
-		Data:        []byte("file content"),
-	})
-
-	require.NoError(t, err)
-	assert.True(t, IsFileMessage(r.Data), "should have !!FILE!! prefix")
-	assert.Contains(t, r.PinHash, "$2a$")
-
-	// verify filename is NOT visible in stored data (encrypted)
-	assert.NotContains(t, string(r.Data), "test.pdf", "filename should be encrypted")
-	assert.NotContains(t, string(r.Data), "application/pdf", "content-type should be encrypted")
-
-	// verify stored format: !!FILE!! + encrypted blob
-	assert.True(t, strings.HasPrefix(string(r.Data), "!!FILE!!"))
-	assert.Equal(t, "!!FILE!!encrypted-blob", string(r.Data))
-
-	// verify encryption received metadata + data combined
-	require.Len(t, c.EncryptCalls(), 1)
-	encryptInput := string(c.EncryptCalls()[0].Req.Data)
-	assert.Contains(t, encryptInput, "test.pdf!!")
-	assert.Contains(t, encryptInput, "!!application/pdf!!")
-	assert.Contains(t, encryptInput, "file content")
-
-	assert.Len(t, s.SaveCalls(), 1)
-}
-
 func TestMessageProc_LoadFileMessage(t *testing.T) {
 	// stored data format: !!FILE!! + encrypted blob
 	// decrypted blob contains: filename!!content-type!!\n + binary data
@@ -614,71 +573,6 @@ func TestMessageProc_LoadFileMessage(t *testing.T) {
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Len(t, s.RemoveCalls(), 1)
 	assert.Len(t, c.DecryptCalls(), 1)
-}
-
-func TestMessageProc_MakeFileMessage_Errors(t *testing.T) {
-	tests := []struct {
-		name    string
-		req     FileRequest
-		wantErr error
-	}{
-		{name: "empty pin", req: FileRequest{Duration: time.Second, Pin: "", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadPin},
-		{name: "empty filename", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename too long", req: FileRequest{Duration: time.Second, Pin: "123", FileName: string(make([]byte, 256)), ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with delimiter", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test!!file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with newline", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\nfile.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with path traversal", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "../etc/passwd", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with forward slash", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "path/to/file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with backslash", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "path\\file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with null byte", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\x00file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with control char", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\x01file.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "filename with tab", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "test\tfile.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrBadFileName},
-		{name: "file too large", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: make([]byte, 2048)}, wantErr: ErrFileTooLarge},
-		{name: "bad duration", req: FileRequest{Duration: time.Hour, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")}, wantErr: ErrDuration},
-		{name: "content-type with delimiter", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain!!", Data: []byte("x")}, wantErr: ErrBadContentType},
-		{name: "content-type with newline", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain\n", Data: []byte("x")}, wantErr: ErrBadContentType},
-		{name: "content-type with carriage return", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain\r", Data: []byte("x")}, wantErr: ErrBadContentType},
-		{name: "content-type with null byte", req: FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain\x00", Data: []byte("x")}, wantErr: ErrBadContentType},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &EngineMock{}
-			c := &CrypterMock{}
-			m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-			_, err := m.MakeFileMessage(t.Context(), tt.req)
-			require.EqualError(t, err, tt.wantErr.Error())
-			assert.Empty(t, s.SaveCalls())
-		})
-	}
-}
-
-func TestMessageProc_MakeFileMessage_CrypterError(t *testing.T) {
-	s := &EngineMock{}
-	c := &CrypterMock{
-		EncryptFunc: func(req Request) ([]byte, error) { return nil, errors.New("encrypt error") },
-	}
-
-	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	_, err := m.MakeFileMessage(t.Context(), FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
-	require.EqualError(t, err, ErrCrypto.Error())
-	assert.Empty(t, s.SaveCalls())
-	assert.Len(t, c.EncryptCalls(), 1)
-}
-
-func TestMessageProc_MakeFileMessage_SaveError(t *testing.T) {
-	s := &EngineMock{
-		SaveFunc: func(ctx context.Context, msg *store.Message) error { return errors.New("storage error") },
-	}
-	c := &CrypterMock{
-		EncryptFunc: func(req Request) ([]byte, error) { return []byte("encrypted"), nil },
-	}
-
-	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute, MaxFileSize: 1024})
-	_, err := m.MakeFileMessage(t.Context(), FileRequest{Duration: time.Second, Pin: "123", FileName: "f.txt", ContentType: "text/plain", Data: []byte("x")})
-	require.ErrorContains(t, err, "storage error")
-	assert.Len(t, s.SaveCalls(), 1)
-	assert.Len(t, c.EncryptCalls(), 1)
 }
 
 func TestMessageProc_IsFile(t *testing.T) {
