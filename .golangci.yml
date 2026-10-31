@@ -1,6 +1,8 @@
 version: "2"
 run:
   concurrency: 4
+  build-tags:
+    - e2e
 linters:
   default: none
   enable:
