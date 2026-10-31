@@ -59,12 +59,13 @@ func TestCrypto_TextRoundTrip(t *testing.T) {
 		const key = await generateKey();
 		const plaintext = 'hello world, this is a secret message!';
 		const ciphertext = await encrypt(plaintext, key);
-		const decrypted = await decrypt(ciphertext, key);
-		return { plaintext, ciphertext, decrypted, key };
+		const { type, text: decrypted } = await decryptAuto(ciphertext, key);
+		return { plaintext, ciphertext, decrypted, key, type };
 	})()`)
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "text", data["type"])
 	assert.Equal(t, data["plaintext"], data["decrypted"], "decrypted should match original")
 	assert.NotEqual(t, data["plaintext"], data["ciphertext"], "ciphertext should differ from plaintext")
 }
@@ -82,7 +83,7 @@ func TestCrypto_TextWrongKey(t *testing.T) {
 		const key2 = await generateKey();
 		const ciphertext = await encrypt('secret message', key1);
 		try {
-			await decrypt(ciphertext, key2);
+			await decryptAuto(ciphertext, key2);
 			return { error: null };
 		} catch (e) {
 			return { error: e.message || e.toString() };
@@ -109,9 +110,10 @@ func TestCrypto_FileRoundTrip(t *testing.T) {
 		const fileData = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]); // %PDF-1.4
 
 		const ciphertext = await encryptFile(fileData, filename, contentType, key);
-		const decrypted = await decryptFile(ciphertext, key);
+		const decrypted = await decryptAuto(ciphertext, key);
 
 		return {
+			type: decrypted.type,
 			originalFilename: filename,
 			originalContentType: contentType,
 			originalDataLength: fileData.length,
@@ -124,6 +126,7 @@ func TestCrypto_FileRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, "test-document.pdf", data["decryptedFilename"])
 	assert.Equal(t, "application/pdf", data["decryptedContentType"])
 	assert.Equal(t, data["originalDataLength"], data["decryptedDataLength"])
@@ -146,9 +149,10 @@ func TestCrypto_FileRoundTrip_ArrayBuffer(t *testing.T) {
 		const arrayBuffer = new Uint8Array([1, 2, 3, 4, 5]).buffer;
 
 		const ciphertext = await encryptFile(arrayBuffer, filename, contentType, key);
-		const decrypted = await decryptFile(ciphertext, key);
+		const decrypted = await decryptAuto(ciphertext, key);
 
 		return {
+			type: decrypted.type,
 			originalDataLength: arrayBuffer.byteLength,
 			decryptedFilename: decrypted.filename,
 			decryptedDataLength: decrypted.data.length,
@@ -158,6 +162,7 @@ func TestCrypto_FileRoundTrip_ArrayBuffer(t *testing.T) {
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, "arraybuffer-test.bin", data["decryptedFilename"])
 	assert.EqualValues(t, 5, data["originalDataLength"])
 	assert.EqualValues(t, 5, data["decryptedDataLength"])
@@ -226,12 +231,13 @@ func TestCrypto_UnicodePlaintext(t *testing.T) {
 		const key = await generateKey();
 		const plaintext = '你好世界! 🔐 Привет мир! مرحبا بالعالم';
 		const ciphertext = await encrypt(plaintext, key);
-		const decrypted = await decrypt(ciphertext, key);
-		return { plaintext, decrypted };
+		const { type, text: decrypted } = await decryptAuto(ciphertext, key);
+		return { plaintext, decrypted, type };
 	})()`)
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "text", data["type"])
 	assert.Equal(t, data["plaintext"], data["decrypted"], "unicode text should round-trip correctly")
 }
 
@@ -250,9 +256,10 @@ func TestCrypto_UnicodeFilename(t *testing.T) {
 		const fileData = new Uint8Array([1, 2, 3]);
 
 		const ciphertext = await encryptFile(fileData, filename, contentType, key);
-		const decrypted = await decryptFile(ciphertext, key);
+		const decrypted = await decryptAuto(ciphertext, key);
 
 		return {
+			type: decrypted.type,
 			originalFilename: filename,
 			decryptedFilename: decrypted.filename
 		};
@@ -260,6 +267,7 @@ func TestCrypto_UnicodeFilename(t *testing.T) {
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, data["originalFilename"], data["decryptedFilename"], "unicode filename should round-trip correctly")
 }
 
@@ -275,12 +283,13 @@ func TestCrypto_EmptyPlaintext(t *testing.T) {
 		const key = await generateKey();
 		const plaintext = '';
 		const ciphertext = await encrypt(plaintext, key);
-		const decrypted = await decrypt(ciphertext, key);
-		return { plaintext, decrypted, ciphertextLength: ciphertext.length };
+		const { type, text: decrypted } = await decryptAuto(ciphertext, key);
+		return { plaintext, decrypted, type, ciphertextLength: ciphertext.length };
 	})()`)
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "text", data["type"])
 	assert.Equal(t, "", data["decrypted"], "empty string should decrypt to empty string")
 	// use type switch since JS may return int or float64
 	var ciphertextLen float64
@@ -310,7 +319,7 @@ func TestCrypto_LargeBinaryFile(t *testing.T) {
 		}
 
 		const ciphertext = await encryptFile(fileData, 'large.bin', 'application/octet-stream', key);
-		const decrypted = await decryptFile(ciphertext, key);
+		const decrypted = await decryptAuto(ciphertext, key);
 
 		// verify data integrity
 		let matches = true;
@@ -322,6 +331,7 @@ func TestCrypto_LargeBinaryFile(t *testing.T) {
 		}
 
 		return {
+			type: decrypted.type,
 			originalSize: size,
 			decryptedSize: decrypted.data.length,
 			dataMatches: matches
@@ -330,6 +340,7 @@ func TestCrypto_LargeBinaryFile(t *testing.T) {
 	require.NoError(t, err)
 
 	data := result.(map[string]interface{})
+	assert.Equal(t, "file", data["type"])
 	assert.EqualValues(t, 100*1024, data["originalSize"])
 	assert.EqualValues(t, data["originalSize"], data["decryptedSize"])
 	assert.True(t, data["dataMatches"].(bool), "large file data should match after round-trip")
