@@ -95,8 +95,8 @@ func TestMain(m *testing.M) {
 	// launch browser once (reused across all tests via contexts)
 	headless := os.Getenv("E2E_HEADLESS") != "false"
 	browser, err = pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(headless),
-		SlowMo: playwright.Float(func() float64 {
+		Headless: new(headless),
+		SlowMo: new(func() float64 {
 			if headless {
 				return 0
 			}
@@ -694,7 +694,7 @@ func TestSecret_MissingKeyFragment(t *testing.T) {
 	assert.Contains(t, secretLink, "#", "link should contain # fragment with decryption key")
 
 	// strip the fragment to simulate apps that remove URL fragments
-	urlWithoutFragment := strings.Split(secretLink, "#")[0]
+	urlWithoutFragment, _, _ := strings.Cut(secretLink, "#")
 
 	// navigate to message page WITHOUT the #key fragment
 	_, err = page.Goto(urlWithoutFragment)
