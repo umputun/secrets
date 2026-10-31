@@ -64,7 +64,7 @@ func TestCrypto_TextRoundTrip(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "text", data["type"])
 	assert.Equal(t, data["plaintext"], data["decrypted"], "decrypted should match original")
 	assert.NotEqual(t, data["plaintext"], data["ciphertext"], "ciphertext should differ from plaintext")
@@ -91,7 +91,7 @@ func TestCrypto_TextWrongKey(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.NotNil(t, data["error"], "decryption with wrong key should fail")
 }
 
@@ -125,7 +125,7 @@ func TestCrypto_FileRoundTrip(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, "test-document.pdf", data["decryptedFilename"])
 	assert.Equal(t, "application/pdf", data["decryptedContentType"])
@@ -161,7 +161,7 @@ func TestCrypto_FileRoundTrip_ArrayBuffer(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, "arraybuffer-test.bin", data["decryptedFilename"])
 	assert.EqualValues(t, 5, data["originalDataLength"])
@@ -185,7 +185,7 @@ func TestCrypto_DecryptAuto_Text(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "text", data["type"])
 	assert.Equal(t, "hello world", data["text"])
 }
@@ -212,7 +212,7 @@ func TestCrypto_DecryptAuto_File(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, "test.bin", data["filename"])
 	assert.Equal(t, "application/octet-stream", data["contentType"])
@@ -236,7 +236,7 @@ func TestCrypto_UnicodePlaintext(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "text", data["type"])
 	assert.Equal(t, data["plaintext"], data["decrypted"], "unicode text should round-trip correctly")
 }
@@ -266,7 +266,7 @@ func TestCrypto_UnicodeFilename(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "file", data["type"])
 	assert.Equal(t, data["originalFilename"], data["decryptedFilename"], "unicode filename should round-trip correctly")
 }
@@ -288,9 +288,10 @@ func TestCrypto_EmptyPlaintext(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "text", data["type"])
-	assert.Equal(t, "", data["decrypted"], "empty string should decrypt to empty string")
+	assert.IsType(t, "", data["decrypted"])
+	assert.Empty(t, data["decrypted"], "empty string should decrypt to empty string")
 	// use type switch since JS may return int or float64
 	var ciphertextLen float64
 	switch v := data["ciphertextLength"].(type) {
@@ -339,7 +340,7 @@ func TestCrypto_LargeBinaryFile(t *testing.T) {
 	})()`)
 	require.NoError(t, err)
 
-	data := result.(map[string]interface{})
+	data := result.(map[string]any)
 	assert.Equal(t, "file", data["type"])
 	assert.EqualValues(t, 100*1024, data["originalSize"])
 	assert.EqualValues(t, data["originalSize"], data["decryptedSize"])
