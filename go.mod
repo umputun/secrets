@@ -9,7 +9,7 @@ require (
 	github.com/go-pkgz/rest v1.24.0
 	github.com/go-pkgz/routegroup v1.6.1
 	github.com/google/uuid v1.6.0
-	github.com/mxschmitt/playwright-go v0.6201.1
+	github.com/mxschmitt/playwright-go v0.6401.0
 	github.com/stretchr/testify v1.12.1
 	github.com/umputun/go-flags v1.5.1
 	golang.org/x/crypto v0.58.0
