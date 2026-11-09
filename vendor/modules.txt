@@ -57,7 +57,7 @@ github.com/mattn/go-isatty
 ## explicit; go 1.19
 github.com/microcosm-cc/bluemonday
 github.com/microcosm-cc/bluemonday/css
-# github.com/mxschmitt/playwright-go v0.6201.1
+# github.com/mxschmitt/playwright-go v0.6401.0
 ## explicit; go 1.22
 github.com/mxschmitt/playwright-go
 github.com/mxschmitt/playwright-go/internal/safe
