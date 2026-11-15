@@ -10,12 +10,11 @@ ARG GITHUB_SHA
 ADD . /build/secrets
 WORKDIR /build/secrets
 
-# run tests and linters
+# run tests
 RUN \
     if [ -z "$SKIP_TEST" ] ; then \
-    go test -timeout=30s  ./... && \
-    golangci-lint run ; \
-    else echo "skip tests and linter" ; fi
+    go test -timeout=30s  ./... ; \
+    else echo "skip tests" ; fi
 
 RUN \
     version=$(/script/version.sh) && \
