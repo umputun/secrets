@@ -314,7 +314,7 @@ Core libraries used:
 ### GitHub Actions Workflow
 - CI runs on every push and pull request using `.github/workflows/ci.yml`
 - Tests execute with 60s timeout and coverage reporting
-- GolangCI-Lint v2.3.1 enforces code quality standards
+- GolangCI-Lint, version pinned in `ci.yml`, enforces code quality standards; the Docker build runs tests only, no linter
 - Docker images automatically built and pushed to DockerHub on master and tagged releases
 - Tagged releases deploy as both `umputun/secrets:vX.Y.Z` and `umputun/secrets:latest`
 
