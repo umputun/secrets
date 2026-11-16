@@ -7,7 +7,7 @@ require (
 	github.com/go-pkgz/lgr v0.13.0
 	github.com/go-pkgz/notify v1.5.0
 	github.com/go-pkgz/rest v1.24.0
-	github.com/go-pkgz/routegroup v1.6.1
+	github.com/go-pkgz/routegroup v1.6.2
 	github.com/google/uuid v1.6.0
 	github.com/mxschmitt/playwright-go v0.6401.0
 	github.com/stretchr/testify v1.12.1
