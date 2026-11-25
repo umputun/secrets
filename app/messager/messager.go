@@ -152,11 +152,18 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 		return nil, ErrExpired
 	}
 
+	// count the attempt before the slow pin check, so concurrent guesses can't all pass the limit.
+	// an attempt past the limit leaves the message alone: one within the limit is still in flight
+	// and either claims it or deletes it on the last wrong pin.
+	count, err := p.engine.IncErr(ctx, key)
+	if err != nil {
+		return nil, claimError(err)
+	}
+	if count > p.MaxPinAttempts {
+		return nil, store.ErrLoadRejected
+	}
+
 	if !p.checkHash(msg, pin) {
-		count, e := p.engine.IncErr(ctx, key)
-		if e != nil {
-			return nil, ErrBadPin
-		}
 		log.Printf("[WARN] wrong pin provided for %s (%d times)", key, count)
 		if count >= p.MaxPinAttempts {
 			_ = p.engine.Remove(ctx, key)
@@ -236,17 +243,18 @@ func (p MessageProc) makeHash(pin string) (result string, err error) {
 
 // MessageInfo describes a stored message without decrypting it.
 type MessageInfo struct {
-	HasPin bool
-	IsFile bool // server-encrypted file message; always false for client-encrypted ones
+	HasPin    bool
+	IsFile    bool // server-encrypted file message; always false for client-encrypted ones
+	ClientEnc bool // encrypted in the browser, readable only with the key from the link fragment
 }
 
-// Info loads a message once and reports whether it requires a PIN and whether it is a file.
+// Info loads a message once and reports whether it requires a PIN, is a file and is client-encrypted.
 func (p MessageProc) Info(ctx context.Context, key string) (MessageInfo, error) {
 	msg, err := p.engine.Load(ctx, key)
 	if err != nil {
 		return MessageInfo{}, fmt.Errorf("load message: %w", err)
 	}
-	return MessageInfo{HasPin: msg.PinHash != "", IsFile: !msg.ClientEnc && IsFileMessage(msg.Data)}, nil
+	return MessageInfo{HasPin: msg.PinHash != "", IsFile: !msg.ClientEnc && IsFileMessage(msg.Data), ClientEnc: msg.ClientEnc}, nil
 }
 
 // IsFileMessage checks if message data has file prefix (works on raw stored data)

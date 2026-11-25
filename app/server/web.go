@@ -346,23 +346,23 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// the htmx form is the fallback for links without the #key fragment, so a client-encrypted message
+	// reached through it can't be decrypted; reject before LoadMessage, which would consume it
+	if info.ClientEnc && r.Header.Get("HX-Request") == "true" {
+		log.Printf("[WARN] client-enc message %s requested via HTMX (missing key), ip=%s", form.Key, GetHashedIP(r))
+		s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl,
+			"The decryption key is missing from the URL. This can happen when sharing links through apps that strip URL fragments. Please ask the sender to share the complete link including the # portion.")
+		return
+	}
+
 	msg, err := s.messager.LoadMessage(r.Context(), form.Key, pin)
 	if err != nil {
 		s.handleLoadMessageError(w, r, &form, err, info.IsFile)
 		return
 	}
 
-	// client-encrypted message: return raw encrypted blob for client-side decryption
+	// client-encrypted message requested by the js fetch, which holds the key: return the raw blob
 	if msg.ClientEnc {
-		// if this is an HTMX request (from server-side form), the user doesn't have the decryption key
-		// this happens when URL fragment (#key) was stripped during sharing
-		if r.Header.Get("HX-Request") == "true" {
-			log.Printf("[WARN] accessed client-enc message %s via HTMX (missing key), ip=%s", form.Key, GetHashedIP(r))
-			s.render(w, http.StatusOK, "error.tmpl.html", errorTmpl,
-				"The decryption key is missing from the URL. This can happen when sharing links through apps that strip URL fragments. Please ask the sender to share the complete link including the # portion.")
-			return
-		}
-		// non-HTMX request (from client-side JS with fetch) - return blob for decryption
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		//nolint:gosec // G705: base64url ciphertext served as text/plain, nosniff set by security headers
@@ -667,7 +667,8 @@ func (s Server) sendEmailCtrl(w http.ResponseWriter, r *http.Request) { //nolint
 
 	req := email.Request{To: to, Subject: subject, FromName: fromName, Link: link}
 	if err := s.emailSender.Send(r.Context(), req); err != nil {
-		log.Printf("[WARN] failed to send email: %v", err)
+		// smtp errors from go-pkgz/email quote the recipient
+		log.Printf("[WARN] failed to send email: %s", strings.ReplaceAll(err.Error(), to, email.MaskEmail(to)))
 		// extract user-friendly error message
 		errMsg := "failed to send email"
 		errStr := strings.ToLower(err.Error())

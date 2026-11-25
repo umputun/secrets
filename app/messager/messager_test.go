@@ -3,6 +3,7 @@ package messager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -193,7 +194,7 @@ func TestMessageProc_LoadMessage_ExpiredErr(t *testing.T) {
 	assert.Empty(t, c.DecryptCalls())
 }
 
-func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
+func TestMessageProc_LoadMessage_IncErrFails(t *testing.T) {
 	s := &EngineMock{
 		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
 			return &store.Message{
@@ -214,7 +215,7 @@ func TestMessageProc_LoadMessage_BadPin(t *testing.T) {
 	r, err := m.LoadMessage(t.Context(), "somekey", "56789")
 	t.Logf("%+v", r)
 
-	require.EqualError(t, err, "wrong pin")
+	require.ErrorIs(t, err, ErrInternal)
 
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Empty(t, s.RemoveCalls())
@@ -251,6 +252,30 @@ func TestMessageProc_LoadMessage_BadPin_MaxAttempts(t *testing.T) {
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Len(t, s.RemoveCalls(), 1)
 	assert.Len(t, s.IncErrCalls(), 1)
+	assert.Empty(t, c.DecryptCalls())
+}
+
+func TestMessageProc_LoadMessage_AttemptsExhaustedSkipsPinCheck(t *testing.T) {
+	// regression: concurrent guesses all reached bcrypt before the counter caught up with the limit
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:    []byte("data"),
+				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
+				Exp:     time.Now().Add(time.Minute),
+			}, nil
+		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 3, nil },
+	}
+	c := &CrypterMock{DecryptFunc: func(req Request) ([]byte, error) { return []byte("decrypted blah"), nil }}
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(t.Context(), "somekey", "123456")
+
+	require.ErrorIs(t, err, store.ErrLoadRejected)
+	assert.Nil(t, r)
+	assert.Len(t, s.IncErrCalls(), 1)
+	assert.Empty(t, s.RemoveCalls())
 	assert.Empty(t, c.DecryptCalls())
 }
 
@@ -295,6 +320,7 @@ func TestMessageProc_LoadMessage_DecryptError(t *testing.T) {
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error {
 			return nil
 		},
@@ -314,7 +340,7 @@ func TestMessageProc_LoadMessage_DecryptError(t *testing.T) {
 
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Len(t, s.RemoveCalls(), 1)
-	assert.Empty(t, s.IncErrCalls())
+	assert.Len(t, s.IncErrCalls(), 1)
 	assert.Len(t, c.DecryptCalls(), 1)
 }
 
@@ -327,6 +353,7 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error {
 			return nil
 		},
@@ -349,7 +376,7 @@ func TestMessageProc_LoadMessage(t *testing.T) {
 
 	assert.Len(t, s.LoadCalls(), 1)
 	assert.Len(t, s.RemoveCalls(), 1)
-	assert.Empty(t, s.IncErrCalls())
+	assert.Len(t, s.IncErrCalls(), 1)
 	assert.Len(t, c.DecryptCalls(), 1)
 }
 
@@ -362,6 +389,7 @@ func TestMessageProc_LoadMessage_AlreadyClaimed(t *testing.T) {
 				Exp:     time.Now().Add(time.Minute),
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return store.ErrLoadRejected },
 	}
 
@@ -383,6 +411,7 @@ func TestMessageProc_LoadMessage_AlreadyClaimed_ClientEnc(t *testing.T) {
 				ClientEnc: true,
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return store.ErrLoadRejected },
 	}
 
@@ -402,6 +431,7 @@ func TestMessageProc_LoadMessage_RemoveFails(t *testing.T) {
 				Exp:     time.Now().Add(time.Minute),
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return errors.New("database is locked") },
 	}
 
@@ -450,6 +480,43 @@ func TestMessageProc_LoadMessage_ConcurrentClaim(t *testing.T) {
 	assert.Equal(t, 1, claimed)
 }
 
+func TestMessageProc_LoadMessage_ConcurrentWrongPins(t *testing.T) {
+	// regression: every concurrent guess reached bcrypt, the limit only applied to sequential ones
+	eng := store.NewInMemory(time.Minute)
+	defer eng.Close()
+
+	m := New(eng, Crypt{Key: "123456789012345678901234567"}, Params{MaxPinAttempts: 3, MaxDuration: time.Minute})
+	msg, err := m.MakeMessage(t.Context(), MsgReq{Duration: time.Minute, Message: "my secret", Pin: "12345"})
+	require.NoError(t, err)
+
+	const guesses = 20
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make([]error, guesses)
+	wg.Add(guesses)
+	for i := range guesses {
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[i] = m.LoadMessage(t.Context(), msg.Key, fmt.Sprintf("%05d", 20000+i))
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	checked := 0
+	for _, loadErr := range errs {
+		if errors.Is(loadErr, ErrBadPin) || errors.Is(loadErr, ErrBadPinAttempt) {
+			checked++
+			continue
+		}
+		require.ErrorIs(t, loadErr, store.ErrLoadRejected)
+	}
+	assert.Equal(t, 3, checked)
+	_, err = m.LoadMessage(t.Context(), msg.Key, "12345")
+	require.ErrorIs(t, err, store.ErrLoadRejected)
+}
+
 func TestMessageProc_LoadMessage_NoPinMessage(t *testing.T) {
 	s := &EngineMock{
 		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
@@ -460,6 +527,7 @@ func TestMessageProc_LoadMessage_NoPinMessage(t *testing.T) {
 				ClientEnc: true,
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
 	c := &CrypterMock{}
@@ -510,8 +578,8 @@ func TestMessageProc_Info(t *testing.T) {
 		{name: "text with pin", pinHash: "$2a$10$hash", data: []byte("encrypted text"), want: MessageInfo{HasPin: true}},
 		{name: "text without pin", data: []byte("encrypted text"), want: MessageInfo{}},
 		{name: "file with pin", pinHash: "$2a$10$hash", data: fileData, want: MessageInfo{HasPin: true, IsFile: true}},
-		{name: "client-enc file prefix", pinHash: "$2a$10$hash", data: fileData, clientEnc: true, want: MessageInfo{HasPin: true}},
-		{name: "client-enc without pin", data: []byte("encrypted blob"), clientEnc: true, want: MessageInfo{}},
+		{name: "client-enc file prefix", pinHash: "$2a$10$hash", data: fileData, clientEnc: true, want: MessageInfo{HasPin: true, ClientEnc: true}},
+		{name: "client-enc without pin", data: []byte("encrypted blob"), clientEnc: true, want: MessageInfo{ClientEnc: true}},
 		{name: "load error", loadErr: errors.New("not found"), wantErr: true},
 	}
 
@@ -551,6 +619,7 @@ func TestMessageProc_LoadFileMessage(t *testing.T) {
 				Exp:     time.Now().Add(1 * time.Minute),
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
 
@@ -688,6 +757,7 @@ func TestMessageProc_LoadMessage_ClientEnc(t *testing.T) {
 				ClientEnc: true,
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
 	c := &CrypterMock{
@@ -718,6 +788,7 @@ func TestMessageProc_LoadMessage_ServerEnc(t *testing.T) {
 				ClientEnc: false,
 			}, nil
 		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
 		RemoveFunc: func(ctx context.Context, key string) error { return nil },
 	}
 	c := &CrypterMock{

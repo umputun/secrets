@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-pkgz/lgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1730,6 +1732,10 @@ func TestServer_loadMessageCtrl_ClientEncHTMX(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "decryption key is missing")
 		assert.Contains(t, rr.Body.String(), "URL fragments")
+
+		loaded, err := msg.LoadMessage(t.Context(), createdMsg.Key, "12345")
+		require.NoError(t, err, "message must survive a read without the decryption key")
+		assert.Equal(t, "encrypted-blob-base64", string(loaded.Data))
 	})
 
 	t.Run("non-HTMX request for ClientEnc message returns blob", func(t *testing.T) {
@@ -1869,6 +1875,31 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Len(t, mock.SendCalls(), 1)
 		assert.Equal(t, "user@example.com", mock.SendCalls()[0].Req.To)
+	})
+
+	t.Run("send failure log masks recipient", func(t *testing.T) {
+		var out bytes.Buffer
+		lgr.Setup(lgr.Out(&out))
+		t.Cleanup(func() { lgr.Setup() })
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc: func(ctx context.Context, req email.Request) error {
+				return fmt.Errorf("failed to send email to %q: 550 rejected", []string{req.To})
+			},
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"someone.private@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Contains(t, out.String(), "550 rejected")
+		assert.Contains(t, out.String(), "s***@example.com")
+		assert.NotContains(t, out.String(), "someone.private@example.com")
 	})
 
 	t.Run("send failure shows auth error", func(t *testing.T) {

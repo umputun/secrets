@@ -222,8 +222,13 @@ func (s *Sender) buildMailtoDestination(recipient, subject, from string) string 
 	return mailto
 }
 
-// IsValidEmail performs email validation using RFC 5322 parsing
+// IsValidEmail performs email validation using RFC 5322 parsing.
+// It rejects '?' and '#', which RFC 5322 allows but which would end the address
+// inside the mailto URL and let the rest set the sender and subject.
 func IsValidEmail(email string) bool {
+	if strings.ContainsAny(email, "?#") {
+		return false
+	}
 	addr, err := mail.ParseAddress(email)
 	if err != nil {
 		return false

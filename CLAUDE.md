@@ -76,7 +76,7 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 type Messager interface {
     MakeMessage(req messager.MsgReq) (result *store.Message, err error)
     LoadMessage(key, pin string) (msg *store.Message, err error)
-    Info(ctx context.Context, key string) (messager.MessageInfo, error) // HasPin and IsFile flags from one load, without decrypting
+    Info(ctx context.Context, key string) (messager.MessageInfo, error) // HasPin, IsFile and ClientEnc flags from one load, without decrypting
 }
 ```
 
@@ -143,6 +143,7 @@ Route-based encryption where UI uses client-side encryption and API uses server-
 **Implementation details:**
 - `msg.ClientEnc` field determines encryption/decryption path on retrieval
 - `Info().IsFile` is false for `ClientEnc=true` messages (server cannot inspect content)
+- `Info().ClientEnc` lets `/load-message` reject an HTMX (no `#key`) read before `LoadMessage`, so a link stripped of its fragment does not consume the message
 - Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead (UI route)
 - Client-side crypto module: `app/server/assets/static/js/crypto.js`
 
@@ -185,6 +186,8 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 - **Logger middleware** - Logs requests with masked sensitive paths (PINs) and anonymized IPs
   - Must run after HashedIP middleware (reads hashed IP from context)
 - **Middleware chain order matters**: rest.RealIP (when enabled) → HashedIP → Logger
+- **Rate limiter** (tollbooth): one bucket per IP for all routes (`SetIgnoreURL(true)`, 1-minute bucket TTL), `/static/` exempt via `skipStatic`, and it runs before `rest.SizeLimit`, which reads the whole body. Keying by path would give every `/api/v1/message/{key}/{pin}` guess its own bucket
+- **PIN attempts**: `LoadMessage` calls `IncErr` before the bcrypt check, so concurrent guesses can't exceed `PIN_ATTEMPTS`; correct-PIN reads count too, and an attempt past the limit returns `ErrLoadRejected` without removing (an in-flight attempt within the limit claims or deletes)
 
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message

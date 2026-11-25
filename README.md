@@ -100,7 +100,7 @@ The service uses **hybrid encryption** based on how you access it:
 - `Cache-Control`: `no-cache, no-store, must-revalidate` for dynamic content; long cache for static assets
 
 **Rate Limiting:**
-- API requests: 10 req/sec per IP (configurable via `--limit`)
+- All requests except static assets: 10 req/sec per IP across all routes, with bursts up to 30
 - PIN attempts: 3 max per message (configurable via `--pinattempts`)
 - Failed attempts permanently logged with anonymized IP
 
