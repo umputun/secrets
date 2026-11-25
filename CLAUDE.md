@@ -268,11 +268,11 @@ Core libraries used:
 ### Version and Extensions
 - HTMX v2.0.3 with response-targets extension for proper error handling
 - Server-driven UI pattern with minimal client-side JavaScript
-- Uses `hx-target-[status]` attributes for HTTP status-specific targeting (400, 403, 404, 500)
+- Uses `hx-target-[status]` attributes for HTTP status-specific targeting (400, 401, 403, 404)
 
 ### Form Handling Pattern
 - Forms use `hx-post` with `hx-target="#form-card"` and `hx-swap="outerHTML"` to replace entire form with result
-- Error handling via response-targets: `hx-target-400="#form-errors"` for validation errors
+- Error handling via response-targets: `hx-target-400="#form-card"` re-renders the form with validation errors
 - Loading indicators with `hx-indicator="#form-spinner"` for visual feedback during requests
 
 ### Theme System
