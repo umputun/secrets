@@ -256,37 +256,53 @@ func TestSecret_CreateAndReveal(t *testing.T) {
 	assert.Contains(t, content, "test secret message for e2e")
 }
 
-func TestSecret_RateLimitedShowsError(t *testing.T) {
-	// regression: a 429 on generate-link cleared the form with no message
-	page := newPage(t)
-	_, err := page.Goto(baseURL)
-	require.NoError(t, err)
-	require.NoError(t, page.Route("**/generate-link", func(route playwright.Route) {
-		_ = route.Fulfill(playwright.RouteFulfillOptions{Status: new(429), Body: "limited"})
-	}))
+func TestSecret_SubmitErrorShowsMessage(t *testing.T) {
+	// regression: a 429 or 5xx on generate-link cleared the form with no message, or swapped bare text over the page
+	tbl := []struct {
+		status int
+		want   string
+	}{
+		{status: 429, want: "Too many requests"},
+		{status: 500, want: "Server error"},
+		{status: 503, want: "Server error"},
+	}
+	for _, tt := range tbl {
+		t.Run(fmt.Sprintf("status %d", tt.status), func(t *testing.T) {
+			page := newPage(t)
+			_, err := page.Goto(baseURL)
+			require.NoError(t, err)
+			require.NoError(t, page.Route("**/generate-link", func(route playwright.Route) {
+				_ = route.Fulfill(playwright.RouteFulfillOptions{Status: new(tt.status), Body: "failed"})
+			}))
 
-	require.NoError(t, page.Locator("#message").Fill("rate limited secret"))
-	require.NoError(t, page.Locator("#pin").Fill(testPin))
-	require.NoError(t, page.Locator("button[type='submit']").Click())
+			require.NoError(t, page.Locator("#message").Fill("failed submit secret"))
+			require.NoError(t, page.Locator("#pin").Fill(testPin))
+			require.NoError(t, page.Locator("button[type='submit']").Click())
 
-	formErr := page.Locator("#form-errors .error")
-	waitVisible(t, formErr)
-	text, err := formErr.TextContent()
-	require.NoError(t, err)
-	assert.Contains(t, text, "Too many requests")
-	msg, err := page.Locator("#message").InputValue()
-	require.NoError(t, err)
-	assert.Empty(t, msg, "no ciphertext may stay in the field after a failed submit")
+			formErr := page.Locator("#form-errors .error")
+			waitVisible(t, formErr)
+			text, err := formErr.TextContent()
+			require.NoError(t, err)
+			assert.Contains(t, text, tt.want)
+			assert.Contains(t, text, "reload the page")
+			msg, err := page.Locator("#message").InputValue()
+			require.NoError(t, err)
+			assert.Empty(t, msg, "no ciphertext may stay in the field after a failed submit")
+			cnt, err := page.Locator("#notifications").Count()
+			require.NoError(t, err)
+			assert.Equal(t, 1, cnt, "the toast container must survive")
 
-	require.NoError(t, page.Unroute("**/generate-link"))
-	require.NoError(t, page.Locator("#message").Fill("rate limited secret"))
-	require.NoError(t, page.Locator("button[type='submit']").Click())
-	linkTextarea := page.Locator("textarea#msg-text")
-	waitVisible(t, linkTextarea)
-	link, err := linkTextarea.InputValue()
-	require.NoError(t, err)
-	assert.Contains(t, link, "/message/")
-	assert.Contains(t, link, "#", "retry must still encrypt and append the key")
+			require.NoError(t, page.Unroute("**/generate-link"))
+			require.NoError(t, page.Locator("#message").Fill("failed submit secret"))
+			require.NoError(t, page.Locator("button[type='submit']").Click())
+			linkTextarea := page.Locator("textarea#msg-text")
+			waitVisible(t, linkTextarea)
+			link, err := linkTextarea.InputValue()
+			require.NoError(t, err)
+			assert.Contains(t, link, "/message/")
+			assert.Contains(t, link, "#", "retry must still encrypt and append the key")
+		})
+	}
 }
 
 func TestSecret_WrongPin(t *testing.T) {

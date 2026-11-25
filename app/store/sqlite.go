@@ -137,7 +137,7 @@ func (s *SQLite) Load(ctx context.Context, key string) (*Message, error) {
 	}
 	if err != nil {
 		log.Printf("[ERROR] failed to load message: %v", err)
-		return nil, ErrLoadRejected
+		return nil, fmt.Errorf("load message: %w", err)
 	}
 
 	msg.Exp = time.Unix(expUnix, 0)

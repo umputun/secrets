@@ -187,9 +187,10 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
   - Must run after HashedIP middleware (reads hashed IP from context)
 - **Middleware chain order matters**: rest.RealIP (when enabled) → HashedIP → Logger
 - **Rate limiter** (tollbooth): one bucket per IP for all routes (`SetIgnoreURL(true)`, 1-minute bucket TTL), bodiless GET/HEAD under `/static/` exempt via `skipStatic`, and it runs before `rest.SizeLimit`, which reads the whole body. Keying by path would give every `/api/v1/message/{key}/{pin}` guess its own bucket
-- **PIN attempts**: `LoadMessage` calls `IncErr` before the bcrypt check, so concurrent guesses can't exceed `PIN_ATTEMPTS`; correct-PIN reads count too, and an attempt past the limit returns `ErrLoadRejected` without removing (an in-flight attempt within the limit claims or deletes, with a context that ignores client disconnect). `SQLite.IncErr` returns `ErrLoadRejected` only for a missing row, so a storage failure is `ErrInternal`, never "expired"
+- **PIN attempts**: `LoadMessage` calls `IncErr` before the bcrypt check, so concurrent guesses can't exceed `PIN_ATTEMPTS`; correct-PIN reads count too, and an attempt past the limit returns `ErrLoadRejected` without removing (an in-flight attempt within the limit claims or deletes; on the last allowed attempt that delete ignores client disconnect, earlier ones keep the request context so a disconnected reader can retry)
+- **Storage errors**: `SQLite.Load` and `SQLite.IncErr` return `ErrLoadRejected` only for a missing row and wrap anything else. `LoadMessage` maps those to `ErrInternal` (no storage text reaches the caller), and the web Info path renders 500 on the message page and a retryable pin-form error on `/load-message`, never "expired or deleted"
 - **HEAD on `GET /api/v1/message/{key}/{pin}`** returns 405: ServeMux routes HEAD to GET patterns, and serving it would consume the message
-- **429 on `/generate-link`**: handled in app.js `htmx:responseError` (form reset plus an inline error), never with `hx-target-429`: the form's outerHTML swap would replace the target and skip the encryption-state reset
+- **429 and 5xx on `/generate-link`**: handled in app.js `htmx:responseError` (form reset plus an inline error telling the user to reload), never with `hx-target-<status>`: the form's outerHTML swap would replace the target and skip the encryption-state reset. Reload, because file mode detaches `#file` on submit
 
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message

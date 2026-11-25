@@ -278,8 +278,13 @@ func (s Server) showMessageViewCtrl(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 
 	info, err := s.messager.Info(r.Context(), key)
+	if err != nil && !errors.Is(err, store.ErrLoadRejected) {
+		log.Printf("[WARN] can't load message info: %v", err)
+		s.render(w, http.StatusInternalServerError, "message-error.tmpl.html", baseTmpl,
+			s.newTemplateData(r, "internal error, please try again later"))
+		return
+	}
 	if err != nil {
-		// failed to load message - likely expired or deleted, show friendly error
 		s.render(w, http.StatusNotFound, "message-error.tmpl.html", baseTmpl, s.newTemplateData(r, "message expired or deleted"))
 		return
 	}
@@ -322,8 +327,13 @@ func (s Server) loadMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 	// capture file type before LoadMessage, which deletes the message on the last wrong PIN
 	info, err := s.messager.Info(r.Context(), form.Key)
+	if err != nil && !errors.Is(err, store.ErrLoadRejected) {
+		log.Printf("[WARN] can't load message info: %v", err)
+		s.handleLoadMessageError(w, r, &form, messager.ErrInternal, false) // retryable error on the pin form
+		return
+	}
 	if err != nil {
-		// message doesn't exist or failed to load - show 404 instead of confusing PIN form
+		// message doesn't exist - show 404 instead of confusing PIN form
 		s.render(w, http.StatusNotFound, "message-error.tmpl.html", baseTmpl, s.newTemplateData(r, "message expired or deleted"))
 		return
 	}
@@ -441,7 +451,11 @@ func (s Server) handleLoadMessageError(w http.ResponseWriter, r *http.Request, f
 	}
 	// always return 403 for wrong PIN - both HTMX and JS fetch handle it correctly
 	s.render(w, http.StatusForbidden, "show-message.tmpl.html", tmpl, data)
-	log.Printf("[INFO] accessed message %s, type=%s, status=403 (wrong pin), ip=%s", form.Key, msgType, GetHashedIP(r))
+	reason := "wrong pin"
+	if errors.Is(err, messager.ErrInternal) {
+		reason = "internal error"
+	}
+	log.Printf("[INFO] accessed message %s, type=%s, status=403 (%s), ip=%s", form.Key, msgType, reason, GetHashedIP(r))
 }
 
 // duration converts a number and unit into a time.Duration

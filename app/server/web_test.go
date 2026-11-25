@@ -568,6 +568,44 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 	}
 }
 
+func TestServer_messageStorageFailure(t *testing.T) {
+	// regression: a storage failure while loading a message was reported as "message expired or deleted"
+	eng := &messager.EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return nil, fmt.Errorf("load message: %w", errors.New("database is locked"))
+		},
+	}
+	m := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{MaxDuration: time.Hour, MaxPinAttempts: 3})
+	srv, err := New(m, "1", Config{Domain: []string{"example.com"}, PinSize: 5, MaxPinAttempts: 3, MaxExpire: time.Hour})
+	require.NoError(t, err)
+
+	t.Run("message page", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/message/somekey12345", http.NoBody)
+		req.SetPathValue(pathKeyParam, "somekey12345")
+		rr := httptest.NewRecorder()
+		srv.showMessageViewCtrl(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), "internal error, please try again later")
+		assert.NotContains(t, rr.Body.String(), "expired or deleted")
+		assert.NotContains(t, rr.Body.String(), "database is locked")
+	})
+
+	t.Run("load message", func(t *testing.T) {
+		formData := url.Values{"key": {"somekey12345"}, "pin": {"1", "2", "3", "4", "5"}}
+		req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+		assert.Contains(t, rr.Body.String(), "internal error")
+		assert.NotContains(t, rr.Body.String(), "expired or deleted")
+		assert.NotContains(t, rr.Body.String(), "database is locked")
+		assert.Empty(t, eng.IncErrCalls())
+	})
+}
+
 func TestServer_showMessageViewCtrl_NoPinMessage(t *testing.T) {
 	eng := store.NewInMemory(time.Second)
 	msgr := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{
