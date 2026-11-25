@@ -166,7 +166,7 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 	if !p.checkHash(msg, pin) {
 		log.Printf("[WARN] wrong pin provided for %s (%d times)", key, count)
 		if count >= p.MaxPinAttempts {
-			_ = p.engine.Remove(ctx, key)
+			_ = p.remove(ctx, key)
 			return nil, ErrBadPin
 		}
 		return msg, ErrBadPinAttempt
@@ -174,7 +174,7 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 
 	// client-side encrypted messages: return data as-is (client handles decryption)
 	if msg.ClientEnc {
-		if rmErr := p.engine.Remove(ctx, key); rmErr != nil {
+		if rmErr := p.remove(ctx, key); rmErr != nil {
 			log.Printf("[WARN] failed to remove %s, %v", key, rmErr)
 			return nil, claimError(rmErr)
 		}
@@ -193,11 +193,11 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 	r, err := p.crypt.Decrypt(Request{Data: dataToDecrypt, Pin: pin})
 	if err != nil {
 		log.Printf("[WARN] can't decrypt, %v", err)
-		_ = p.engine.Remove(ctx, key)
+		_ = p.remove(ctx, key)
 		return nil, ErrBadPin
 	}
 
-	if err := p.engine.Remove(ctx, key); err != nil {
+	if err := p.remove(ctx, key); err != nil {
 		log.Printf("[WARN] failed to remove %s, %v", key, err)
 		return nil, claimError(err)
 	}
@@ -210,6 +210,17 @@ func (p MessageProc) LoadMessage(ctx context.Context, key, pin string) (msg *sto
 		msg.Data = r
 	}
 	return msg, nil
+}
+
+// remove deletes a message whose attempt was already counted. It ignores the request's cancellation:
+// a delete lost to a client disconnect would leave the message stored and locked until expiry.
+func (p MessageProc) remove(ctx context.Context, key string) error {
+	rmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := p.engine.Remove(rmCtx, key); err != nil {
+		return fmt.Errorf("remove message: %w", err)
+	}
+	return nil
 }
 
 func claimError(err error) error {

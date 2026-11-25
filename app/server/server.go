@@ -159,7 +159,7 @@ func (s Server) Run(ctx context.Context) error {
 		Addr:              port,
 		Handler:           s.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       30 * time.Second, // a trickled body would otherwise hold a throttle slot indefinitely
+		ReadTimeout:       30 * time.Second, // bounds a trickled body; its read would otherwise outlive the 60s Timeout
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
@@ -340,6 +340,12 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 // GET /v1/message/{key}/{pin}
 func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
+	// ServeMux routes HEAD to GET patterns; a HEAD read would consume the message and drop the body
+	if r.Method == http.MethodHead {
+		w.Header().Set("Allow", http.MethodGet)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 	key, pin := r.PathValue("key"), r.PathValue("pin")
 	if key == "" || pin == "" || len(pin) != s.cfg.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")

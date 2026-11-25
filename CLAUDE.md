@@ -186,8 +186,10 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 - **Logger middleware** - Logs requests with masked sensitive paths (PINs) and anonymized IPs
   - Must run after HashedIP middleware (reads hashed IP from context)
 - **Middleware chain order matters**: rest.RealIP (when enabled) → HashedIP → Logger
-- **Rate limiter** (tollbooth): one bucket per IP for all routes (`SetIgnoreURL(true)`, 1-minute bucket TTL), `/static/` exempt via `skipStatic`, and it runs before `rest.SizeLimit`, which reads the whole body. Keying by path would give every `/api/v1/message/{key}/{pin}` guess its own bucket
-- **PIN attempts**: `LoadMessage` calls `IncErr` before the bcrypt check, so concurrent guesses can't exceed `PIN_ATTEMPTS`; correct-PIN reads count too, and an attempt past the limit returns `ErrLoadRejected` without removing (an in-flight attempt within the limit claims or deletes)
+- **Rate limiter** (tollbooth): one bucket per IP for all routes (`SetIgnoreURL(true)`, 1-minute bucket TTL), bodiless GET/HEAD under `/static/` exempt via `skipStatic`, and it runs before `rest.SizeLimit`, which reads the whole body. Keying by path would give every `/api/v1/message/{key}/{pin}` guess its own bucket
+- **PIN attempts**: `LoadMessage` calls `IncErr` before the bcrypt check, so concurrent guesses can't exceed `PIN_ATTEMPTS`; correct-PIN reads count too, and an attempt past the limit returns `ErrLoadRejected` without removing (an in-flight attempt within the limit claims or deletes, with a context that ignores client disconnect). `SQLite.IncErr` returns `ErrLoadRejected` only for a missing row, so a storage failure is `ErrInternal`, never "expired"
+- **HEAD on `GET /api/v1/message/{key}/{pin}`** returns 405: ServeMux routes HEAD to GET patterns, and serving it would consume the message
+- **429 on `/generate-link`**: handled in app.js `htmx:responseError` (form reset plus an inline error), never with `hx-target-429`: the form's outerHTML swap would replace the target and skip the encryption-state reset
 
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message

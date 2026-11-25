@@ -420,6 +420,10 @@ function setupEncryptionHandlers() {
         if (status && status !== 400 && status !== 401 && status !== 500) {
             resetEncryptionState();
         }
+        // no hx-target-429: the form's outerHTML swap would replace the target and skip this reset
+        if (status === 429 && evt.detail.elt?.id === 'secret-form') {
+            showEncryptionError('Too many requests, please wait a moment and try again.');
+        }
     });
 
     // reset state if auth popup is closed manually

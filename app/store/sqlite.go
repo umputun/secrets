@@ -162,7 +162,7 @@ func (s *SQLite) IncErr(ctx context.Context, key string) (int, error) {
 	}
 	if err != nil {
 		log.Printf("[ERROR] failed to increment errors: %v", err)
-		return 0, ErrLoadRejected
+		return 0, fmt.Errorf("increment errors: %w", err)
 	}
 
 	return count, nil

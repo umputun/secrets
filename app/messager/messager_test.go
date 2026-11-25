@@ -279,6 +279,35 @@ func TestMessageProc_LoadMessage_AttemptsExhaustedSkipsPinCheck(t *testing.T) {
 	assert.Empty(t, c.DecryptCalls())
 }
 
+func TestMessageProc_LoadMessage_RemoveSurvivesClientDisconnect(t *testing.T) {
+	// regression: a disconnect during the pin check made the claiming Remove fail, locking the message until expiry
+	var removeCtxErrs []error
+	s := &EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return &store.Message{
+				Data:    []byte("data"),
+				PinHash: "$2a$10$2d9OIFG2.zuVIiZznlpy/uJoTl4quQPbDSFnHbi0LuYDILuxHYkDu",
+				Exp:     time.Now().Add(time.Minute),
+			}, nil
+		},
+		IncErrFunc: func(ctx context.Context, key string) (int, error) { return 1, nil },
+		RemoveFunc: func(ctx context.Context, key string) error {
+			removeCtxErrs = append(removeCtxErrs, ctx.Err())
+			return ctx.Err()
+		},
+	}
+	c := &CrypterMock{DecryptFunc: func(req Request) ([]byte, error) { return []byte("decrypted blah"), nil }}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	m := New(s, c, Params{MaxPinAttempts: 2, MaxDuration: time.Minute})
+	r, err := m.LoadMessage(ctx, "somekey", "123456")
+
+	require.NoError(t, err)
+	assert.Equal(t, "decrypted blah", string(r.Data))
+	assert.Equal(t, []error{nil}, removeCtxErrs)
+}
+
 func TestMessageProc_LoadMessage_BadPinAttempt(t *testing.T) {
 	msg := &store.Message{
 		Data:    []byte("data"),

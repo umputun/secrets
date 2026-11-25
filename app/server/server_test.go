@@ -84,8 +84,37 @@ func TestServer_rateLimitAcrossPaths(t *testing.T) {
 	assert.Equal(t, http.StatusOK, request("GET", "/static/css/main.css", http.NoBody), "static assets are not rate limited")
 	assert.Equal(t, http.StatusTooManyRequests, request("POST", "/static/x", strings.NewReader("body")),
 		"a non-GET request under /static must not skip the limiter")
+	assert.Equal(t, http.StatusTooManyRequests, request("GET", "/static/x", strings.NewReader("body")),
+		"a GET with a body under /static must not skip the limiter")
 	assert.Equal(t, http.StatusTooManyRequests, request("POST", "/generate-link", strings.NewReader(strings.Repeat("x", 200*1024))),
 		"rate limit must reject before the size limit reads the body")
+}
+
+func TestServer_getMessageHeadKeepsMessage(t *testing.T) {
+	// regression: the GET route also served HEAD, which consumed the one-time message and returned no body
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+	client := http.Client{Timeout: time.Second}
+
+	resp, err := client.Post(ts.URL+"/api/v1/message", "application/json",
+		strings.NewReader(`{"message": "my secret message","exp": 600,"pin": "12345"}`))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var saved struct{ Key string }
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&saved))
+	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, saved.Key)
+
+	resp, err = client.Head(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
+	assert.Equal(t, http.MethodGet, resp.Header.Get("Allow"))
+
+	resp, err = client.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "message must survive the HEAD request")
 }
 
 func TestServer_saveAndLoadMemory(t *testing.T) {
