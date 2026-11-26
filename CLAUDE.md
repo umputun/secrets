@@ -368,6 +368,7 @@ Core libraries used:
 - Build binary embeds UI assets, no need for `--web` flag after building
 - Run formatter, goimports, and unfuck-ai-comments before committing
 - **AUTH_HASH in environment**: When testing without auth, use `--auth.hash=""` explicitly - the env may have AUTH_HASH set which overrides the default
+- **Rate-limit tests run inside `synctest.Test`**: the tollbooth bucket refills one token every 100ms, so a test that drains it and expects 429 flakes on slow CI unless the clock is frozen. Call `s.routes()` inside the bubble, where the limiter is built, and drive it with `httptest.NewRecorder`, not `httptest.NewServer`
 
 ### E2E Tests
 - Located in `e2e/` directory, require build tag: `go test -tags=e2e ./e2e/...`
