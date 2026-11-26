@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-pkgz/lgr"
@@ -40,26 +41,28 @@ func TestServer_proxyHeaderRateLimit(t *testing.T) {
 	for _, header := range []string{"X-Real-IP", "CF-Connecting-IP", "X-Forwarded-For"} {
 		for _, trust := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/trust=%v", header, trust), func(t *testing.T) {
-				s, err := New(nil, "test", Config{Domain: []string{"localhost"}, TrustProxyHeaders: trust})
-				require.NoError(t, err)
-				h := s.routes()
-				request := func(ip string) int {
-					r := httptest.NewRequest("GET", "/api/v1/params", http.NoBody)
-					r.RemoteAddr = "192.0.2.1:12345"
-					r.Header.Set(header, ip)
-					w := httptest.NewRecorder()
-					h.ServeHTTP(w, r)
-					return w.Code
-				}
-				for range rateLimitBurst {
-					require.Equal(t, http.StatusOK, request("8.8.8.8"))
-				}
-				require.Equal(t, http.StatusTooManyRequests, request("8.8.8.8"))
-				want := http.StatusTooManyRequests
-				if trust {
-					want = http.StatusOK
-				}
-				assert.Equal(t, want, request("9.9.9.9"))
+				synctest.Test(t, func(t *testing.T) {
+					s, err := New(nil, "test", Config{Domain: []string{"localhost"}, TrustProxyHeaders: trust})
+					require.NoError(t, err)
+					h := s.routes()
+					request := func(ip string) int {
+						r := httptest.NewRequest("GET", "/api/v1/params", http.NoBody)
+						r.RemoteAddr = "192.0.2.1:12345"
+						r.Header.Set(header, ip)
+						w := httptest.NewRecorder()
+						h.ServeHTTP(w, r)
+						return w.Code
+					}
+					for range rateLimitBurst {
+						require.Equal(t, http.StatusOK, request("8.8.8.8"))
+					}
+					require.Equal(t, http.StatusTooManyRequests, request("8.8.8.8"))
+					want := http.StatusTooManyRequests
+					if trust {
+						want = http.StatusOK
+					}
+					assert.Equal(t, want, request("9.9.9.9"))
+				})
 			})
 		}
 	}
@@ -67,27 +70,29 @@ func TestServer_proxyHeaderRateLimit(t *testing.T) {
 
 func TestServer_rateLimitAcrossPaths(t *testing.T) {
 	// regression: buckets were keyed by ip+path, so each pin guess or unique url got a fresh budget
-	s, err := New(nil, "test", Config{Domain: []string{"localhost"}})
-	require.NoError(t, err)
-	h := s.routes()
-	request := func(method, path string, body io.Reader) int {
-		r := httptest.NewRequest(method, path, body)
-		r.RemoteAddr = "192.0.2.1:12345"
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, r)
-		return w.Code
-	}
-	for i := range rateLimitBurst {
-		require.NotEqual(t, http.StatusTooManyRequests, request("GET", fmt.Sprintf("/x%d", i), http.NoBody), "request %d", i)
-	}
-	assert.Equal(t, http.StatusTooManyRequests, request("GET", "/api/v1/message/key/12345", http.NoBody))
-	assert.Equal(t, http.StatusOK, request("GET", "/static/css/main.css", http.NoBody), "static assets are not rate limited")
-	assert.Equal(t, http.StatusTooManyRequests, request("POST", "/static/x", strings.NewReader("body")),
-		"a non-GET request under /static must not skip the limiter")
-	assert.Equal(t, http.StatusTooManyRequests, request("GET", "/static/x", strings.NewReader("body")),
-		"a GET with a body under /static must not skip the limiter")
-	assert.Equal(t, http.StatusTooManyRequests, request("POST", "/generate-link", strings.NewReader(strings.Repeat("x", 200*1024))),
-		"rate limit must reject before the size limit reads the body")
+	synctest.Test(t, func(t *testing.T) {
+		s, err := New(nil, "test", Config{Domain: []string{"localhost"}})
+		require.NoError(t, err)
+		h := s.routes()
+		request := func(method, path string, body io.Reader) int {
+			r := httptest.NewRequest(method, path, body)
+			r.RemoteAddr = "192.0.2.1:12345"
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			return w.Code
+		}
+		for i := range rateLimitBurst {
+			require.NotEqual(t, http.StatusTooManyRequests, request("GET", fmt.Sprintf("/x%d", i), http.NoBody), "request %d", i)
+		}
+		assert.Equal(t, http.StatusTooManyRequests, request("GET", "/api/v1/message/key/12345", http.NoBody))
+		assert.Equal(t, http.StatusOK, request("GET", "/static/css/main.css", http.NoBody), "static assets are not rate limited")
+		assert.Equal(t, http.StatusTooManyRequests, request("POST", "/static/x", strings.NewReader("body")),
+			"a non-GET request under /static must not skip the limiter")
+		assert.Equal(t, http.StatusTooManyRequests, request("GET", "/static/x", strings.NewReader("body")),
+			"a GET with a body under /static must not skip the limiter")
+		assert.Equal(t, http.StatusTooManyRequests, request("POST", "/generate-link", strings.NewReader(strings.Repeat("x", 200*1024))),
+			"rate limit must reject before the size limit reads the body")
+	})
 }
 
 func TestServer_getMessageHeadKeepsMessage(t *testing.T) {
