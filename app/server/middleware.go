@@ -169,6 +169,24 @@ func SecurityHeaders(protocol string) func(http.Handler) http.Handler {
 	}
 }
 
+// skipStatic applies mw to every request except static asset reads, so a page load spends no rate limit
+// on them. Only bodiless GET and HEAD skip: middleware runs before routing, and net/http accepts a body
+// on any method, which SizeLimit would still buffer.
+func skipStatic(mw func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		wrapped := mw(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			bodiless := r.ContentLength == 0 && len(r.TransferEncoding) == 0
+			isRead := (r.Method == http.MethodGet || r.Method == http.MethodHead) && bodiless
+			if isRead && strings.HasPrefix(r.URL.Path, "/static/") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			wrapped.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireHTMX middleware rejects requests without HX-Request header.
 // Used for web form routes that require client-side JavaScript encryption.
 func RequireHTMX(next http.Handler) http.Handler {

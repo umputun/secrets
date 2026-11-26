@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-pkgz/lgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -564,6 +566,44 @@ func TestServer_loadMessageCtrl(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServer_messageStorageFailure(t *testing.T) {
+	// regression: a storage failure while loading a message was reported as "message expired or deleted"
+	eng := &messager.EngineMock{
+		LoadFunc: func(ctx context.Context, key string) (*store.Message, error) {
+			return nil, fmt.Errorf("load message: %w", errors.New("database is locked"))
+		},
+	}
+	m := messager.New(eng, messager.Crypt{Key: "123456789012345678901234567"}, messager.Params{MaxDuration: time.Hour, MaxPinAttempts: 3})
+	srv, err := New(m, "1", Config{Domain: []string{"example.com"}, PinSize: 5, MaxPinAttempts: 3, MaxExpire: time.Hour})
+	require.NoError(t, err)
+
+	t.Run("message page", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/message/somekey12345", http.NoBody)
+		req.SetPathValue(pathKeyParam, "somekey12345")
+		rr := httptest.NewRecorder()
+		srv.showMessageViewCtrl(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), "internal error, please try again later")
+		assert.NotContains(t, rr.Body.String(), "expired or deleted")
+		assert.NotContains(t, rr.Body.String(), "database is locked")
+	})
+
+	t.Run("load message", func(t *testing.T) {
+		formData := url.Values{"key": {"somekey12345"}, "pin": {"1", "2", "3", "4", "5"}}
+		req := httptest.NewRequest(http.MethodPost, "/load-message", strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srv.loadMessageCtrl(rr, req)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+		assert.Contains(t, rr.Body.String(), "internal error")
+		assert.NotContains(t, rr.Body.String(), "expired or deleted")
+		assert.NotContains(t, rr.Body.String(), "database is locked")
+		assert.Empty(t, eng.IncErrCalls())
+	})
 }
 
 func TestServer_showMessageViewCtrl_NoPinMessage(t *testing.T) {
@@ -1730,6 +1770,10 @@ func TestServer_loadMessageCtrl_ClientEncHTMX(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "decryption key is missing")
 		assert.Contains(t, rr.Body.String(), "URL fragments")
+
+		loaded, err := msg.LoadMessage(t.Context(), createdMsg.Key, "12345")
+		require.NoError(t, err, "message must survive a read without the decryption key")
+		assert.Equal(t, "encrypted-blob-base64", string(loaded.Data))
 	})
 
 	t.Run("non-HTMX request for ClientEnc message returns blob", func(t *testing.T) {
@@ -1869,6 +1913,31 @@ func TestServer_sendEmailCtrl(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Len(t, mock.SendCalls(), 1)
 		assert.Equal(t, "user@example.com", mock.SendCalls()[0].Req.To)
+	})
+
+	t.Run("send failure log masks recipient", func(t *testing.T) {
+		var out bytes.Buffer
+		lgr.Setup(lgr.Out(&out))
+		t.Cleanup(func() { lgr.Setup() })
+		mock := &mocks.EmailSenderMock{
+			GetDefaultFromNameFunc: func() string { return "Test" },
+			SendFunc: func(ctx context.Context, req email.Request) error {
+				return fmt.Errorf("failed to send email to %q: 550 rejected", []string{req.To})
+			},
+		}
+		srvWithEmail := srv
+		srvWithEmail.emailSender = mock
+		form := url.Values{
+			"link": {"https://example.com/message/123"}, "to": {"someone.private@example.com"},
+			"subject": {"Test Subject"}, "from_name": {"Sender"},
+		}
+		req := httptest.NewRequest("POST", "/send-email", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		srvWithEmail.sendEmailCtrl(rr, req)
+		assert.Contains(t, out.String(), "550 rejected")
+		assert.Contains(t, out.String(), "s***@example.com")
+		assert.NotContains(t, out.String(), "someone.private@example.com")
 	})
 
 	t.Run("send failure shows auth error", func(t *testing.T) {

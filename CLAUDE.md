@@ -76,7 +76,7 @@ goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 type Messager interface {
     MakeMessage(req messager.MsgReq) (result *store.Message, err error)
     LoadMessage(key, pin string) (msg *store.Message, err error)
-    Info(ctx context.Context, key string) (messager.MessageInfo, error) // HasPin and IsFile flags from one load, without decrypting
+    Info(ctx context.Context, key string) (messager.MessageInfo, error) // HasPin, IsFile and ClientEnc flags from one load, without decrypting
 }
 ```
 
@@ -143,6 +143,7 @@ Route-based encryption where UI uses client-side encryption and API uses server-
 **Implementation details:**
 - `msg.ClientEnc` field determines encryption/decryption path on retrieval
 - `Info().IsFile` is false for `ClientEnc=true` messages (server cannot inspect content)
+- `Info().ClientEnc` lets `/load-message` reject an HTMX (no `#key`) read before `LoadMessage`, so a link stripped of its fragment does not consume the message
 - Size limits adjusted: `MaxFileSize * 1.4` for base64 overhead (UI route)
 - Client-side crypto module: `app/server/assets/static/js/crypto.js`
 
@@ -185,6 +186,11 @@ When `--allow-no-pin` / `ALLOW_NO_PIN` is enabled, secrets can be created withou
 - **Logger middleware** - Logs requests with masked sensitive paths (PINs) and anonymized IPs
   - Must run after HashedIP middleware (reads hashed IP from context)
 - **Middleware chain order matters**: rest.RealIP (when enabled) → HashedIP → Logger
+- **Rate limiter** (tollbooth): one bucket per IP for all routes (`SetIgnoreURL(true)`, 1-minute bucket TTL), bodiless GET/HEAD under `/static/` exempt via `skipStatic`, and it runs before `rest.SizeLimit`, which reads the whole body. Keying by path would give every `/api/v1/message/{key}/{pin}` guess its own bucket
+- **PIN attempts**: `LoadMessage` calls `IncErr` before the bcrypt check, so concurrent guesses can't exceed `PIN_ATTEMPTS`; correct-PIN reads count too, and an attempt past the limit returns `ErrLoadRejected` without removing (an in-flight attempt within the limit claims or deletes; on the last allowed attempt that delete ignores client disconnect, earlier ones keep the request context so a disconnected reader can retry)
+- **Storage errors**: `SQLite.Load` and `SQLite.IncErr` return `ErrLoadRejected` only for a missing row and wrap anything else. `LoadMessage` maps those to `ErrInternal` (no storage text reaches the caller), and the web Info path renders 500 on the message page and a retryable pin-form error on `/load-message`, never "expired or deleted"
+- **HEAD on `GET /api/v1/message/{key}/{pin}`** returns 405: ServeMux routes HEAD to GET patterns, and serving it would consume the message
+- **429 and 5xx on `/generate-link`**: handled in app.js `htmx:responseError` (form reset plus an inline error telling the user to reload), never with `hx-target-<status>`: the form's outerHTML swap would replace the target and skip the encryption-state reset. Reload, because file mode detaches `#file` on submit
 
 ### API Endpoints
 - `POST /api/v1/message` - Create encrypted message
@@ -262,11 +268,11 @@ Core libraries used:
 ### Version and Extensions
 - HTMX v2.0.3 with response-targets extension for proper error handling
 - Server-driven UI pattern with minimal client-side JavaScript
-- Uses `hx-target-[status]` attributes for HTTP status-specific targeting (400, 403, 404, 500)
+- Uses `hx-target-[status]` attributes for HTTP status-specific targeting (400, 401, 403, 404)
 
 ### Form Handling Pattern
 - Forms use `hx-post` with `hx-target="#form-card"` and `hx-swap="outerHTML"` to replace entire form with result
-- Error handling via response-targets: `hx-target-400="#form-errors"` for validation errors
+- Error handling via response-targets: `hx-target-400="#form-card"` re-renders the form with validation errors
 - Loading indicators with `hx-indicator="#form-spinner"` for visual feedback during requests
 
 ### Theme System

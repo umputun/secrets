@@ -265,6 +265,9 @@ func TestIsValidEmail(t *testing.T) {
 		{"invalid with display name", "John Doe <john@example.com>", false},
 		{"invalid empty", "", false},
 		{"invalid spaces", "user @example.com", false},
+		{"invalid mailto params in domain", "victim@example.com?from=ceo%40corp.com&subject=x&y=", false},
+		{"invalid question mark in local part", "a?b@example.com", false},
+		{"invalid fragment", "victim@example.com#x", false},
 	}
 
 	for _, tt := range tests {

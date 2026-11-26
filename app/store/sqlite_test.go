@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"os"
@@ -65,6 +66,13 @@ func TestSQLite_Load_NotFound(t *testing.T) {
 
 	_, err = s.Load(t.Context(), "nonexistent")
 	assert.Equal(t, ErrLoadRejected, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = s.Load(ctx, "nonexistent")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrLoadRejected, "a storage failure must not read as a missing message")
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestSQLite_IncErr(t *testing.T) {
@@ -93,6 +101,13 @@ func TestSQLite_IncErr(t *testing.T) {
 	// non-existent key
 	_, err = s.IncErr(t.Context(), "nokey")
 	assert.Equal(t, ErrLoadRejected, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = s.IncErr(ctx, "errkey")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrLoadRejected, "a storage failure must not read as a missing message")
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestSQLite_IncErr_Concurrent(t *testing.T) {

@@ -417,8 +417,16 @@ function setupEncryptionHandlers() {
     document.body.addEventListener('htmx:targetError', resetEncryptionState);
     document.body.addEventListener('htmx:responseError', function(evt) {
         const status = evt.detail.xhr?.status;
-        if (status && status !== 400 && status !== 401 && status !== 500) {
+        if (status && status !== 400 && status !== 401) {
             resetEncryptionState();
+        }
+        // no hx-target for these: the form's outerHTML swap would replace the target and skip the reset.
+        // file mode detached #file on submit, so a retry needs a reload
+        if (evt.detail.elt?.id !== 'secret-form') return;
+        if (status === 429) {
+            showEncryptionError('Too many requests, please wait a moment, then reload the page and try again.');
+        } else if (status >= 500) {
+            showEncryptionError('Server error, please reload the page and try again.');
         }
     });
 
@@ -529,8 +537,6 @@ function handleAfterSwap(evt) {
         encryptionState.key = null;
         encryptionState.done = false;
     } else if (evt.detail.target && evt.detail.target.id === 'form-card') {
-        clearFormFields();
-    } else if (evt.detail.target && evt.detail.target.id === 'notifications') {
         clearFormFields();
     }
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/didip/tollbooth/v8"
+	"github.com/didip/tollbooth/v8/limiter"
 	log "github.com/go-pkgz/lgr"
 	"github.com/go-pkgz/rest"
 	"github.com/go-pkgz/routegroup"
@@ -23,6 +24,12 @@ import (
 	"github.com/umputun/secrets/v2/app/messager"
 	"github.com/umputun/secrets/v2/app/server/assets"
 	"github.com/umputun/secrets/v2/app/store"
+)
+
+// per-ip limit for all non-static routes together
+const (
+	rateLimitPerSec = 10
+	rateLimitBurst  = 30
 )
 
 // Config is a configuration for the server
@@ -152,6 +159,7 @@ func (s Server) Run(ctx context.Context) error {
 		Addr:              port,
 		Handler:           s.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second, // bounds a trickled body; its read would otherwise outlive the 60s Timeout
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
@@ -196,6 +204,11 @@ func (s Server) routes() http.Handler {
 		router.Use(rest.RealIP)
 	}
 
+	// keyed by ip only, a path key gives every pin guess and unique url its own bucket;
+	// the ttl bounds memory, tollbooth's default keeps buckets for 10 years
+	lmt := tollbooth.NewLimiter(rateLimitPerSec, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Minute})
+	lmt.SetBurst(rateLimitBurst).SetIgnoreURL(true)
+
 	// global middleware - applied to all routes
 	router.Use(
 		HashedIP(s.logSecret),
@@ -204,8 +217,8 @@ func (s Server) routes() http.Handler {
 		Timeout(60*time.Second),
 		rest.AppInfo("secrets", "Umputun", s.version),
 		rest.Ping,
+		skipStatic(tollbooth.HTTPMiddleware(lmt)), // before SizeLimit, which reads the whole body
 		rest.SizeLimit(sizeLimit),
-		tollbooth.HTTPMiddleware(tollbooth.NewLimiter(10, nil)),
 	)
 
 	// security headers - enabled by default, disabled with --proxy-security-headers
@@ -327,6 +340,12 @@ func (s Server) saveMessageCtrl(w http.ResponseWriter, r *http.Request) {
 
 // GET /v1/message/{key}/{pin}
 func (s Server) getMessageCtrl(w http.ResponseWriter, r *http.Request) {
+	// ServeMux routes HEAD to GET patterns; a HEAD read would consume the message and drop the body
+	if r.Method == http.MethodHead {
+		w.Header().Set("Allow", http.MethodGet)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 	key, pin := r.PathValue("key"), r.PathValue("pin")
 	if key == "" || pin == "" || len(pin) != s.cfg.PinSize {
 		log.Print("[WARN] no valid key or pin in get request")

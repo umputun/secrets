@@ -137,7 +137,7 @@ func (s *SQLite) Load(ctx context.Context, key string) (*Message, error) {
 	}
 	if err != nil {
 		log.Printf("[ERROR] failed to load message: %v", err)
-		return nil, ErrLoadRejected
+		return nil, fmt.Errorf("load message: %w", err)
 	}
 
 	msg.Exp = time.Unix(expUnix, 0)
@@ -162,7 +162,7 @@ func (s *SQLite) IncErr(ctx context.Context, key string) (int, error) {
 	}
 	if err != nil {
 		log.Printf("[ERROR] failed to increment errors: %v", err)
-		return 0, ErrLoadRejected
+		return 0, fmt.Errorf("increment errors: %w", err)
 	}
 
 	return count, nil

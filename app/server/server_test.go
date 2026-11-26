@@ -51,7 +51,7 @@ func TestServer_proxyHeaderRateLimit(t *testing.T) {
 					h.ServeHTTP(w, r)
 					return w.Code
 				}
-				for range 10 {
+				for range rateLimitBurst {
 					require.Equal(t, http.StatusOK, request("8.8.8.8"))
 				}
 				require.Equal(t, http.StatusTooManyRequests, request("8.8.8.8"))
@@ -63,6 +63,58 @@ func TestServer_proxyHeaderRateLimit(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestServer_rateLimitAcrossPaths(t *testing.T) {
+	// regression: buckets were keyed by ip+path, so each pin guess or unique url got a fresh budget
+	s, err := New(nil, "test", Config{Domain: []string{"localhost"}})
+	require.NoError(t, err)
+	h := s.routes()
+	request := func(method, path string, body io.Reader) int {
+		r := httptest.NewRequest(method, path, body)
+		r.RemoteAddr = "192.0.2.1:12345"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	for i := range rateLimitBurst {
+		require.NotEqual(t, http.StatusTooManyRequests, request("GET", fmt.Sprintf("/x%d", i), http.NoBody), "request %d", i)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, request("GET", "/api/v1/message/key/12345", http.NoBody))
+	assert.Equal(t, http.StatusOK, request("GET", "/static/css/main.css", http.NoBody), "static assets are not rate limited")
+	assert.Equal(t, http.StatusTooManyRequests, request("POST", "/static/x", strings.NewReader("body")),
+		"a non-GET request under /static must not skip the limiter")
+	assert.Equal(t, http.StatusTooManyRequests, request("GET", "/static/x", strings.NewReader("body")),
+		"a GET with a body under /static must not skip the limiter")
+	assert.Equal(t, http.StatusTooManyRequests, request("POST", "/generate-link", strings.NewReader(strings.Repeat("x", 200*1024))),
+		"rate limit must reject before the size limit reads the body")
+}
+
+func TestServer_getMessageHeadKeepsMessage(t *testing.T) {
+	// regression: the GET route also served HEAD, which consumed the one-time message and returned no body
+	ts, teardown := prepTestServer(t)
+	defer teardown()
+	client := http.Client{Timeout: time.Second}
+
+	resp, err := client.Post(ts.URL+"/api/v1/message", "application/json",
+		strings.NewReader(`{"message": "my secret message","exp": 600,"pin": "12345"}`))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var saved struct{ Key string }
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&saved))
+	url := fmt.Sprintf("%s/api/v1/message/%s/12345", ts.URL, saved.Key)
+
+	resp, err = client.Head(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
+	assert.Equal(t, http.MethodGet, resp.Header.Get("Allow"))
+
+	resp, err = client.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "message must survive the HEAD request")
 }
 
 func TestServer_saveAndLoadMemory(t *testing.T) {
